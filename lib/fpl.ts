@@ -78,6 +78,24 @@ export interface ManagerHistory {
   }>
 }
 
+export interface LeagueTeam {
+  entry: number
+  entry_name: string
+  player_name: string
+  rank: number
+  last_rank: number
+  total: number
+  event_total: number
+}
+
+export interface TeamWithGameweek extends Omit<LeagueTeam, 'entry_name' | 'player_name'> {
+  id: number
+  name: string
+  playerName: string
+  gameweek: number
+  movement: "up" | "down" | "none"
+}
+
 export async function fetchWithCache(url: string, revalidate = 300) {
   const response = await fetch(url, {
     next: { revalidate },
