@@ -1,7 +1,8 @@
+import { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const managerId = params.id
