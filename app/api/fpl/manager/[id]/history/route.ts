@@ -1,17 +1,11 @@
 import { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
-type Props = {
-  params: {
-    id: string
-  }
-}
-
 export async function GET(
-  request: NextRequest,
-  props: Props
+  _request: NextRequest,
+  { params }: { params: { id: string } }
 ) {
-  const managerId = props.params.id
+  const managerId = params.id
 
   try {
     const response = await fetch(
