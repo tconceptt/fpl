@@ -24,9 +24,9 @@ export function NavigationTabs() {
       active: pathname === "/stats"
     },
     {
-      name: "Head to Head",
-      href: "/h2h",
-      active: pathname === "/h2h"
+      name: "Qitawrari Hub",
+      href: "/qitawrari",
+      active: pathname === "/qitawrari"
     }
   ]
 

@@ -4,6 +4,7 @@ import type { LeagueTeam } from "@/lib/fpl";
 import { formatPoints } from "@/lib/fpl";
 import { ArrowDown, ArrowUp, Flame, Trophy } from "lucide-react";
 import { fplApiRoutes } from "@/lib/routes";
+
 interface GameweekStats {
   currentGameweek: number;
   currentLeader: {

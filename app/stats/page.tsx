@@ -5,9 +5,6 @@ import { formatPoints } from "@/lib/fpl"
 import { Medal, TrendingDown, TrendingUp, Trophy, Wand2 } from "lucide-react"
 import { getStatsData } from "./getStatData"
 
-
-
-
 export default async function StatsPage() {
   const data = await getStatsData()
 
@@ -20,8 +17,6 @@ export default async function StatsPage() {
             After {data.finishedGameweeks} completed gameweeks
           </p>
         </div>
-
-     
 
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="relative overflow-hidden">

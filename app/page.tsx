@@ -57,8 +57,6 @@ export default async function Page() {
           <p className="text-lg text-white/60">Live League Standings</p>
         </div>
 
-     
-
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
