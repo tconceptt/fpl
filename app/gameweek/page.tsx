@@ -37,12 +37,22 @@ interface GameweekStats {
 
 async function getGameweekStats(): Promise<GameweekStats> {
   try {
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': 'https://fantasy.premierleague.com/',
+      'Origin': 'https://fantasy.premierleague.com'
+    }
+
     const [leagueResponse, bootstrapResponse] = await Promise.all([
       fetch(`https://fantasy.premierleague.com/api/leagues-classic/${process.env.FPL_LEAGUE_ID}/standings/`, {
-        next: { revalidate: 300 }
+        next: { revalidate: 300 },
+        headers
       }),
       fetch('https://fantasy.premierleague.com/api/bootstrap-static/', {
-        next: { revalidate: 300 }
+        next: { revalidate: 300 },
+        headers
       })
     ])
 
@@ -74,7 +84,10 @@ async function getGameweekStats(): Promise<GameweekStats> {
 
     // Fetch chip usage for all managers with error handling
     const managerHistoryPromises = standings.map((team: LeagueTeam) => 
-      fetch(`http://localhost:3000/api/fpl/manager/${team.entry}/history`)
+      fetch(`https://fantasy.premierleague.com/api/entry/${team.entry}/history/`, {
+        next: { revalidate: 300 },
+        headers
+      })
         .then(res => {
           if (!res.ok) throw new Error(`Failed to fetch history for manager ${team.entry}`)
           return res.json()
