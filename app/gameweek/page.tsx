@@ -1,10 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { ArrowUp, ArrowDown, Flame, Trophy } from "lucide-react";
-import { formatPoints } from "@/lib/fpl";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LeagueTeam } from "@/lib/fpl";
-import { NavigationTabs } from "../components/navigation-tabs";
-
+import { formatPoints } from "@/lib/fpl";
+import { ArrowDown, ArrowUp, Flame, Trophy } from "lucide-react";
+import { fplApiRoutes } from "@/lib/routes";
 interface GameweekStats {
   currentGameweek: number;
   currentLeader: {
@@ -44,7 +43,7 @@ async function getGameweekStats(): Promise<GameweekStats> {
 
     const [leagueResponse, bootstrapResponse] = await Promise.all([
       fetch(
-        `https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/`,
+        fplApiRoutes.standings(leagueId),
         {
           next: { revalidate: 300 },
         }
@@ -55,7 +54,7 @@ async function getGameweekStats(): Promise<GameweekStats> {
           );
         return res;
       }),
-      fetch("https://fantasy.premierleague.com/api/bootstrap-static/", {
+      fetch(fplApiRoutes.bootstrap, {
         next: { revalidate: 300 },
       }).then((res) => {
         if (!res.ok)
@@ -97,7 +96,7 @@ async function getGameweekStats(): Promise<GameweekStats> {
     // Fetch chip usage for all managers with error handling
     const managerHistoryPromises = standings.map((team: LeagueTeam) =>
       fetch(
-        `https://fantasy.premierleague.com/api/entry/${team.entry}/history/`,
+        fplApiRoutes.teamHistory(team.entry.toString()),
         {
           next: { revalidate: 300 },
         }
@@ -222,8 +221,6 @@ export default async function GameweekPage() {
           </h1>
           <p className="text-lg text-white/60">Live updates and insights</p>
         </div>
-
-        <NavigationTabs />
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="relative overflow-hidden">

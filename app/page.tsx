@@ -1,10 +1,10 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { NavigationTabs } from "./components/navigation-tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Trophy, ArrowUp, ArrowDown, Minus } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatPoints } from "@/lib/fpl"
+import { fplApiRoutes } from "@/lib/routes"
 import { cn } from "@/lib/utils"
+import { ArrowDown, ArrowUp, Minus, Trophy } from "lucide-react"
 
 interface LeagueStanding {
   id: number
@@ -20,16 +20,9 @@ interface LeagueStanding {
 
 async function getLeagueData() {
   const response = await fetch(
-    `https://fantasy.premierleague.com/api/leagues-classic/${process.env.FPL_LEAGUE_ID}/standings/`,
+    fplApiRoutes.standings(process.env.FPL_LEAGUE_ID || ""),
     {
       next: { revalidate: 300 },
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://fantasy.premierleague.com/',
-        'Origin': 'https://fantasy.premierleague.com'
-      }
     }
   )
 
@@ -64,7 +57,7 @@ export default async function Page() {
           <p className="text-lg text-white/60">Live League Standings</p>
         </div>
 
-        <NavigationTabs />
+     
 
         <Card>
           <CardHeader>
