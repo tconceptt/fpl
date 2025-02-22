@@ -96,7 +96,7 @@ export default function QitawrariPage() {
                     <div className="font-medium">Season 2022/23</div>
                     <div className="text-white/60">The Original Qitawrari</div>
                   </div>
-                  <div className="ml-auto font-bold text-amber-500">John Doe</div>
+                  <div className="ml-auto font-bold text-amber-500"> T</div>
                 </div>
                 <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5">
                   <div className="text-2xl">👑</div>
