@@ -3,6 +3,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { ArrowUp, ArrowDown, Flame, Trophy } from "lucide-react"
 import { formatPoints } from "@/lib/fpl"
 import type { LeagueTeam } from "@/lib/fpl"
+import { NavigationTabs } from "../components/navigation-tabs"
 
 interface GameweekStats {
   currentGameweek: number
@@ -184,6 +185,8 @@ export default async function GameweekPage() {
           <h1 className="text-3xl font-bold tracking-tight">Gameweek {stats.currentGameweek} Stats</h1>
           <p className="text-lg text-white/60">Live updates and insights</p>
         </div>
+
+        <NavigationTabs />
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="relative overflow-hidden">

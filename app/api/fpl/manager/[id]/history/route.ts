@@ -1,8 +1,7 @@
-import { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
 export async function GET(
-  _request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   const managerId = params.id
@@ -16,7 +15,10 @@ export async function GET(
     )
 
     if (!response.ok) {
-      throw new Error('Failed to fetch manager history')
+      return NextResponse.json(
+        { error: 'Failed to fetch manager history' },
+        { status: 500 }
+      )
     }
 
     const data = await response.json()
