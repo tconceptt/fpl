@@ -37,18 +37,22 @@ interface GameweekStats {
 
 async function getGameweekStats(): Promise<GameweekStats> {
   try {
-    const [leagueResponse, gameweekResponse] = await Promise.all([
-      fetch('http://localhost:3000/api/fpl/league', { next: { revalidate: 300 } }),
-      fetch('http://localhost:3000/api/fpl/gameweek/current', { next: { revalidate: 300 } })
+    const [leagueResponse, bootstrapResponse] = await Promise.all([
+      fetch(`https://fantasy.premierleague.com/api/leagues-classic/${process.env.FPL_LEAGUE_ID}/standings/`, {
+        next: { revalidate: 300 }
+      }),
+      fetch('https://fantasy.premierleague.com/api/bootstrap-static/', {
+        next: { revalidate: 300 }
+      })
     ])
 
-    if (!leagueResponse.ok || !gameweekResponse.ok) {
+    if (!leagueResponse.ok || !bootstrapResponse.ok) {
       throw new Error('Failed to fetch initial data')
     }
 
-    const [leagueData, gameweekData] = await Promise.all([
+    const [leagueData, bootstrapData] = await Promise.all([
       leagueResponse.json(),
-      gameweekResponse.json()
+      bootstrapResponse.json()
     ])
 
     const standings = leagueData.standings.results
@@ -103,7 +107,7 @@ async function getGameweekStats(): Promise<GameweekStats> {
 
       const team = standings[index]
       const currentGameweekChip = history.history.chips.find(
-        (chip: { event: number; name: string }) => chip.event === gameweekData.currentGameweek
+        (chip: { event: number; name: string }) => chip.event === bootstrapData.currentGameweek
       )
       
       if (currentGameweekChip) {
@@ -153,7 +157,7 @@ async function getGameweekStats(): Promise<GameweekStats> {
     ]
 
     return {
-      currentGameweek: gameweekData.currentGameweek,
+      currentGameweek: bootstrapData.currentGameweek,
       currentLeader: {
         name: currentLeader.player_name,
         team: currentLeader.entry_name,

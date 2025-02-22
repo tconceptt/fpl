@@ -19,9 +19,10 @@ interface LeagueStanding {
 }
 
 async function getLeagueData() {
-  const response = await fetch(`http://localhost:3000/api/fpl/league`, {
-    next: { revalidate: 300 }
-  })
+  const response = await fetch(
+    `https://fantasy.premierleague.com/api/leagues-classic/${process.env.FPL_LEAGUE_ID}/standings/`,
+    { next: { revalidate: 300 } }
+  )
 
   if (!response.ok) {
     throw new Error('Failed to fetch data')
