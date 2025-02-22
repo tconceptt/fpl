@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+type Props = {
+  params: { id: string }
+}
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: Props
 ) {
-  const managerId = params.id
+  const managerId = context.params.id
 
   try {
     const [managerInfo, managerHistory] = await Promise.all([
