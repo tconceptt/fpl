@@ -42,21 +42,11 @@ async function getGameweekStats(): Promise<GameweekStats> {
       throw new Error("FPL_LEAGUE_ID environment variable is not set");
     }
 
-    const headers = {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "*/*",
-      "Accept-Language": "en-US,en;q=0.9",
-      Referer: "https://fantasy.premierleague.com/",
-      Origin: "https://fantasy.premierleague.com",
-    };
-
     const [leagueResponse, bootstrapResponse] = await Promise.all([
       fetch(
         `https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/`,
         {
           next: { revalidate: 300 },
-          headers,
         }
       ).then((res) => {
         if (!res.ok)
@@ -67,7 +57,6 @@ async function getGameweekStats(): Promise<GameweekStats> {
       }),
       fetch("https://fantasy.premierleague.com/api/bootstrap-static/", {
         next: { revalidate: 300 },
-        headers,
       }).then((res) => {
         if (!res.ok)
           throw new Error(
@@ -111,7 +100,6 @@ async function getGameweekStats(): Promise<GameweekStats> {
         `https://fantasy.premierleague.com/api/entry/${team.entry}/history/`,
         {
           next: { revalidate: 300 },
-          headers,
         }
       )
         .then((res) => {
