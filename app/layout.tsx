@@ -17,6 +17,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "FPL Summarizer",
   description: "Fantasy Premier League mini-league statistics and insights",
+  icons: {
+    icon: "/images/fav.png",
+    shortcut: "/images/fav.png",
+    apple: "/images/fav.png",
+    other: {
+      rel: "icon",
+      url: "/images/fav.png",
+    },
+  },
 };
 
 export default function RootLayout({
