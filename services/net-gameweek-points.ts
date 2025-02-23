@@ -3,6 +3,7 @@ import { fplApiRoutes } from "@/lib/routes";
 interface GameweekHistory {
   event: number;
   points: number;
+  total_points: number;
   event_transfers_cost: number;
   event_transfers: number;
   rank: number;
