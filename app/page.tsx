@@ -5,6 +5,7 @@ import { formatPoints } from "@/lib/fpl"
 import { fplApiRoutes } from "@/lib/routes"
 import { cn } from "@/lib/utils"
 import { ArrowDown, ArrowUp, Minus, Trophy } from "lucide-react"
+import { getNetGameweekPoints } from "@/services/net-gameweek-points"
 
 interface LeagueStanding {
   id: number
@@ -18,22 +19,59 @@ interface LeagueStanding {
   has_played: boolean
 }
 
+interface StandingWithNetPoints extends LeagueStanding {
+  netPoints: number | null;
+}
+
+interface BootstrapEvent {
+  id: number;
+  is_current: boolean;
+}
+
+async function getCurrentGameweek(): Promise<number> {
+  const response = await fetch(fplApiRoutes.bootstrap, {
+    next: { revalidate: 300 },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch bootstrap data');
+  }
+
+  const data = await response.json();
+  return data.events.find((event: BootstrapEvent) => event.is_current).id;
+}
+
 async function getLeagueData() {
-  const response = await fetch(
-    fplApiRoutes.standings(process.env.FPL_LEAGUE_ID || ""),
-    {
-      next: { revalidate: 300 },
-    }
-  )
+  const [response, currentGameweek] = await Promise.all([
+    fetch(
+      fplApiRoutes.standings(process.env.FPL_LEAGUE_ID || ""),
+      {
+        next: { revalidate: 300 },
+      }
+    ),
+    getCurrentGameweek()
+  ]);
 
   if (!response.ok) {
     throw new Error('Failed to fetch data')
   }
 
   const data = await response.json()
+  
+  // Fetch net points for each team
+  const standingsWithNetPoints = await Promise.all(
+    data.standings.results.map(async (team: LeagueStanding) => {
+      const netPoints = await getNetGameweekPoints(team.entry.toString(), currentGameweek);
+      return {
+        ...team,
+        netPoints
+      };
+    })
+  );
+
   return {
     leagueName: data.league.name,
-    standings: data.standings.results as LeagueStanding[]
+    standings: standingsWithNetPoints as StandingWithNetPoints[]
   }
 }
 
@@ -71,6 +109,7 @@ export default async function Page() {
                   <TableHead className="w-12 text-white/60">Rank</TableHead>
                   <TableHead className="text-white/60">Team</TableHead>
                   <TableHead className="text-right text-white/60">GW</TableHead>
+                  <TableHead className="text-right text-white/60">GW Net</TableHead>
                   <TableHead className="text-right text-white/60">Total</TableHead>
                   <TableHead className="w-20 text-right text-white/60">Movement</TableHead>
                 </TableRow>
@@ -98,6 +137,12 @@ export default async function Page() {
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {formatPoints(team.event_total)}
+                      </TableCell>
+                      <TableCell className={cn(
+                        "text-right font-medium",
+                        team.netPoints !== null && team.netPoints !== team.event_total && "text-yellow-500"
+                      )}>
+                        {team.netPoints !== null ? formatPoints(team.netPoints) : "-"}
                       </TableCell>
                       <TableCell className="text-right font-bold">
                         {formatPoints(team.total)}
