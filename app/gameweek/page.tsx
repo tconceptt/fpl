@@ -1,10 +1,11 @@
+import { GameweekSelector } from "@/components/gameweek-selector";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LeagueTeam } from "@/lib/fpl";
 import { formatPoints } from "@/lib/fpl";
-import { ArrowDown, ArrowUp, Flame, Trophy } from "lucide-react";
+import { getUrlParam } from "@/lib/helpers";
 import { fplApiRoutes } from "@/lib/routes";
-import { GameweekSelector } from "@/components/gameweek-selector";
+import { ArrowDown, ArrowUp, Flame, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
 
 interface GameweekTeamData {
@@ -320,16 +321,14 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
   }
 }
 
-interface PageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
-}
 
-export default async function GameweekPage({ searchParams }: PageProps) {
+export default async function GameweekPage() {
   // First, get the current gameweek
+  const gameweek = await getUrlParam("gameweek");
   const currentGameweek = await getCurrentGameweek();
-  
+
   // Then, determine the selected gameweek
-  const requestedGameweek = searchParams.gameweek ? parseInt(searchParams.gameweek as string) : currentGameweek;
+  const requestedGameweek = gameweek ? parseInt(gameweek as string) : currentGameweek;
   
   // Validate the requested gameweek
   if (requestedGameweek < 1 || requestedGameweek > currentGameweek) {

@@ -8,6 +8,7 @@ import { ArrowDown, ArrowUp, Minus, Trophy } from "lucide-react"
 import { getTeamHistory } from "@/services/net-gameweek-points"
 import { GameweekSelector } from "@/components/gameweek-selector"
 import { notFound } from "next/navigation"
+import { getUrlParam } from "@/lib/helpers"
 
 interface LeagueStanding {
   id: number
@@ -159,12 +160,10 @@ function getRankMovement(currentRank: number, lastRank: number) {
   return { icon: Minus, color: "text-white/60", diff: 0 }
 }
 
-interface PageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
-}
 
-export default async function Page({ searchParams }: PageProps) {
-  const requestedGameweek = searchParams.gameweek ? parseInt(searchParams.gameweek as string) : undefined;
+export default async function Page() {
+  const gameweek = await getUrlParam("gameweek");
+  const requestedGameweek = gameweek ? parseInt(gameweek as string) : undefined;
   const data = await getLeagueData(requestedGameweek);
 
   // Validate the requested gameweek
