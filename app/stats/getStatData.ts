@@ -109,10 +109,10 @@ export async function getStatsData() {
 
     // Process each finished gameweek
     finishedGameweeks.forEach((gameweek: number) => {
-      let highestPoints = 0;
-      let winners: { id: number; points: number }[] = [];
+      let highestNetPoints = -Infinity;  // Changed to -Infinity to handle negative net points
+      let winners: { id: number; points: number; net_points: number }[] = [];
 
-      // Find highest points for the gameweek
+      // Find highest net points for the gameweek
       teams.forEach((team) => {
         const history = teamHistories.get(team.id);
         if (!history) return;
@@ -123,26 +123,24 @@ export async function getStatsData() {
         if (!gameweekData) return;
 
         const points = gameweekData.points;
+        const net_points = gameweekData.points - (gameweekData.event_transfers_cost || 0);
         const teamStats = teamStatsMap.get(team.id);
         if (!teamStats) return;
 
-        // Update team's total points, bench points, and best gameweek
+        // Update team's total points and bench points
         teamStats.totalPoints += points;
         teamStats.benchPoints += gameweekData.points_on_bench || 0;
-        if (points > teamStats.bestGameweek.points) {
-          teamStats.bestGameweek = { gameweek, points };
-        }
 
-        // Track highest points and winners
-        if (points > highestPoints) {
-          highestPoints = points;
-          winners = [{ id: team.id, points }];
-        } else if (points === highestPoints) {
-          winners.push({ id: team.id, points });
+        // Track highest net points and winners
+        if (net_points > highestNetPoints) {
+          highestNetPoints = net_points;
+          winners = [{ id: team.id, points, net_points }];
+        } else if (net_points === highestNetPoints) {
+          winners.push({ id: team.id, points, net_points });
         }
       });
 
-      // Award wins to all teams that tied for highest points
+      // Award wins to all teams that tied for highest net points
       winners.forEach((winner) => {
         const teamStats = teamStatsMap.get(winner.id);
         if (!teamStats) return;
@@ -154,6 +152,7 @@ export async function getStatsData() {
           teamName: teamStats.name,
           managerName: teamStats.managerName,
           points: winner.points,
+          net_points: winner.net_points
         });
       });
     });
@@ -200,6 +199,7 @@ export interface TeamHistory {
     event: number;
     points: number;
     points_on_bench: number;
+    event_transfers_cost: number;
   }>;
   chips: Array<{
     name: string;
@@ -234,6 +234,7 @@ export interface TeamStats {
     teamName: string;
     managerName: string;
     points: number;
+    net_points: number;
   }>;
 }
 

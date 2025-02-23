@@ -4,18 +4,33 @@ import type { LeagueTeam } from "@/lib/fpl";
 import { formatPoints } from "@/lib/fpl";
 import { ArrowDown, ArrowUp, Flame, Trophy } from "lucide-react";
 import { fplApiRoutes } from "@/lib/routes";
+import { GameweekSelector } from "@/components/gameweek-selector";
+import { notFound } from "next/navigation";
+
+interface GameweekTeamData {
+  name: string;
+  team: string;
+  entry: number;
+  points: number;
+  net_points: number;
+  total_points: number;
+  chip: string | null;
+}
 
 interface GameweekStats {
   currentGameweek: number;
+  selectedGameweek: number;
   currentLeader: {
     name: string;
     points: number;
+    net_points: number;
     team: string;
     chipUsed: string | null;
   };
   lowestPoints: {
     name: string;
     points: number;
+    net_points: number;
     team: string;
   };
   chipsSummary: {
@@ -35,73 +50,93 @@ interface GameweekStats {
   };
 }
 
-async function getGameweekStats(): Promise<GameweekStats> {
+interface ChipPlay {
+  chip_name: string;
+  num_played: number;
+}
+
+interface TopElementInfo {
+  id: number;
+  points: number;
+}
+
+interface BootstrapEvent {
+  id: number;
+  name: string;
+  deadline_time: string;
+  average_entry_score: number;
+  finished: boolean;
+  data_checked: boolean;
+  highest_scoring_entry: number;
+  deadline_time_epoch: number;
+  deadline_time_game_offset: number;
+  highest_score: number;
+  is_previous: boolean;
+  is_current: boolean;
+  is_next: boolean;
+  chip_plays: ChipPlay[];
+  most_selected: number;
+  most_transferred_in: number;
+  top_element: number;
+  top_element_info: TopElementInfo;
+  transfers_made: number;
+  most_captained: number;
+  most_vice_captained: number;
+}
+
+async function getCurrentGameweek(): Promise<number> {
+  try {
+    const response = await fetch(fplApiRoutes.bootstrap, {
+      next: { revalidate: 300 },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch bootstrap data: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.events.find((event: BootstrapEvent) => event.is_current).id;
+  } catch (error) {
+    console.error("Error fetching current gameweek:", error);
+    throw error;
+  }
+}
+
+async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats> {
   try {
     const leagueId = process.env.FPL_LEAGUE_ID;
     if (!leagueId) {
       throw new Error("FPL_LEAGUE_ID environment variable is not set");
     }
 
-    const [leagueResponse, bootstrapResponse] = await Promise.all([
-      fetch(
-        fplApiRoutes.standings(leagueId),
-        {
-          next: { revalidate: 300 },
-        }
-      ).then((res) => {
-        if (!res.ok)
-          throw new Error(
-            `Failed to fetch league data: ${res.status} ${res.statusText}`
-          );
-        return res;
-      }),
-      fetch(fplApiRoutes.bootstrap, {
-        next: { revalidate: 300 },
-      }).then((res) => {
-        if (!res.ok)
-          throw new Error(
-            `Failed to fetch bootstrap data: ${res.status} ${res.statusText}`
-          );
-        return res;
-      }),
-    ]);
+    // First get the league standings to get all team IDs
+    const leagueResponse = await fetch(fplApiRoutes.standings(leagueId), {
+      next: { revalidate: 300 },
+    });
+    
+    if (!leagueResponse.ok) {
+      throw new Error(`Failed to fetch league data: ${leagueResponse.status} ${leagueResponse.statusText}`);
+    }
 
-    const [leagueData, bootstrapData] = await Promise.all([
-      leagueResponse.json(),
-      bootstrapResponse.json(),
-    ]);
-
+    const leagueData = await leagueResponse.json();
     const standings = leagueData.standings.results;
 
-    // Sort by gameweek points to find current leader and lowest points
-    const sortedByGameweek = [...standings].sort(
-      (a, b) => b.event_total - a.event_total
-    );
-    const currentLeader = sortedByGameweek[0];
-    const lowestPoints = sortedByGameweek[sortedByGameweek.length - 1];
+    // Fetch bootstrap data for current gameweek info
+    const bootstrapResponse = await fetch(fplApiRoutes.bootstrap, {
+      next: { revalidate: 300 },
+    });
+    
+    if (!bootstrapResponse.ok) {
+      throw new Error(`Failed to fetch bootstrap data: ${bootstrapResponse.status} ${bootstrapResponse.statusText}`);
+    }
 
-    // Calculate rank movements
-    const movements = standings.map((team: LeagueTeam) => ({
-      name: team.player_name,
-      team: team.entry_name,
-      movement: team.last_rank - team.rank,
-    }));
+    const bootstrapData = await bootstrapResponse.json();
 
-    const highestRiser = [...movements].sort(
-      (a, b) => b.movement - a.movement
-    )[0];
-    const steepestFaller = [...movements].sort(
-      (a, b) => a.movement - b.movement
-    )[0];
-
-    // Fetch chip usage for all managers with error handling
+    // Fetch historical data for all managers
     const managerHistoryPromises = standings.map((team: LeagueTeam) =>
-      fetch(
-        fplApiRoutes.teamHistory(team.entry.toString()),
-        {
-          next: { revalidate: 300 },
-        }
-      )
+      fetch(fplApiRoutes.teamHistory(team.entry.toString()), {
+        next: { revalidate: 300 },
+      })
         .then((res) => {
           if (!res.ok)
             throw new Error(
@@ -111,13 +146,93 @@ async function getGameweekStats(): Promise<GameweekStats> {
         })
         .catch((error) => {
           console.error(error);
-          return null; // Return null for failed requests
+          return null;
         })
     );
 
     const managersHistory = await Promise.all(managerHistoryPromises);
 
-    // Count chips used in current gameweek
+    // Process historical data for the selected gameweek
+    const gameweekData = standings.map((team: LeagueTeam, index: number) => {
+      const history = managersHistory[index];
+      if (!history) return null;
+
+      const gameweekHistory = history.current.find(
+        (gw: { event: number; points: number; total_points: number; event_transfers_cost: number }) => gw.event === selectedGameweek
+      );
+
+      if (!gameweekHistory) return null;
+
+      return {
+        name: team.player_name,
+        team: team.entry_name,
+        entry: team.entry,
+        points: gameweekHistory.points,
+        net_points: gameweekHistory.points - (gameweekHistory.event_transfers_cost || 0),
+        total_points: gameweekHistory.total_points,
+        chip: history.chips.find(
+          (chip: { event: number }) => chip.event === selectedGameweek
+        )?.name || null,
+      };
+    }).filter(Boolean);
+
+    // Sort by total points to get current ranks
+    const sortedByPoints = [...gameweekData]
+      .sort((a, b) => b.total_points - a.total_points)
+      .map((team, index) => ({
+        ...team,
+        currentLeagueRank: index + 1
+      }));
+
+    // If not gameweek 1, get previous gameweek data for rank movement
+    let previousGameweekRanks = new Map();
+    if (selectedGameweek > 1) {
+      const previousGameweekData = standings.map((team: LeagueTeam, index: number) => {
+        const history = managersHistory[index];
+        if (!history) return null;
+
+        const previousGameweekHistory = history.current.find(
+          (gw: { event: number; total_points: number }) => gw.event === selectedGameweek - 1
+        );
+
+        if (!previousGameweekHistory) return null;
+
+        return {
+          entry: team.entry,
+          total_points: previousGameweekHistory.total_points,
+        };
+      }).filter(Boolean);
+
+      // Sort by total points to get previous ranks
+      const sortedPreviousGameweek = [...previousGameweekData]
+        .sort((a, b) => b.total_points - a.total_points);
+
+      // Create map of entry to previous rank
+      previousGameweekRanks = new Map(
+        sortedPreviousGameweek.map((team, index) => [team.entry, index + 1])
+      );
+    }
+
+    // Calculate rank movements and find highest riser and steepest faller
+    const teamsWithMovement = sortedByPoints.map(team => {
+      const previousRank = previousGameweekRanks.get(team.entry) || team.currentLeagueRank;
+      const movement = previousRank - team.currentLeagueRank;
+      return {
+        name: team.name,
+        team: team.team,
+        movement
+      };
+    });
+
+    const highestRiser = [...teamsWithMovement].sort((a, b) => b.movement - a.movement)[0];
+    const steepestFaller = [...teamsWithMovement].sort((a, b) => a.movement - b.movement)[0];
+
+    // Get current leader and struggler based on net points
+    const sortedByNetPoints = [...gameweekData].sort((a, b) => b.net_points - a.net_points);
+    const currentLeader = sortedByNetPoints[0];
+    const lowestPoints = sortedByNetPoints[sortedByNetPoints.length - 1];
+
+    // Count chips used in selected gameweek
     const chipCounts = {
       wildcard: 0,
       "3xc": 0,
@@ -132,33 +247,25 @@ async function getGameweekStats(): Promise<GameweekStats> {
       freehit: [] as string[],
     };
 
-    managersHistory.forEach((history, index) => {
-      if (!history) return; // Skip failed requests
-
-      const team = standings[index];
-      const currentGameweekChip = history.history?.chips?.find(
-        (chip: { event: number; name: string }) =>
-          chip.event === bootstrapData.currentGameweek
-      );
-
-      if (currentGameweekChip) {
-        const chipType = currentGameweekChip.name.toLowerCase();
+    gameweekData.forEach((team: GameweekTeamData) => {
+      if (team.chip) {
+        const chipType = team.chip.toLowerCase();
         switch (chipType) {
           case "wildcard":
             chipCounts.wildcard++;
-            chipUsers.wildcard.push(team.player_name);
+            chipUsers.wildcard.push(team.name);
             break;
           case "3xc":
             chipCounts["3xc"]++;
-            chipUsers["3xc"].push(team.player_name);
+            chipUsers["3xc"].push(team.name);
             break;
           case "bboost":
             chipCounts.bboost++;
-            chipUsers.bboost.push(team.player_name);
+            chipUsers.bboost.push(team.name);
             break;
           case "freehit":
             chipCounts.freehit++;
-            chipUsers.freehit.push(team.player_name);
+            chipUsers.freehit.push(team.name);
             break;
         }
       }
@@ -188,17 +295,20 @@ async function getGameweekStats(): Promise<GameweekStats> {
     ];
 
     return {
-      currentGameweek: bootstrapData.currentGameweek,
+      currentGameweek: bootstrapData.events.find((e: BootstrapEvent) => e.is_current).id,
+      selectedGameweek,
       currentLeader: {
-        name: currentLeader.player_name,
-        team: currentLeader.entry_name,
-        points: currentLeader.event_total,
-        chipUsed: null,
+        name: currentLeader.name,
+        team: currentLeader.team,
+        points: currentLeader.points,
+        net_points: currentLeader.net_points,
+        chipUsed: currentLeader.chip,
       },
       lowestPoints: {
-        name: lowestPoints.player_name,
-        team: lowestPoints.entry_name,
-        points: lowestPoints.event_total,
+        name: lowestPoints.name,
+        team: lowestPoints.team,
+        points: lowestPoints.points,
+        net_points: lowestPoints.net_points,
       },
       chipsSummary,
       highestRiser,
@@ -210,17 +320,44 @@ async function getGameweekStats(): Promise<GameweekStats> {
   }
 }
 
-export default async function GameweekPage() {
-  const stats = await getGameweekStats();
+interface PageProps {
+  searchParams: { [key: string]: string | string[] | undefined };
+}
+
+export default async function GameweekPage({ searchParams }: PageProps) {
+  // First, get the current gameweek
+  const currentGameweek = await getCurrentGameweek();
+  
+  // Then, determine the selected gameweek
+  const requestedGameweek = searchParams.gameweek ? parseInt(searchParams.gameweek as string) : currentGameweek;
+  
+  // Validate the requested gameweek
+  if (requestedGameweek < 1 || requestedGameweek > currentGameweek) {
+    notFound();
+  }
+
+  const stats = await getGameweekStats(requestedGameweek);
 
   return (
     <DashboardLayout>
       <div className="space-y-8">
         <div className="flex flex-col space-y-1.5">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Gameweek {stats.currentGameweek} Stats
-          </h1>
-          <p className="text-lg text-white/60">Live updates and insights</p>
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold tracking-tight">
+              Gameweek {stats.selectedGameweek} Stats
+            </h1>
+            <GameweekSelector 
+              currentGameweek={currentGameweek}
+              selectedGameweek={requestedGameweek}
+              className="w-[180px]"
+            />
+          </div>
+          <p className="text-lg text-white/60">
+            {stats.selectedGameweek === stats.currentGameweek 
+              ? "Live updates and insights"
+              : "Historical gameweek data"
+            }
+          </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -244,7 +381,12 @@ export default async function GameweekPage() {
                     {stats.currentLeader.name}
                   </div>
                   <div className="text-2xl font-bold text-orange-500">
-                    {formatPoints(stats.currentLeader.points)} pts
+                    {formatPoints(stats.currentLeader.net_points)} pts
+                    {stats.currentLeader.net_points !== stats.currentLeader.points && (
+                      <span className="ml-2 text-sm text-white/60">
+                        ({formatPoints(stats.currentLeader.points)} raw)
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -270,7 +412,12 @@ export default async function GameweekPage() {
                   </div>
                   <div className="text-white/60">{stats.lowestPoints.name}</div>
                   <div className="text-2xl font-bold text-red-500">
-                    {formatPoints(stats.lowestPoints.points)} pts
+                    {formatPoints(stats.lowestPoints.net_points)} pts
+                    {stats.lowestPoints.net_points !== stats.lowestPoints.points && (
+                      <span className="ml-2 text-sm text-white/60">
+                        ({formatPoints(stats.lowestPoints.points)} raw)
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

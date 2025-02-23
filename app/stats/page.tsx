@@ -121,7 +121,7 @@ export default async function StatsPage() {
                             <span
                               key={win.gameweek}
                               className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 text-xs"
-                              title={`${formatPoints(win.points)} points`}
+                              title={`${formatPoints(win.points)} points (${formatPoints(win.net_points)} net)`}
                             >
                               {win.gameweek}
                             </span>
