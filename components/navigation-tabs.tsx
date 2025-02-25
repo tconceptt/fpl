@@ -9,7 +9,7 @@ export function NavigationTabs() {
 
   const tabs = [
     {
-      name: "League",
+      name: "Qitawrari Hub",
       href: "/",
       active: pathname === "/"
     },
@@ -24,9 +24,9 @@ export function NavigationTabs() {
       active: pathname === "/stats"
     },
     {
-      name: "Qitawrari Hub",
-      href: "/qitawrari",
-      active: pathname === "/qitawrari"
+      name: "League",
+      href: "/league",
+      active: pathname === "/league"
     }
   ]
 

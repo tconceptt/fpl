@@ -9,6 +9,20 @@ export default function Loading() {
         {/* Hero skeleton */}
         <Skeleton className="h-[300px] w-full" />
 
+        {/* Navigation card skeleton */}
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-[150px]" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-4">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Image slideshow skeleton */}
         <Skeleton className="h-[250px] w-full" />
 

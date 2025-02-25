@@ -22,6 +22,7 @@ export interface GameweekStanding {
   rank: number;
   last_rank: number;
   captain_name?: string;
+  active_chip?: string | null;
 }
 
 export interface RankMovement {

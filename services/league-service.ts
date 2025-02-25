@@ -38,39 +38,42 @@ export async function getHistoricalStandings(
   const livePointsMap = new Map<number, number>();
   let captainMap = new Map<number, string>();
   const transferCostMap = new Map<number, number>();
+  let chipMap = new Map<number, string | null>();
+  
+  // Fetch team details for all teams to get captains and chips
+  const teamDetailsResults = await Promise.all(
+    teamIds.map(async teamId => {
+      try {
+        const response = await fetch(fplApiRoutes.teamDetails(teamId.toString(), selectedGameweek.toString()), {
+          next: { revalidate: 30 },
+        });
+        if (!response.ok) return null;
+        const data = await response.json();
+        const captain = data.picks.find((pick: { is_captain: boolean }) => pick.is_captain);
+        const captainName = captain ? await getPlayerName(captain.element) : null;
+        return { 
+          teamId, 
+          captainName,
+          active_chip: data.active_chip 
+        };
+      } catch (error) {
+        console.error(`Failed to fetch team details for team ${teamId}:`, error);
+        return null;
+      }
+    })
+  );
   
   if (isCurrentGameweek) {
-    const [livePointsResults, teamDetailsResults] = await Promise.all([
-      // Fetch live points
-      Promise.all(
-        teamIds.map(teamId =>
-          calculateLivePoints(teamId.toString(), selectedGameweek.toString())
-            .catch(error => {
-              console.error(`Failed to fetch live points for team ${teamId}:`, error);
-              return null;
-            })
-        )
-      ),
-      // Fetch team details to get captains
-      Promise.all(
-        teamIds.map(async teamId => {
-          try {
-            const response = await fetch(fplApiRoutes.teamDetails(teamId.toString(), selectedGameweek.toString()), {
-              next: { revalidate: 30 },
-            });
-            if (!response.ok) return null;
-            const data = await response.json();
-            const captain = data.picks.find((pick: { is_captain: boolean }) => pick.is_captain);
-            if (!captain) return null;
-            const captainName = await getPlayerName(captain.element);
-            return { teamId, captainName };
-          } catch (error) {
-            console.error(`Failed to fetch team details for team ${teamId}:`, error);
+    // Fetch live points
+    const livePointsResults = await Promise.all(
+      teamIds.map(teamId =>
+        calculateLivePoints(teamId.toString(), selectedGameweek.toString())
+          .catch(error => {
+            console.error(`Failed to fetch live points for team ${teamId}:`, error);
             return null;
-          }
-        })
-      ),
-    ]);
+          })
+      )
+    );
 
     // Process live points and transfer costs
     livePointsResults.forEach((result, index) => {
@@ -79,16 +82,24 @@ export async function getHistoricalStandings(
         transferCostMap.set(teamIds[index], result.transferCost || 0);
       }
     });
-
-    // Process captain names
-    captainMap = new Map(
-      teamDetailsResults
-        .filter((result): result is { teamId: number; captainName: string } => 
-          result !== null && result.captainName !== null
-        )
-        .map(result => [result.teamId, result.captainName])
-    );
   }
+
+  // Process captain names and chips
+  captainMap = new Map(
+    teamDetailsResults
+      .filter((result): result is { teamId: number; captainName: string; active_chip: string | null } => 
+        result !== null && result.captainName !== null
+      )
+      .map(result => [result.teamId, result.captainName])
+  );
+  
+  chipMap = new Map(
+    teamDetailsResults
+      .filter((result): result is { teamId: number; captainName: string | null; active_chip: string | null } => 
+        result !== null
+      )
+      .map(result => [result.teamId, result.active_chip])
+  );
 
   // Get gameweek data for each team
   const standings = teamsHistory
@@ -125,6 +136,7 @@ export async function getHistoricalStandings(
         rank: 0, // Will be calculated after sorting
         last_rank: 0, // Will be calculated after getting previous gameweek standings
         captain_name: captainMap.get(teamIds[index]),
+        active_chip: chipMap.get(teamIds[index]),
       };
     })
     .filter((standing): standing is NonNullable<typeof standing> => standing !== null);

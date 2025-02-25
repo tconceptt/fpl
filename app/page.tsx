@@ -1,9 +1,11 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Crown, Timer } from "lucide-react"
+import { Crown, Timer, BarChart, Zap } from "lucide-react"
 import { FootballHero } from "@/components/ui/shape-landing-hero"
 import { RoastGenerator } from "./qitawrari/roast-generator"
 import { ImageSlideshow } from "./qitawrari/image-slideshow"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 function calculateDaysToEvent(targetDate: string) {
   const today = new Date()
@@ -28,6 +30,36 @@ export default function HomePage() {
       </div>
 
       <div className="flex flex-col gap-8 mt-6">
+        {/* Navigation Card */}
+        <Card className="relative overflow-hidden bg-gradient-to-br from-blue-500/20 to-green-500/20">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xl font-medium">Quick Navigation</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/gameweek" className="flex-1">
+                <Button variant="outline" className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 border-white/10">
+                  <Zap className="h-5 w-5 text-yellow-500" />
+                  <span>Gameweek Details</span>
+                </Button>
+              </Link>
+              <Link href="/stats" className="flex-1">
+                <Button variant="outline" className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 border-white/10">
+                  <BarChart className="h-5 w-5 text-blue-500" />
+                  <span>Season Statistics</span>
+                </Button>
+              </Link>
+              <Link href="/league" className="flex-1">
+                <Button variant="outline" className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 border-white/10">
+                  <Crown className="h-5 w-5 text-purple-500" />
+                  <span>League Table</span>
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500 to-green-500" />
+        </Card>
+
         <div className="grid gap-8">
           <ImageSlideshow />
 

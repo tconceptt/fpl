@@ -3,10 +3,12 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LeagueTeam } from "@/lib/fpl";
 import { formatPoints } from "@/lib/fpl";
-import { ArrowDown, ArrowUp, Flame, Trophy } from "lucide-react";
+import { ArrowDown, ArrowUp, Flame, Star, Trophy } from "lucide-react";
 import { fplApiRoutes } from "@/lib/routes";
 import { notFound } from "next/navigation";
 import { ReactNode } from "react";
+import { getPlayerName } from "@/services/get-player-name";
+import { calculateLivePoints } from "@/services/live-points-calculator";
 
 interface GameweekTeamData {
   name: string;
@@ -16,6 +18,7 @@ interface GameweekTeamData {
   net_points: number;
   total_points: number;
   chip: string | null;
+  captain?: number;
 }
 
 interface GameweekStats {
@@ -48,6 +51,11 @@ interface GameweekStats {
     name: string;
     team: string;
     movement: number;
+  };
+  mostCaptained?: {
+    player: string;
+    count: number;
+    percentage: number;
   };
 }
 
@@ -132,6 +140,8 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
     }
 
     const bootstrapData = await bootstrapResponse.json();
+    const currentGameweek = bootstrapData.events.find((e: BootstrapEvent) => e.is_current).id;
+    const isCurrentGameweek = selectedGameweek === currentGameweek;
 
     // Fetch historical data for all managers
     const managerHistoryPromises = standings.map((team: LeagueTeam) =>
@@ -153,6 +163,49 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
 
     const managersHistory = await Promise.all(managerHistoryPromises);
 
+    // Fetch team details to get captain information
+    const teamDetailsPromises = standings.map((team: LeagueTeam) =>
+      fetch(fplApiRoutes.teamDetails(team.entry.toString(), selectedGameweek.toString()), {
+        next: { revalidate: 30 },
+      })
+        .then((res) => {
+          if (!res.ok)
+            throw new Error(
+              `Failed to fetch team details for manager ${team.entry}`
+            );
+          return res.json();
+        })
+        .catch((error) => {
+          console.error(error);
+          return null;
+        })
+    );
+
+    const teamDetails = await Promise.all(teamDetailsPromises);
+
+    // Fetch live points if it's the current gameweek
+    const livePointsMap = new Map<number, number>();
+    const transferCostMap = new Map<number, number>();
+    
+    if (isCurrentGameweek) {
+      const livePointsPromises = standings.map((team: LeagueTeam) =>
+        calculateLivePoints(team.entry.toString(), selectedGameweek.toString())
+          .catch((error) => {
+            console.error(error);
+            return null;
+          })
+      );
+
+      const livePointsResults = await Promise.all(livePointsPromises);
+      
+      livePointsResults.forEach((result, index) => {
+        if (result) {
+          livePointsMap.set(standings[index].entry, result.totalPoints);
+          transferCostMap.set(standings[index].entry, result.transferCost || 0);
+        }
+      });
+    }
+
     // Process historical data for the selected gameweek
     const gameweekData = standings.map((team: LeagueTeam, index: number) => {
       const history = managersHistory[index];
@@ -164,16 +217,36 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
 
       if (!gameweekHistory) return null;
 
+      // Get captain information
+      const teamDetail = teamDetails[index];
+      let captainId = null;
+      if (teamDetail && teamDetail.picks) {
+        const captain = teamDetail.picks.find((pick: { is_captain: boolean }) => pick.is_captain);
+        if (captain) {
+          captainId = captain.element;
+        }
+      }
+
+      // Use live points if available for current gameweek
+      const points = isCurrentGameweek
+        ? (livePointsMap.get(team.entry) || gameweekHistory.points)
+        : gameweekHistory.points;
+      
+      const transferCost = isCurrentGameweek
+        ? (transferCostMap.get(team.entry) || gameweekHistory.event_transfers_cost || 0)
+        : (gameweekHistory.event_transfers_cost || 0);
+
       return {
         name: team.player_name,
         team: team.entry_name,
         entry: team.entry,
-        points: gameweekHistory.points,
-        net_points: gameweekHistory.points - (gameweekHistory.event_transfers_cost || 0),
+        points: points,
+        net_points: points - transferCost,
         total_points: gameweekHistory.total_points,
         chip: history.chips.find(
           (chip: { event: number }) => chip.event === selectedGameweek
         )?.name || null,
+        captain: captainId,
       };
     }).filter(Boolean);
 
@@ -272,6 +345,40 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
       }
     });
 
+    // Find most captained player
+    const captainCounts = new Map<number, number>();
+    let mostCaptainedInfo = undefined;
+    
+    // Count captains
+    gameweekData.forEach((team: GameweekTeamData) => {
+      if (team.captain) {
+        const count = captainCounts.get(team.captain) || 0;
+        captainCounts.set(team.captain, count + 1);
+      }
+    });
+    
+    // Find the most captained player
+    if (captainCounts.size > 0) {
+      let mostCaptainedId = 0;
+      let highestCount = 0;
+      
+      captainCounts.forEach((count, playerId) => {
+        if (count > highestCount) {
+          highestCount = count;
+          mostCaptainedId = playerId;
+        }
+      });
+      
+      if (mostCaptainedId > 0) {
+        const playerName = await getPlayerName(mostCaptainedId, 'full_name');
+        mostCaptainedInfo = {
+          player: playerName,
+          count: highestCount,
+          percentage: Math.round((highestCount / gameweekData.length) * 100)
+        };
+      }
+    }
+
     const chipsSummary = [
       {
         type: "Wildcard",
@@ -314,6 +421,7 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
       chipsSummary,
       highestRiser,
       steepestFaller,
+      mostCaptained: mostCaptainedInfo,
     };
   } catch (error) {
     console.error("Error in getGameweekStats:", error);
@@ -399,6 +507,22 @@ export default async function GameweekPage({ searchParams }: PageProps) {
             rawPoints={stats.lowestPoints.points}
             textColor="text-red-500"
           />
+
+          {stats.mostCaptained && (
+            <GameweekCard
+              title="Most Captained Player"
+              icon={<Star className="h-4 w-4 text-yellow-500" />}
+              emoji="👑"
+              bgColor="bg-yellow-500/10"
+              gradientFrom="from-yellow-500"
+              gradientTo="to-yellow-600"
+              teamName={stats.mostCaptained.player}
+              playerName={`${stats.mostCaptained.count} managers (${stats.mostCaptained.percentage}%)`}
+              textColor="text-yellow-500"
+              prefix=""
+              suffix=""
+            />
+          )}
 
           <GameweekCard
             title="Highest Riser"
