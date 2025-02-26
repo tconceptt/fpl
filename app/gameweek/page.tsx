@@ -1,15 +1,15 @@
-import { GameweekSelector } from "@/components/gameweek-selector";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LeagueTeam } from "@/lib/fpl";
 import { formatPoints } from "@/lib/fpl";
-import { ArrowDown, ArrowUp, Flame, Star, Trophy } from "lucide-react";
+import { getUrlParam } from "@/lib/helpers";
 import { fplApiRoutes } from "@/lib/routes";
-import { notFound } from "next/navigation";
-import { ReactNode } from "react";
 import { getPlayerName } from "@/services/get-player-name";
 import { calculateLivePoints } from "@/services/live-points-calculator";
+import { ArrowDown, ArrowUp, Flame, Star, Trophy } from "lucide-react";
+import { notFound } from "next/navigation";
+import { ReactNode } from "react";
 
 interface GameweekTeamData {
   name: string;
@@ -449,7 +449,7 @@ interface GameweekCardProps {
   suffix?: string;
 }
 
-export default async function GameweekPage({ searchParams }: PageProps) {
+export default async function GameweekPage() {
   // First, get the current gameweek
   const gameweek = await getUrlParam("gameweek");
   const currentGameweek = await getCurrentGameweek();
