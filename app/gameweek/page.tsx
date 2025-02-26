@@ -1,3 +1,4 @@
+import { GameweekSelector } from "@/components/gameweek-selector";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -429,9 +430,6 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
   }
 }
 
-interface PageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
-}
 
 // Add interface for GameweekCard props
 interface GameweekCardProps {
@@ -453,10 +451,11 @@ interface GameweekCardProps {
 
 export default async function GameweekPage({ searchParams }: PageProps) {
   // First, get the current gameweek
+  const gameweek = await getUrlParam("gameweek");
   const currentGameweek = await getCurrentGameweek();
-  
+
   // Then, determine the selected gameweek
-  const requestedGameweek = searchParams.gameweek ? parseInt(searchParams.gameweek as string) : currentGameweek;
+  const requestedGameweek = gameweek ? parseInt(gameweek as string) : currentGameweek;
   
   // Validate the requested gameweek
   if (requestedGameweek < 1 || requestedGameweek > currentGameweek) {
