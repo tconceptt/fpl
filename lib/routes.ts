@@ -6,4 +6,7 @@ export const fplApiRoutes = {
     `https://fantasy.premierleague.com/api/entry/${teamId}/history/`,
   liveStandings: (gameweekId: string) =>
     `https://fantasy.premierleague.com/api/event/${gameweekId}/live/`,
+  teamDetails: (teamId: string, gameweekId: string) =>
+    `https://fantasy.premierleague.com/api/entry/${teamId}/event/${gameweekId}/picks/`,
+
 };

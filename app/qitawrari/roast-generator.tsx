@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 const jokes =  [
   "T's scalp is smoother than United's midfield—zero resistance, zero wins.",
   "Etsub's so short, he captains Salah just to feel tall for once.",
-  "Dedebu's name translates to 'idiot,' and his FPL rank backs it up.",
+  "Dedebu's name translates to 'idiot,' ስምን መላክ ያወጣዋል አሉ.",
   "Eyosi's Jiu Jitsu is so weak, his FPL team submits faster.",
   "Biruk's IQ is so low, he thinks Arsenal's invincible again.",
   "Bk's rap career tanked harder than his FPL rookie season.",
@@ -31,7 +31,7 @@ export function RoastGenerator() {
   return (
     <Card className="relative overflow-hidden bg-gradient-to-br from-orange-500/20 to-red-500/20">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-xl font-medium">CORNY Jokes for Free!</CardTitle>
+        <CardTitle className="text-xl font-medium">CORNY Jokes for Free!🔥</CardTitle>
         <Flame className="h-6 w-6 text-orange-500 animate-pulse" />
       </CardHeader>
       <CardContent className="space-y-4">
@@ -39,7 +39,7 @@ export function RoastGenerator() {
           onClick={generateRoast}
           className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-medium transition-all hover:opacity-90 active:scale-95"
         >
-          Get roasted by corny Grok 3 🔥
+          Get roasted by Grok 3 
         </button>
         
         {currentJoke && (

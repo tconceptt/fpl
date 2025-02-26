@@ -1,12 +1,15 @@
-import { GameweekSelector } from "@/components/gameweek-selector";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LeagueTeam } from "@/lib/fpl";
 import { formatPoints } from "@/lib/fpl";
 import { getUrlParam } from "@/lib/helpers";
 import { fplApiRoutes } from "@/lib/routes";
-import { ArrowDown, ArrowUp, Flame, Trophy } from "lucide-react";
+import { getPlayerName } from "@/services/get-player-name";
+import { calculateLivePoints } from "@/services/live-points-calculator";
+import { ArrowDown, ArrowUp, Flame, Star, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
+import { ReactNode } from "react";
 
 interface GameweekTeamData {
   name: string;
@@ -16,6 +19,7 @@ interface GameweekTeamData {
   net_points: number;
   total_points: number;
   chip: string | null;
+  captain?: number;
 }
 
 interface GameweekStats {
@@ -48,6 +52,11 @@ interface GameweekStats {
     name: string;
     team: string;
     movement: number;
+  };
+  mostCaptained?: {
+    player: string;
+    count: number;
+    percentage: number;
   };
 }
 
@@ -132,6 +141,8 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
     }
 
     const bootstrapData = await bootstrapResponse.json();
+    const currentGameweek = bootstrapData.events.find((e: BootstrapEvent) => e.is_current).id;
+    const isCurrentGameweek = selectedGameweek === currentGameweek;
 
     // Fetch historical data for all managers
     const managerHistoryPromises = standings.map((team: LeagueTeam) =>
@@ -153,6 +164,49 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
 
     const managersHistory = await Promise.all(managerHistoryPromises);
 
+    // Fetch team details to get captain information
+    const teamDetailsPromises = standings.map((team: LeagueTeam) =>
+      fetch(fplApiRoutes.teamDetails(team.entry.toString(), selectedGameweek.toString()), {
+        next: { revalidate: 30 },
+      })
+        .then((res) => {
+          if (!res.ok)
+            throw new Error(
+              `Failed to fetch team details for manager ${team.entry}`
+            );
+          return res.json();
+        })
+        .catch((error) => {
+          console.error(error);
+          return null;
+        })
+    );
+
+    const teamDetails = await Promise.all(teamDetailsPromises);
+
+    // Fetch live points if it's the current gameweek
+    const livePointsMap = new Map<number, number>();
+    const transferCostMap = new Map<number, number>();
+    
+    if (isCurrentGameweek) {
+      const livePointsPromises = standings.map((team: LeagueTeam) =>
+        calculateLivePoints(team.entry.toString(), selectedGameweek.toString())
+          .catch((error) => {
+            console.error(error);
+            return null;
+          })
+      );
+
+      const livePointsResults = await Promise.all(livePointsPromises);
+      
+      livePointsResults.forEach((result, index) => {
+        if (result) {
+          livePointsMap.set(standings[index].entry, result.totalPoints);
+          transferCostMap.set(standings[index].entry, result.transferCost || 0);
+        }
+      });
+    }
+
     // Process historical data for the selected gameweek
     const gameweekData = standings.map((team: LeagueTeam, index: number) => {
       const history = managersHistory[index];
@@ -164,16 +218,36 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
 
       if (!gameweekHistory) return null;
 
+      // Get captain information
+      const teamDetail = teamDetails[index];
+      let captainId = null;
+      if (teamDetail && teamDetail.picks) {
+        const captain = teamDetail.picks.find((pick: { is_captain: boolean }) => pick.is_captain);
+        if (captain) {
+          captainId = captain.element;
+        }
+      }
+
+      // Use live points if available for current gameweek
+      const points = isCurrentGameweek
+        ? (livePointsMap.get(team.entry) || gameweekHistory.points)
+        : gameweekHistory.points;
+      
+      const transferCost = isCurrentGameweek
+        ? (transferCostMap.get(team.entry) || gameweekHistory.event_transfers_cost || 0)
+        : (gameweekHistory.event_transfers_cost || 0);
+
       return {
         name: team.player_name,
         team: team.entry_name,
         entry: team.entry,
-        points: gameweekHistory.points,
-        net_points: gameweekHistory.points - (gameweekHistory.event_transfers_cost || 0),
+        points: points,
+        net_points: points - transferCost,
         total_points: gameweekHistory.total_points,
         chip: history.chips.find(
           (chip: { event: number }) => chip.event === selectedGameweek
         )?.name || null,
+        captain: captainId,
       };
     }).filter(Boolean);
 
@@ -272,6 +346,40 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
       }
     });
 
+    // Find most captained player
+    const captainCounts = new Map<number, number>();
+    let mostCaptainedInfo = undefined;
+    
+    // Count captains
+    gameweekData.forEach((team: GameweekTeamData) => {
+      if (team.captain) {
+        const count = captainCounts.get(team.captain) || 0;
+        captainCounts.set(team.captain, count + 1);
+      }
+    });
+    
+    // Find the most captained player
+    if (captainCounts.size > 0) {
+      let mostCaptainedId = 0;
+      let highestCount = 0;
+      
+      captainCounts.forEach((count, playerId) => {
+        if (count > highestCount) {
+          highestCount = count;
+          mostCaptainedId = playerId;
+        }
+      });
+      
+      if (mostCaptainedId > 0) {
+        const playerName = await getPlayerName(mostCaptainedId, 'full_name');
+        mostCaptainedInfo = {
+          player: playerName,
+          count: highestCount,
+          percentage: Math.round((highestCount / gameweekData.length) * 100)
+        };
+      }
+    }
+
     const chipsSummary = [
       {
         type: "Wildcard",
@@ -314,6 +422,7 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
       chipsSummary,
       highestRiser,
       steepestFaller,
+      mostCaptained: mostCaptainedInfo,
     };
   } catch (error) {
     console.error("Error in getGameweekStats:", error);
@@ -321,6 +430,24 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
   }
 }
 
+
+// Add interface for GameweekCard props
+interface GameweekCardProps {
+  title: string;
+  icon: ReactNode;
+  emoji: string;
+  bgColor: string;
+  gradientFrom: string;
+  gradientTo: string;
+  teamName: string;
+  playerName: string;
+  points?: number;
+  rawPoints?: number;
+  movement?: number;
+  textColor: string;
+  prefix?: string;
+  suffix?: string;
+}
 
 export default async function GameweekPage() {
   // First, get the current gameweek
@@ -339,144 +466,91 @@ export default async function GameweekPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        <div className="flex flex-col space-y-1.5">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold tracking-tight">
-              Gameweek {stats.selectedGameweek} Stats
-            </h1>
-            <GameweekSelector 
-              currentGameweek={currentGameweek}
-              selectedGameweek={requestedGameweek}
-              className="w-[180px]"
-            />
-          </div>
-          <p className="text-lg text-white/60">
-            {stats.selectedGameweek === stats.currentGameweek 
+      <div className="space-y-6">
+        <PageHeader
+          title={`Gameweek ${stats.selectedGameweek} Stats`}
+          description={
+            stats.selectedGameweek === stats.currentGameweek 
               ? "Live updates and insights"
               : "Historical gameweek data"
-            }
-          </p>
-        </div>
+          }
+          currentGameweek={currentGameweek}
+          selectedGameweek={requestedGameweek}
+        />
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">
-                Current Gameweek Leader
-              </CardTitle>
-              <Flame className="h-4 w-4 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/10 text-2xl">
-                  🔥
-                </div>
-                <div>
-                  <div className="font-bold text-lg">
-                    {stats.currentLeader.team}
-                  </div>
-                  <div className="text-white/60">
-                    {stats.currentLeader.name}
-                  </div>
-                  <div className="text-2xl font-bold text-orange-500">
-                    {formatPoints(stats.currentLeader.net_points)} pts
-                    {stats.currentLeader.net_points !== stats.currentLeader.points && (
-                      <span className="ml-2 text-sm text-white/60">
-                        ({formatPoints(stats.currentLeader.points)} raw)
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-orange-500 to-orange-600" />
-          </Card>
+        <div className="grid gap-4 md:grid-cols-2">
+          <GameweekCard
+            title="Current Gameweek Leader"
+            icon={<Flame className="h-4 w-4 text-orange-500" />}
+            emoji="🔥"
+            bgColor="bg-orange-500/10"
+            gradientFrom="from-orange-500"
+            gradientTo="to-orange-600"
+            teamName={stats.currentLeader.team}
+            playerName={stats.currentLeader.name}
+            points={stats.currentLeader.net_points}
+            rawPoints={stats.currentLeader.points}
+            textColor="text-orange-500"
+          />
 
-          <Card className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">
-                Gameweek Struggler
-              </CardTitle>
-              <Trophy className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10 text-2xl">
-                  💩
-                </div>
-                <div>
-                  <div className="font-bold text-lg">
-                    {stats.lowestPoints.team}
-                  </div>
-                  <div className="text-white/60">{stats.lowestPoints.name}</div>
-                  <div className="text-2xl font-bold text-red-500">
-                    {formatPoints(stats.lowestPoints.net_points)} pts
-                    {stats.lowestPoints.net_points !== stats.lowestPoints.points && (
-                      <span className="ml-2 text-sm text-white/60">
-                        ({formatPoints(stats.lowestPoints.points)} raw)
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-red-500 to-red-600" />
-          </Card>
+          <GameweekCard
+            title="Gameweek Struggler"
+            icon={<Trophy className="h-4 w-4 text-red-500" />}
+            emoji="💩"
+            bgColor="bg-red-500/10"
+            gradientFrom="from-red-500"
+            gradientTo="to-red-600"
+            teamName={stats.lowestPoints.team}
+            playerName={stats.lowestPoints.name}
+            points={stats.lowestPoints.net_points}
+            rawPoints={stats.lowestPoints.points}
+            textColor="text-red-500"
+          />
 
-          <Card className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">
-                Highest Riser
-              </CardTitle>
-              <ArrowUp className="h-4 w-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-2xl">
-                  📈
-                </div>
-                <div>
-                  <div className="font-bold text-lg">
-                    {stats.highestRiser.team}
-                  </div>
-                  <div className="text-white/60">{stats.highestRiser.name}</div>
-                  <div className="text-2xl font-bold text-emerald-500">
-                    +{stats.highestRiser.movement} positions
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-600" />
-          </Card>
+          {stats.mostCaptained && (
+            <GameweekCard
+              title="Most Captained Player"
+              icon={<Star className="h-4 w-4 text-yellow-500" />}
+              emoji="👑"
+              bgColor="bg-yellow-500/10"
+              gradientFrom="from-yellow-500"
+              gradientTo="to-yellow-600"
+              teamName={stats.mostCaptained.player}
+              playerName={`${stats.mostCaptained.count} managers (${stats.mostCaptained.percentage}%)`}
+              textColor="text-yellow-500"
+              prefix=""
+              suffix=""
+            />
+          )}
 
-          <Card className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">
-                Steepest Faller
-              </CardTitle>
-              <ArrowDown className="h-4 w-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10 text-2xl">
-                  📉
-                </div>
-                <div>
-                  <div className="font-bold text-lg">
-                    {stats.steepestFaller.team}
-                  </div>
-                  <div className="text-white/60">
-                    {stats.steepestFaller.name}
-                  </div>
-                  <div className="text-2xl font-bold text-blue-500">
-                    {stats.steepestFaller.movement} positions
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500 to-blue-600" />
-          </Card>
+          <GameweekCard
+            title="Highest Riser"
+            icon={<ArrowUp className="h-4 w-4 text-emerald-500" />}
+            emoji="📈"
+            bgColor="bg-emerald-500/10"
+            gradientFrom="from-emerald-500"
+            gradientTo="to-emerald-600"
+            teamName={stats.highestRiser.team}
+            playerName={stats.highestRiser.name}
+            movement={stats.highestRiser.movement}
+            textColor="text-emerald-500"
+            prefix="+"
+            suffix="positions"
+          />
+
+          <GameweekCard
+            title="Steepest Faller"
+            icon={<ArrowDown className="h-4 w-4 text-blue-500" />}
+            emoji="📉"
+            bgColor="bg-blue-500/10"
+            gradientFrom="from-blue-500"
+            gradientTo="to-blue-600"
+            teamName={stats.steepestFaller.team}
+            playerName={stats.steepestFaller.name}
+            movement={stats.steepestFaller.movement}
+            textColor="text-blue-500"
+            suffix="positions"
+          />
         </div>
 
         <Card>
@@ -488,9 +562,9 @@ export default async function GameweekPage() {
               {stats.chipsSummary.map((chip) => (
                 <div
                   key={chip.type}
-                  className="flex flex-col items-center justify-center p-4 bg-white/5 rounded-lg"
+                  className="flex flex-col items-center justify-center rounded-lg bg-white/5 p-4"
                 >
-                  <div className="text-2xl mb-2">
+                  <div className="mb-2 text-2xl">
                     {chip.type === "Wildcard"
                       ? "🃏"
                       : chip.type === "Triple Captain"
@@ -508,5 +582,64 @@ export default async function GameweekPage() {
         </Card>
       </div>
     </DashboardLayout>
+  );
+}
+
+function GameweekCard({
+  title,
+  icon,
+  emoji,
+  bgColor,
+  gradientFrom,
+  gradientTo,
+  teamName,
+  playerName,
+  points,
+  rawPoints,
+  movement,
+  textColor,
+  prefix = "",
+  suffix = "pts"
+}: GameweekCardProps) {
+  return (
+    <Card className="relative overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-sm font-medium">
+          {title}
+        </CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4">
+          <div className={`flex h-16 w-16 items-center justify-center rounded-full ${bgColor} text-2xl`}>
+            {emoji}
+          </div>
+          <div>
+            <div className="font-bold text-lg">
+              {teamName}
+            </div>
+            <div className="text-white/60">{playerName}</div>
+            <div className={`text-2xl font-bold ${textColor}`}>
+              {points !== undefined && (
+                <>
+                  {prefix}{points} {suffix}
+                  {rawPoints !== undefined && rawPoints !== points && (
+                    <span className="ml-2 text-sm text-white/60">
+                      ({formatPoints(rawPoints)} raw)
+                    </span>
+                  )}
+                </>
+              )}
+              {movement !== undefined && (
+                <>
+                  {prefix}{movement} {suffix}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+      <div className={`absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${gradientFrom} ${gradientTo}`} />
+    </Card>
   );
 }

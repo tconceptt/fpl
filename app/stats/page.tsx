@@ -1,91 +1,114 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
+import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatPoints } from "@/lib/fpl"
 import { Medal, TrendingDown, TrendingUp, Trophy, Wand2 } from "lucide-react"
 import { getStatsData } from "./getStatData"
+import { ReactNode } from "react"
+
+// StatsCard component for reusability
+interface StatsCardProps {
+  title: string;
+  icon: ReactNode;
+  value: string | number;
+  label: string;
+  sublabel: string;
+  bgColorClass: string;
+  gradientFromClass: string;
+  gradientToClass: string;
+}
+
+function StatsCard({
+  title, 
+  icon,
+  value,
+  label,
+  sublabel,
+  bgColorClass,
+  gradientFromClass,
+  gradientToClass
+}: StatsCardProps) {
+  return (
+    <Card className="relative overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4">
+          <div className={`flex h-16 w-16 items-center justify-center rounded-full ${bgColorClass} text-2xl font-bold`}>
+            {value}
+          </div>
+          <div>
+            <div className="font-bold text-lg">{label}</div>
+            <div className="text-white/60">{sublabel}</div>
+          </div>
+        </div>
+      </CardContent>
+      <div className={`absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${gradientFromClass} ${gradientToClass}`} />
+    </Card>
+  )
+}
 
 export default async function StatsPage() {
   const data = await getStatsData()
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">Stats & Records</h1>
-          <p className="text-lg text-white/60">
-            After {data.finishedGameweeks} completed gameweeks
-          </p>
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          title="Stats & Records"
+          description={`After ${data.finishedGameweeks} completed gameweeks`}
+          currentGameweek={data.finishedGameweeks}
+          selectedGameweek={data.finishedGameweeks}
+          showGameweekSelector={false}
+        />
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatsCard
+            title="Most Wins"
+            icon={<Trophy className="h-4 w-4 text-yellow-500" />}
+            value={data.stats[0]?.wins}
+            label={data.stats[0]?.name}
+            sublabel={data.stats[0]?.managerName}
+            bgColorClass="bg-yellow-500/10"
+            gradientFromClass="from-yellow-500"
+            gradientToClass="to-yellow-600"
+          />
+
+          <StatsCard
+            title="Most Chips Used"
+            icon={<Wand2 className="h-4 w-4 text-purple-500" />}
+            value={data.chipStats[0]?.totalChipsUsed}
+            label={data.chipStats[0]?.name}
+            sublabel={data.chipStats[0]?.managerName}
+            bgColorClass="bg-purple-500/10"
+            gradientFromClass="from-purple-500"
+            gradientToClass="to-purple-600"
+          />
+
+          <StatsCard
+            title="Most Points on Bench"
+            icon={<Medal className="h-4 w-4 text-blue-500" />}
+            value={formatPoints(data.benchStats[0]?.benchPoints)}
+            label={data.benchStats[0]?.name}
+            sublabel={data.benchStats[0]?.managerName}
+            bgColorClass="bg-blue-500/10"
+            gradientFromClass="from-blue-500"
+            gradientToClass="to-blue-600"
+          />
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Most Wins</CardTitle>
-              <Trophy className="h-4 w-4 text-yellow-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-yellow-500/10 text-2xl font-bold">
-                  {data.stats[0]?.wins}
-                </div>
-                <div>
-                  <div className="font-bold text-lg">{data.stats[0]?.name}</div>
-                  <div className="text-white/60">{data.stats[0]?.managerName}</div>
-                </div>
-              </div>
-            </CardContent>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-yellow-500 to-yellow-600" />
-          </Card>
-
-          <Card className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Most Chips Used</CardTitle>
-              <Wand2 className="h-4 w-4 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-purple-500/10 text-2xl font-bold">
-                  {data.chipStats[0]?.totalChipsUsed}
-                </div>
-                <div>
-                  <div className="font-bold text-lg">{data.chipStats[0]?.name}</div>
-                  <div className="text-white/60">{data.chipStats[0]?.managerName}</div>
-                </div>
-              </div>
-            </CardContent>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-purple-500 to-purple-600" />
-          </Card>
-
-          <Card className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Most Points on Bench</CardTitle>
-              <Medal className="h-4 w-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10 text-2xl font-bold">
-                  {formatPoints(data.benchStats[0]?.benchPoints)}
-                </div>
-                <div>
-                  <div className="font-bold text-lg">{data.benchStats[0]?.name}</div>
-                  <div className="text-white/60">{data.benchStats[0]?.managerName}</div>
-                </div>
-              </div>
-            </CardContent>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500 to-blue-600" />
-          </Card>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
                 <Trophy className="h-5 w-5 text-yellow-500" />
                 Gameweek Winners
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/10">
@@ -137,12 +160,12 @@ export default async function StatsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
                 <Wand2 className="h-5 w-5 text-purple-500" />
                 Chips Usage
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/10">
@@ -186,12 +209,12 @@ export default async function StatsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
               <Medal className="h-5 w-5 text-blue-500" />
               Points on Bench
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="border-white/10">

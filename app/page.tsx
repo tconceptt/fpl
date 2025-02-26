@@ -1,263 +1,159 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { formatPoints } from "@/lib/fpl"
-import { fplApiRoutes } from "@/lib/routes"
-import { cn } from "@/lib/utils"
-import { ArrowDown, ArrowUp, Minus, Trophy } from "lucide-react"
-import { getTeamHistory } from "@/services/net-gameweek-points"
-import { GameweekSelector } from "@/components/gameweek-selector"
-import { notFound } from "next/navigation"
-import { getUrlParam } from "@/lib/helpers"
+import { Crown, Timer, BarChart, Zap } from "lucide-react"
+import { FootballHero } from "@/components/ui/shape-landing-hero"
+import { RoastGenerator } from "./qitawrari/roast-generator"
+import { ImageSlideshow } from "./qitawrari/image-slideshow"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
-interface LeagueStanding {
-  id: number
-  event_total: number
-  player_name: string
-  rank: number
-  last_rank: number
-  total: number
-  entry: number
-  entry_name: string
-  has_played: boolean
+function calculateDaysToEvent(targetDate: string) {
+  const today = new Date()
+  const eventDate = new Date(targetDate)
+  const diffTime = Math.abs(eventDate.getTime() - today.getTime())
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  return diffDays
 }
 
-interface GameweekStanding {
-  entry: number;
-  entry_name: string;
-  player_name: string;
-  event_total: number;
-  total_points: number;
-  net_points: number | null;
-  rank: number;
-  last_rank: number;
-}
-
-async function getCurrentGameweek(): Promise<number> {
-  const response = await fetch(fplApiRoutes.bootstrap, {
-    next: { revalidate: 300 },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch bootstrap data');
-  }
-
-  const data = await response.json();
-  return data.events.find((event: { id: number; is_current: boolean }) => event.is_current).id;
-}
-
-async function getHistoricalStandings(teamIds: number[], selectedGameweek: number, teamInfo: LeagueStanding[]): Promise<GameweekStanding[]> {
-  // Fetch historical data for all teams
-  const teamsHistory = await Promise.all(
-    teamIds.map(teamId => 
-      getTeamHistory(teamId.toString())
-        .catch(error => {
-          console.error(`Failed to fetch history for team ${teamId}:`, error);
-          return null;
-        })
-    )
-  );
-
-  // Get gameweek data for each team
-  const standings = teamsHistory
-    .map((history, index) => {
-      if (!history) return null;
-
-      const gameweekData = history.current.find(gw => gw.event === selectedGameweek);
-      if (!gameweekData) return null;
-
-      const team = teamInfo.find(t => t.entry === teamIds[index]);
-      if (!team) return null;
-
-      return {
-        entry: teamIds[index],
-        entry_name: team.entry_name,
-        player_name: team.player_name,
-        event_total: gameweekData.points,
-        total_points: gameweekData.total_points,
-        net_points: gameweekData.points - gameweekData.event_transfers_cost,
-        rank: 0, // Will be calculated after sorting
-        last_rank: 0, // Will be calculated after getting previous gameweek standings
-      };
-    })
-    .filter((standing): standing is NonNullable<typeof standing> => standing !== null);
-
-  // If it's not gameweek 1, get previous gameweek standings to calculate last_rank
-  if (selectedGameweek > 1) {
-    const previousStandings = teamsHistory
-      .map((history, index) => {
-        if (!history) return null;
-
-        const previousGameweekData = history.current.find(gw => gw.event === selectedGameweek - 1);
-        if (!previousGameweekData) return null;
-
-        return {
-          entry: teamIds[index],
-          total_points: previousGameweekData.total_points,
-        };
-      })
-      .filter((standing): standing is NonNullable<typeof standing> => standing !== null)
-      .sort((a, b) => b.total_points - a.total_points);
-
-    // Create a map of entry to previous rank
-    const previousRanks = new Map(
-      previousStandings.map((standing, index) => [standing.entry, index + 1])
-    );
-
-    // Update last_rank for each team
-    standings.forEach(standing => {
-      standing.last_rank = previousRanks.get(standing.entry) || standing.rank;
-    });
-  }
-
-  // Sort by total points and assign current ranks
-  return standings
-    .sort((a, b) => b.total_points - a.total_points)
-    .map((standing, index) => ({
-      ...standing,
-      rank: index + 1,
-    }));
-}
-
-async function getLeagueData(selectedGameweek?: number) {
-  const [response, currentGameweek] = await Promise.all([
-    fetch(
-      fplApiRoutes.standings(process.env.FPL_LEAGUE_ID || ""),
-      {
-        next: { revalidate: 300 },
-      }
-    ),
-    getCurrentGameweek()
-  ]);
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch data')
-  }
-
-  const data = await response.json();
-  const gameweek = selectedGameweek || currentGameweek;
-
-  // Get team IDs from current standings
-  const teamIds = data.standings.results.map((team: LeagueStanding) => team.entry);
-
-  // Get historical standings for selected gameweek
-  const historicalStandings = await getHistoricalStandings(teamIds, gameweek, data.standings.results);
-
-  return {
-    leagueName: data.league.name,
-    currentGameweek,
-    selectedGameweek: gameweek,
-    standings: historicalStandings
-  }
-}
-
-function getRankMovement(currentRank: number, lastRank: number) {
-  if (currentRank < lastRank) {
-    return { icon: ArrowUp, color: "text-emerald-500", diff: lastRank - currentRank }
-  } else if (currentRank > lastRank) {
-    return { icon: ArrowDown, color: "text-red-500", diff: currentRank - lastRank }
-  }
-  return { icon: Minus, color: "text-white/60", diff: 0 }
-}
-
-
-export default async function Page() {
-  const gameweek = await getUrlParam("gameweek");
-  const requestedGameweek = gameweek ? parseInt(gameweek as string) : undefined;
-  const data = await getLeagueData(requestedGameweek);
-
-  // Validate the requested gameweek
-  if (requestedGameweek && (requestedGameweek < 1 || requestedGameweek > data.currentGameweek)) {
-    notFound();
-  }
+export default function HomePage() {
+  const daysToFPLCup = calculateDaysToEvent("2025-05-10")
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        <div className="flex flex-col space-y-1.5">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold tracking-tight">{data.leagueName}</h1>
-            <GameweekSelector 
-              currentGameweek={data.currentGameweek}
-              selectedGameweek={data.selectedGameweek}
-              className="w-[180px]"
-            />
-          </div>
-          <p className="text-lg text-white/60">
-            {data.selectedGameweek === data.currentGameweek 
-              ? "Live League Standings"
-              : `League Standings as of Gameweek ${data.selectedGameweek}`
-            }
-          </p>
-        </div>
+      {/* Hero Section */}
+      <div className="-mt-14">
+        <FootballHero 
+          badge="Qitawrari Hub" 
+          title1="Where Legends" 
+          title2="Are Made" 
+        />
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              League Table
-            </CardTitle>
+      <div className="flex flex-col gap-8 mt-6">
+        {/* Navigation Card */}
+        <Card className="relative overflow-hidden bg-gradient-to-br from-blue-500/20 to-green-500/20">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xl font-medium">Quick Navigation</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow className="border-white/10">
-                  <TableHead className="w-12 text-white/60">Rank</TableHead>
-                  <TableHead className="text-white/60">Team</TableHead>
-                  <TableHead className="text-right text-white/60">GW</TableHead>
-                  <TableHead className="text-right text-white/60">GW Net</TableHead>
-                  <TableHead className="text-right text-white/60">Total</TableHead>
-                  <TableHead className="w-20 text-right text-white/60">Movement</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.standings.map((team) => {
-                  const movement = getRankMovement(team.rank, team.last_rank)
-                  const MovementIcon = movement.icon
-                  
-                  return (
-                    <TableRow key={team.entry} className="border-white/10 hover:bg-white/5">
-                      <TableCell className="font-medium">
-                        {team.rank === 1 ? (
-                          <div className="flex items-center gap-2">
-                            {team.rank}
-                            <Trophy className="h-4 w-4 text-yellow-500" />
-                          </div>
-                        ) : team.rank}
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{team.entry_name}</div>
-                          <div className="text-sm text-white/60">{team.player_name}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatPoints(team.event_total)}
-                      </TableCell>
-                      <TableCell className={cn(
-                        "text-right font-medium",
-                        team.net_points !== null && team.net_points !== team.event_total && "text-yellow-500"
-                      )}>
-                        {team.net_points !== null ? formatPoints(team.net_points) : "-"}
-                      </TableCell>
-                      <TableCell className="text-right font-bold">
-                        {formatPoints(team.total_points)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {movement.diff > 0 && (
-                          <div className="flex items-center justify-end gap-1">
-                            <span className={movement.color}>{movement.diff}</span>
-                            <MovementIcon className={cn("h-4 w-4", movement.color)} />
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/gameweek" className="flex-1">
+                <Button variant="outline" className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 border-white/10">
+                  <Zap className="h-5 w-5 text-yellow-500" />
+                  <span>Gameweek Details</span>
+                </Button>
+              </Link>
+              <Link href="/stats" className="flex-1">
+                <Button variant="outline" className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 border-white/10">
+                  <BarChart className="h-5 w-5 text-blue-500" />
+                  <span>Season Statistics</span>
+                </Button>
+              </Link>
+              <Link href="/league" className="flex-1">
+                <Button variant="outline" className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 border-white/10">
+                  <Crown className="h-5 w-5 text-purple-500" />
+                  <span>League Table</span>
+                </Button>
+              </Link>
+            </div>
           </CardContent>
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500 to-green-500" />
         </Card>
+
+        <div className="grid gap-8">
+          <ImageSlideshow />
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="relative overflow-hidden bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xl font-medium">Reigning Qitawrari</CardTitle>
+                <Crown className="h-6 w-6 text-fuchsia-500 animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-6">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 text-4xl">
+                    👑
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-2xl font-bold bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
+                      Eyosyas Kebede
+                    </div>
+                    <div className="text-lg text-white/60">
+                      The one who defied all odds... by finishing last
+                    </div>
+                    <div className="text-sm text-white/40 italic">
+                      &ldquo;With great power comes great responsibility to do better next season&rdquo;
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+              <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+            </Card>
+
+            <Card className="relative overflow-hidden bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xl font-medium">FPL Cup Countdown</CardTitle>
+                <Timer className="h-6 w-6 text-cyan-500 animate-spin-slow" />
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-6">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 text-4xl">
+                    ⚔️
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-3xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
+                      {daysToFPLCup} Days
+                    </div>
+                    <div className="text-lg text-white/60">
+                      Until the FPL Cup begins!
+                    </div>
+                    <div className="text-sm text-white/40">
+                      Starting May 10, 2025 - May the odds be ever in your favor
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+              <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
+            </Card>
+          </div>
+
+          <RoastGenerator />
+
+          <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/20 to-orange-500/20">
+            <CardHeader>
+              <CardTitle className="text-xl">Hall of Qitawrari</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-4 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20">
+                  <div className="text-2xl">🏆</div>
+                  <div>
+                    <div className="font-medium">Season 2022/23</div>
+                    <div className="text-white/60">The Original Qitawrari</div>
+                  </div>
+                  <div className="ml-auto font-bold text-amber-500">T</div>
+                </div>
+                <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5">
+                  <div className="text-2xl">👑</div>
+                  <div>
+                    <div className="font-medium">Season 2023/24</div>
+                    <div className="text-white/60">The Current Holder</div>
+                  </div>
+                  <div className="ml-auto font-bold text-orange-500">Eyosyas Kebede</div>
+                </div>
+                <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5">
+                  <div className="text-2xl">❓</div>
+                  <div>
+                    <div className="font-medium">Season 2024/25</div>
+                    <div className="text-white/60">The Next Legend</div>
+                  </div>
+                  <div className="ml-auto font-bold text-white/40">To be determined...</div>
+                </div>
+              </div>
+            </CardContent>
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
+          </Card>
+        </div>
       </div>
     </DashboardLayout>
   )

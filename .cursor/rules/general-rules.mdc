@@ -3,3 +3,5 @@ description: The genral purpose of this application
 globs: 
 ---
 We are trying to build a web app for a fantasy premier league minileague stats and summaries analyzer. We will fetch the data from a fantasy premier league api as documented in [api-documentation.mdc](mdc:.cursor/rules/api-documentation.mdc). To make the project as simple as possible, we will assume that this app will only work for one single minileague. 
+
+Always remember to make our design responsive.
