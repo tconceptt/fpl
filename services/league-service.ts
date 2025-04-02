@@ -6,11 +6,15 @@ import { GameweekStanding, LeagueData, LeagueStanding } from "@/types/league";
 
 export async function getCurrentGameweek(): Promise<number> {
   const response = await fetch(fplApiRoutes.bootstrap, {
-    next: { revalidate: 300 },
+    next: { 
+      revalidate: 300,
+      tags: ['bootstrap']  // Add a tag for better cache control
+    },
+    cache: 'no-store'  // Prevent Next.js from trying to cache large responses
   });
 
   if (!response.ok) {
-    throw new Error('Failed to fetch bootstrap data');
+    throw new Error(`Failed to fetch bootstrap data: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();
@@ -179,20 +183,56 @@ export async function getHistoricalStandings(
 }
 
 export async function getLeagueData(selectedGameweek?: number): Promise<LeagueData> {
+  const retryFetch = async (url: string, options: RequestInit, retries = 3): Promise<Response> => {
+    try {
+      // Add authentication headers
+      const headers = {
+        'User-Agent': 'Mozilla/5.0',
+        'Origin': 'https://fantasy.premierleague.com',
+        'Referer': 'https://fantasy.premierleague.com/'
+      };
+
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...headers,
+          ...(options.headers || {})
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`Resource not found. Please check if FPL_LEAGUE_ID is set correctly in your environment variables.`);
+        }
+        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+      }
+      return response;
+    } catch (error) {
+      if (retries > 0) {
+        console.log(`Retrying... ${retries} attempts left`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return retryFetch(url, options, retries - 1);
+      }
+      throw error;
+    }
+  };
+
   try {
+    const leagueId = process.env.FPL_LEAGUE_ID;
+    if (!leagueId) {
+      throw new Error('FPL_LEAGUE_ID environment variable is not set. Please set it in your .env.local file.');
+    }
+
     const [response, currentGameweek] = await Promise.all([
-      fetch(
-        fplApiRoutes.standings(process.env.FPL_LEAGUE_ID || ""),
+      retryFetch(
+        fplApiRoutes.standings(leagueId),
         {
           next: { revalidate: 300 },
+          cache: 'no-store'
         }
       ),
       getCurrentGameweek()
     ]);
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch data');
-    }
 
     const data = await response.json();
     const gameweek = selectedGameweek || currentGameweek;
