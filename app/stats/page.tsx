@@ -52,14 +52,49 @@ function StatsCard({
   )
 }
 
+// TypeScript interfaces for our data structures
+interface GameweekWin {
+  gameweek: number;
+  points: number;
+  net_points: number;
+}
+
+interface TeamStats {
+  id: number;
+  name: string;
+  managerName: string;
+  wins: number;
+  gameweekWins: GameweekWin[];
+}
+
+interface ChipInfo {
+  name: string;
+  gameweek: number;
+}
+
+interface ChipStats {
+  id: number;
+  name: string;
+  managerName: string;
+  totalChipsUsed: number;
+  chips: ChipInfo[];
+}
+
+interface BenchStats {
+  id: number;
+  name: string;
+  managerName: string;
+  benchPoints: number;
+}
+
 // Mobile Card Components
-function GameweekWinnerCard({ team, rank }: { team: any, rank: number }) {
+function GameweekWinnerCard({ team, rank }: { team: TeamStats; rank: number }) {
   return (
     <div className="bg-white/5 rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {rank === 1 && <Trophy className="h-4 w-4 text-yellow-500" />}
-          <span className="text-sm text-white/60">Rank {rank}</span>
+          <span className="text-sm text-white/60">{rank}</span>
         </div>
         <span className="text-lg font-bold">{team.wins} wins</span>
       </div>
@@ -68,7 +103,7 @@ function GameweekWinnerCard({ team, rank }: { team: any, rank: number }) {
         <div className="text-sm text-white/60">{team.managerName}</div>
       </div>
       <div className="flex flex-wrap gap-1">
-        {team.gameweekWins.map(win => (
+        {team.gameweekWins.map((win) => (
           <span
             key={win.gameweek}
             className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 text-xs"
@@ -82,11 +117,11 @@ function GameweekWinnerCard({ team, rank }: { team: any, rank: number }) {
   )
 }
 
-function ChipsUsageCard({ team, rank }: { team: any, rank: number }) {
+function ChipsUsageCard({ team, rank }: { team: ChipStats; rank: number }) {
   return (
     <div className="bg-white/5 rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-white/60">Rank {rank}</span>
+        <span className="text-sm text-white/60">{rank}</span>
         <span className="text-lg font-bold">{team.totalChipsUsed} chips</span>
       </div>
       <div>
@@ -94,7 +129,7 @@ function ChipsUsageCard({ team, rank }: { team: any, rank: number }) {
         <div className="text-sm text-white/60">{team.managerName}</div>
       </div>
       <div className="flex flex-wrap gap-1">
-        {team.chips.map((chip: any, chipIndex: number) => (
+        {team.chips.map((chip, chipIndex) => (
           <span
             key={chipIndex}
             className="inline-flex items-center rounded bg-white/10 px-2 py-1 text-xs"
@@ -108,15 +143,25 @@ function ChipsUsageCard({ team, rank }: { team: any, rank: number }) {
   )
 }
 
-function BenchPointsCard({ team, rank, finishedGameweeks }: { team: any, rank: number, finishedGameweeks: number }) {
+function BenchPointsCard({ 
+  team, 
+  rank, 
+  finishedGameweeks,
+  totalTeams
+}: { 
+  team: BenchStats; 
+  rank: number; 
+  finishedGameweeks: number;
+  totalTeams: number;
+}) {
   return (
     <div className="bg-white/5 rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-white/60">Rank {rank}</span>
+        <span className="text-sm text-white/60">{rank}</span>
         <div className="text-right">
           {rank === 1 ? (
             <TrendingUp className="ml-auto h-4 w-4 text-emerald-500" />
-          ) : rank === team.length ? (
+          ) : rank === totalTeams ? (
             <TrendingDown className="ml-auto h-4 w-4 text-red-500" />
           ) : null}
         </div>
@@ -366,6 +411,7 @@ export default async function StatsPage() {
                         team={team} 
                         rank={index + 1}
                         finishedGameweeks={data.finishedGameweeks}
+                        totalTeams={data.benchStats.length}
                       />
                     ))}
                   </div>

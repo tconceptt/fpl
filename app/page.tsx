@@ -2,7 +2,6 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Crown, Timer, BarChart, Zap } from "lucide-react"
 import { FootballHero } from "@/components/ui/shape-landing-hero"
-import { RoastGenerator } from "./qitawrari/roast-generator"
 import { ImageSlideshow } from "./qitawrari/image-slideshow"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -117,7 +116,7 @@ export default function HomePage() {
             </Card>
           </div>
 
-          <RoastGenerator />
+         
 
           <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/20 to-orange-500/20">
             <CardHeader>

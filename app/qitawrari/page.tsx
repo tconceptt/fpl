@@ -1,7 +1,7 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Crown, Timer } from "lucide-react"
-import { RoastGenerator } from "./roast-generator"
+
 import { ImageSlideshow } from "./image-slideshow"
 
 function calculateDaysToEvent(targetDate: string) {
@@ -81,8 +81,6 @@ export default function QitawrariPage() {
               <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
             </Card>
           </div>
-
-          <RoastGenerator />
 
           <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/20 to-orange-500/20">
             <CardHeader>
