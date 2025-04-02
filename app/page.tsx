@@ -1,6 +1,6 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Crown, Timer, BarChart, Zap } from "lucide-react"
+import { Crown, Timer, BarChart, Zap, Trophy } from "lucide-react"
 import { FootballHero } from "@/components/ui/shape-landing-hero"
 import { ImageSlideshow } from "./qitawrari/image-slideshow"
 import { Button } from "@/components/ui/button"
@@ -52,6 +52,12 @@ export default function HomePage() {
                 <Button variant="outline" className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 border-white/10">
                   <Crown className="h-5 w-5 text-purple-500" />
                   <span>League Table</span>
+                </Button>
+              </Link>
+              <Link href="/prizes" className="flex-1">
+                <Button variant="outline" className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-white/5 hover:bg-white/10 border-white/10">
+                  <Trophy className="h-5 w-5 text-amber-500" />
+                  <span>Prize Pool</span>
                 </Button>
               </Link>
             </div>
@@ -116,7 +122,56 @@ export default function HomePage() {
             </Card>
           </div>
 
-         
+          {/* Prize Pool Teaser */}
+          <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/20 to-yellow-500/20">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xl font-medium">Prize Pool Highlights</CardTitle>
+              <Trophy className="h-6 w-6 text-amber-500 animate-pulse" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-amber-500/30 to-yellow-500/30 text-4xl">
+                  💰
+                </div>
+                <div className="space-y-3 text-center md:text-left">
+                  <div className="text-2xl font-bold bg-gradient-to-r from-amber-400 to-yellow-200 bg-clip-text text-transparent">
+                    35K+ ETB Total Prize Pool
+                  </div>
+                  <div className="text-lg text-white/60">
+                    Weekly prizes, special achievements, and more!
+                  </div>
+                  <Link href="/prizes">
+                    <Button className="bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-600 hover:to-yellow-600">
+                      View Prize Details
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-3 rounded-lg bg-white/5 text-center">
+                  <div className="text-2xl mb-1">🏆</div>
+                  <div className="text-sm text-white/60">Champion</div>
+                  <div className="font-semibold text-amber-400">17K 🤑</div>
+                </div>
+                <div className="p-3 rounded-lg bg-white/5 text-center">
+                  <div className="text-2xl mb-1">🎮</div>
+                  <div className="text-sm text-white/60">Weekly Wins</div>
+                  <div className="font-semibold text-amber-400">140 ETB</div>
+                </div>
+                <div className="p-3 rounded-lg bg-white/5 text-center">
+                  <div className="text-2xl mb-1">⚡</div>
+                  <div className="text-sm text-white/60">Best BB/TC</div>
+                  <div className="font-semibold text-amber-400">2K 🤑</div>
+                </div>
+                <div className="p-3 rounded-lg bg-white/5 text-center">
+                  <div className="text-2xl mb-1">🎁</div>
+                  <div className="text-sm text-white/60">Special Mugs</div>
+                  <div className="font-semibold text-white/70">2 Winners</div>
+                </div>
+              </div>
+            </CardContent>
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-500 to-yellow-500" />
+          </Card>
 
           <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/20 to-orange-500/20">
             <CardHeader>

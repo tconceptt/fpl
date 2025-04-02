@@ -27,6 +27,11 @@ export function NavigationTabs() {
       name: "League",
       href: "/league",
       active: pathname === "/league"
+    },
+    {
+      name: "Prizes",
+      href: "/prizes",
+      active: pathname === "/prizes"
     }
   ]
 
