@@ -1,4 +1,18 @@
 import { getCurrentGameweek, getLeagueData } from "@/services/league-service";
+import { fplApiRoutes } from "@/lib/routes";
+
+interface TeamHistory {
+  current: Array<{
+    event: number;
+    points: number;
+    event_transfers_cost: number;
+  }>;
+  chips: Array<{
+    name: string;
+    event: number;
+    time: string;
+  }>;
+}
 
 export interface PrizeWinner {
   playerName: string;
@@ -30,13 +44,51 @@ export interface PrizesData {
  */
 async function getHighestBenchBoost(): Promise<PrizeWinner | null> {
   try {
-    // This would typically involve fetching all teams' history and filtering for bench boost use
-    // For now, returning a placeholder
-    return {
-      playerName: "Abel Hailu",
-      teamName: "Abel United",
-      points: 42,
-    };
+    // Get league data to get all team IDs
+    const leagueData = await getLeagueData();
+    const standings = leagueData.standings;
+    
+    // Track the highest bench boost score
+    let highestBenchBoost: PrizeWinner | null = null;
+    
+    // Fetch history for all teams
+    const teamsHistoryPromises = standings.map(team => 
+      fetch(fplApiRoutes.teamHistory(team.entry.toString()))
+        .then(res => res.json())
+        .catch(error => {
+          console.error(`Failed to fetch history for team ${team.entry}:`, error);
+          return null;
+        })
+    );
+    
+    const teamsHistory = await Promise.all(teamsHistoryPromises);
+    
+    // Process each team's history
+    teamsHistory.forEach((history: TeamHistory | null, index) => {
+      if (!history) return;
+      
+      // Find gameweek where bench boost was used
+      const benchBoostChip = history.chips.find(chip => chip.name === 'bboost');
+      if (!benchBoostChip) return;
+      
+      // Get the gameweek data where bench boost was used
+      const gameweekData = history.current.find(gw => gw.event === benchBoostChip.event);
+      if (!gameweekData) return;
+      
+      // Calculate net points (points minus transfer cost)
+      const netPoints = gameweekData.points - (gameweekData.event_transfers_cost || 0);
+      
+      // Update highest bench boost if this score is higher
+      if (!highestBenchBoost || netPoints > (highestBenchBoost.points || 0)) {
+        highestBenchBoost = {
+          playerName: standings[index].player_name,
+          teamName: standings[index].entry_name,
+          points: netPoints,
+        };
+      }
+    });
+    
+    return highestBenchBoost;
   } catch (error) {
     console.error("Error fetching highest bench boost:", error);
     return null;
