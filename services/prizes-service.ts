@@ -1,4 +1,6 @@
 import { getCurrentGameweek, getLeagueData } from "@/services/league-service";
+import { fplApiRoutes } from "@/lib/routes";
+import { getPlayerName } from "@/services/get-player-name";
 
 export interface PrizeWinner {
   playerName: string;
@@ -69,14 +71,71 @@ async function getHighestBenchBoost(): Promise<(PrizeWinner & { gameweek?: numbe
  */
 async function getHighestTripleCaptain(): Promise<PrizeWinner | null> {
   try {
-    // This would typically involve fetching all teams' history and filtering for triple captain use
-    // For now, returning a placeholder
-    return {
-      playerName: "T L",
-      teamName: "T FC",
-      points: 57,
-      captainName: "Haaland",
-    };
+    const currentGameweek = await getCurrentGameweek();
+    let highestScore: PrizeWinner | null = null;
+    
+    // Iterate through all gameweeks to find the highest triple captain score
+    for (let gw = 1; gw <= currentGameweek; gw++) {
+      const leagueData = await getLeagueData(gw);
+      
+      // Check each team's data for the gameweek
+      for (const standing of leagueData.standings) {
+        // Only consider if they used triple captain this gameweek
+        if (standing.active_chip === '3xc') {
+          try {
+            // Get team details to find the captain's player ID
+            const teamDetailsResponse = await fetch(
+              fplApiRoutes.teamDetails(standing.entry.toString(), gw.toString()),
+              { next: { revalidate: 30 } }
+            );
+            
+            if (!teamDetailsResponse.ok) continue;
+            
+            const teamDetails = await teamDetailsResponse.json();
+            const captain = teamDetails.picks.find((pick: { is_captain: boolean }) => pick.is_captain);
+            
+            if (!captain) continue;
+            
+            // Get live standings to get the captain's actual points
+            const liveStandingsResponse = await fetch(
+              fplApiRoutes.liveStandings(gw.toString()),
+              { next: { revalidate: 30 } }
+            );
+            
+            if (!liveStandingsResponse.ok) continue;
+            
+            const liveStandings = await liveStandingsResponse.json();
+            const captainStats = liveStandings.elements.find(
+              (element: { id: number }) => element.id === captain.element
+            );
+            
+            if (!captainStats) continue;
+            
+            // Calculate triple captain points (base points × 3)
+            const triplePoints = captainStats.stats.total_points * 3;
+            
+            // Update highest score if this is higher
+            if (!highestScore || triplePoints > (highestScore.points || 0)) {
+              // Get captain's name
+              const captainName = await getPlayerName(captain.element);
+              
+              highestScore = {
+                playerName: standing.player_name,
+                teamName: standing.entry_name,
+                points: triplePoints,
+                captainName: captainName,
+                gameweek: gw
+              };
+            }
+          } catch (error) {
+            console.error(`Error processing triple captain for team ${standing.entry} in gameweek ${gw}:`, error);
+            continue;
+          }
+        }
+      }
+    }
+    
+    return highestScore;
   } catch (error) {
     console.error("Error fetching highest triple captain:", error);
     return null;
