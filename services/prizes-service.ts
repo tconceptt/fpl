@@ -5,6 +5,7 @@ export interface PrizeWinner {
   teamName: string;
   points?: number;
   captainName?: string;
+  gameweek?: number;
 }
 
 export interface WeeklyWinner {
@@ -28,10 +29,10 @@ export interface PrizesData {
 /**
  * Get the highest bench boost score from the league history
  */
-async function getHighestBenchBoost(): Promise<PrizeWinner | null> {
+async function getHighestBenchBoost(): Promise<(PrizeWinner & { gameweek?: number }) | null> {
   try {
     const currentGameweek = await getCurrentGameweek();
-    let highestScore: PrizeWinner | null = null;
+    let highestScore: (PrizeWinner & { gameweek?: number }) | null = null;
     
     // Iterate through all gameweeks to find the highest bench boost score
     for (let gw = 1; gw <= currentGameweek; gw++) {
@@ -48,7 +49,8 @@ async function getHighestBenchBoost(): Promise<PrizeWinner | null> {
             highestScore = {
               playerName: standing.player_name,
               teamName: standing.entry_name,
-              points: points
+              points: points,
+              gameweek: gw
             };
           }
         }

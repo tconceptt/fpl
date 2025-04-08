@@ -2,8 +2,8 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Crown, Trophy, Star, ZapOff, Zap, Award, Gift } from "lucide-react";
 import { getPrizesData, WeeklyWinner } from "@/services/prizes-service";
+import { Award, Crown, Gift, Star, Trophy, Zap, ZapOff } from "lucide-react";
 
 export default async function PrizesPage() {
   const prizesData = await getPrizesData();
@@ -115,6 +115,7 @@ export default async function PrizesPage() {
                     </h3>
                     <p className="text-sm text-white/60">{prizesData.highestBenchBoost?.teamName || ""}</p>
                     <p className="text-white/70 mt-1">{prizesData.highestBenchBoost?.points || 0} points</p>
+                    <p className="text-sm text-white/60">GW {prizesData.highestBenchBoost?.gameweek || "?"}</p>
                     <div className="mt-2 text-lg font-semibold text-green-400">2,000 ETB</div>
                   </div>
                 </CardContent>
