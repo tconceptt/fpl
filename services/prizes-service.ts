@@ -10,13 +10,6 @@ export interface PrizeWinner {
   gameweek?: number;
 }
 
-export interface WeeklyWinner {
-  gameweek: number;
-  playerName: string;
-  teamName: string;
-  points: number;
-}
-
 export interface PrizesData {
   currentGameweek: number;
   firstPlace: PrizeWinner | null;
@@ -25,7 +18,6 @@ export interface PrizesData {
   highestBenchBoost: PrizeWinner | null;
   highestTripleCaptain: PrizeWinner | null;
   lastPlace: PrizeWinner | null;
-  weeklyWinners: WeeklyWinner[];
 }
 
 /**
@@ -142,43 +134,6 @@ async function getHighestTripleCaptain(): Promise<PrizeWinner | null> {
   }
 }
 
-/**
- * Get weekly winners for all completed gameweeks
- */
-async function getWeeklyWinners(currentGameweek: number): Promise<WeeklyWinner[]> {
-  try {
-    const weeklyWinners: WeeklyWinner[] = [];
-    
-    // For each completed gameweek, fetch the standings and find the winner
-    for (let gw = 1; gw <= currentGameweek; gw++) {
-      try {
-        const data = await getLeagueData(gw);
-        
-        if (data.standings.length > 0) {
-          // Get the manager with the highest points for this gameweek
-          const winner = data.standings.reduce((highest, current) => 
-            current.event_total > highest.event_total ? current : highest
-          );
-          
-          weeklyWinners.push({
-            gameweek: gw,
-            playerName: winner.player_name,
-            teamName: winner.entry_name,
-            points: winner.event_total,
-          });
-        }
-      } catch (error) {
-        console.error(`Error fetching data for gameweek ${gw}:`, error);
-      }
-    }
-    
-    return weeklyWinners;
-  } catch (error) {
-    console.error("Error fetching weekly winners:", error);
-    return [];
-  }
-}
-
 export async function getPrizesData(): Promise<PrizesData> {
   try {
     // Get current gameweek and league standings
@@ -189,10 +144,9 @@ export async function getPrizesData(): Promise<PrizesData> {
     const standings = leagueData.standings;
     
     // Get special prize winners
-    const [highestBenchBoost, highestTripleCaptain, weeklyWinners] = await Promise.all([
+    const [highestBenchBoost, highestTripleCaptain] = await Promise.all([
       getHighestBenchBoost(),
       getHighestTripleCaptain(),
-      getWeeklyWinners(currentGameweek),
     ]);
     
     // Return prize data
@@ -219,8 +173,6 @@ export async function getPrizesData(): Promise<PrizesData> {
         playerName: standings[standings.length - 1].player_name,
         teamName: standings[standings.length - 1].entry_name,
       } : null,
-      // Weekly winners
-      weeklyWinners,
     };
   } catch (error) {
     console.error("Error fetching prizes data:", error);
@@ -234,7 +186,6 @@ export async function getPrizesData(): Promise<PrizesData> {
       highestBenchBoost: null,
       highestTripleCaptain: null,
       lastPlace: null,
-      weeklyWinners: [],
     };
   }
 } 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart, Zap, Trophy, Home } from "lucide-react";
+import { BarChart, Zap, Trophy, Home, Banknote } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MainNav() {
@@ -20,6 +20,12 @@ export function MainNav() {
       label: "League",
       icon: Trophy,
       active: pathname === "/league",
+    },
+    {
+      href: "/prizes",
+      label: "Prizes",
+      icon: Banknote,
+      active: pathname === "/prizes",
     },
     {
       href: "/gameweek",

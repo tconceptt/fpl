@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { BarChart, Menu, Zap, Trophy, Home } from "lucide-react";
+import { BarChart, Menu, Zap, Trophy, Home, Banknote } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MobileMenu() {
@@ -27,6 +27,12 @@ export function MobileMenu() {
       label: "League",
       icon: Trophy,
       active: pathname === "/league",
+    },
+    {
+      href: "/prizes",
+      label: "Prizes",
+      icon: Banknote,
+      active: pathname === "/prizes",
     },
     {
       href: "/gameweek",

@@ -1,13 +1,123 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getPrizesData, WeeklyWinner } from "@/services/prizes-service";
-import { Award, Crown, Gift, Star, Trophy, Zap, ZapOff } from "lucide-react";
+import { getPrizesData } from "@/services/prizes-service";
+import { getStatsData } from "@/app/stats/getStatData";
+import { Award, Crown, Trophy, Zap, ZapOff } from "lucide-react";
 
 export default async function PrizesPage() {
   const prizesData = await getPrizesData();
+  const statsData = await getStatsData();
   
+  // Calculate total winnings for each player
+  const totalWinnings = new Map<string, { 
+    playerName: string, 
+    teamName: string, 
+    prizeAmount: number, 
+    weeklyWins: number,
+    weeklyAmount: number,
+    totalAmount: number,
+    prizes: string[]
+  }>();
+  
+  // Add first place prize (17,000)
+  if (prizesData.firstPlace) {
+    totalWinnings.set(prizesData.firstPlace.playerName, {
+      playerName: prizesData.firstPlace.playerName,
+      teamName: prizesData.firstPlace.teamName,
+      prizeAmount: 17000,
+      weeklyWins: 0,
+      weeklyAmount: 0,
+      totalAmount: 17000,
+      prizes: ["Overall Winner (17,000)"]
+    });
+  }
+  
+  // Add second place prize (4,000)
+  if (prizesData.secondPlace) {
+    totalWinnings.set(prizesData.secondPlace.playerName, {
+      playerName: prizesData.secondPlace.playerName,
+      teamName: prizesData.secondPlace.teamName,
+      prizeAmount: 4000,
+      weeklyWins: 0,
+      weeklyAmount: 0,
+      totalAmount: 4000,
+      prizes: ["Second Place (4,000)"]
+    });
+  }
+  
+  // Add highest bench boost prize (2,000)
+  if (prizesData.highestBenchBoost) {
+    const existing = totalWinnings.get(prizesData.highestBenchBoost.playerName);
+    if (existing) {
+      existing.prizeAmount += 2000;
+      existing.totalAmount += 2000;
+      existing.prizes.push(`Highest Bench Boost (2,000)`);
+    } else {
+      totalWinnings.set(prizesData.highestBenchBoost.playerName, {
+        playerName: prizesData.highestBenchBoost.playerName,
+        teamName: prizesData.highestBenchBoost.teamName,
+        prizeAmount: 2000,
+        weeklyWins: 0,
+        weeklyAmount: 0,
+        totalAmount: 2000,
+        prizes: [`Highest Bench Boost (2,000)`]
+      });
+    }
+  }
+  
+  // Add highest triple captain prize (2,000)
+  if (prizesData.highestTripleCaptain) {
+    const existing = totalWinnings.get(prizesData.highestTripleCaptain.playerName);
+    if (existing) {
+      existing.prizeAmount += 2000;
+      existing.totalAmount += 2000;
+      existing.prizes.push(`Highest Triple Captain (2,000)`);
+    } else {
+      totalWinnings.set(prizesData.highestTripleCaptain.playerName, {
+        playerName: prizesData.highestTripleCaptain.playerName,
+        teamName: prizesData.highestTripleCaptain.teamName,
+        prizeAmount: 2000,
+        weeklyWins: 0,
+        weeklyAmount: 0,
+        totalAmount: 2000,
+        prizes: [`Highest Triple Captain (2,000)`]
+      });
+    }
+  }
+  
+  // Add weekly wins (140 each)
+  statsData.stats.forEach(stat => {
+    const existing = totalWinnings.get(stat.managerName);
+    const weeklyAmount = stat.wins * 140;
+    
+    if (existing) {
+      existing.weeklyWins = stat.wins;
+      existing.weeklyAmount = weeklyAmount;
+      existing.totalAmount += weeklyAmount;
+      if (stat.wins > 0) {
+        existing.prizes.push(`${stat.wins} Weekly Wins (${weeklyAmount})`);
+      }
+    } else {
+      totalWinnings.set(stat.managerName, {
+        playerName: stat.managerName,
+        teamName: stat.name,
+        prizeAmount: 0,
+        weeklyWins: stat.wins,
+        weeklyAmount: weeklyAmount,
+        totalAmount: weeklyAmount,
+        prizes: stat.wins > 0 ? [`${stat.wins} Weekly Wins (${weeklyAmount})`] : []
+      });
+    }
+  });
+  
+  // Convert to array and sort by total amount
+  const sortedWinnings = Array.from(totalWinnings.values())
+    .sort((a, b) => b.totalAmount - a.totalAmount)
+    .filter(w => w.totalAmount > 0);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -18,11 +128,102 @@ export default async function PrizesPage() {
           selectedGameweek={prizesData.currentGameweek}
         />
         
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs defaultValue="details" className="space-y-4">
           <TabsList className="grid grid-cols-2">
-            <TabsTrigger value="overview">Prize Overview</TabsTrigger>
-            <TabsTrigger value="details">Detailed Breakdown</TabsTrigger>
+            <TabsTrigger value="details">Show Me The Money</TabsTrigger>
+            <TabsTrigger value="overview">The Money Pit</TabsTrigger>
           </TabsList>
+          
+          {/* Details Tab */}
+          <TabsContent value="details" className="space-y-6">
+            {/* Prize Breakdown Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-400" />
+                  Current Prize Standings
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* Mobile View - Cards */}
+                <div className="space-y-3 sm:hidden">
+                  {sortedWinnings.map((winner) => (
+                    <div key={winner.playerName} className="bg-white/5 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <div className="font-medium">{winner.playerName}</div>
+                          <div className="text-sm text-white/60">{winner.teamName}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-lg">{winner.totalAmount} ETB</div>
+                          {winner.weeklyWins > 0 && (
+                            <div className="text-sm text-white/60">
+                              {winner.weeklyWins} weekly wins
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-sm text-white/60">
+                        {winner.prizes.join(', ')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop View - Table */}
+                <div className="hidden sm:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/10">
+                        <TableHead className="text-white/60">Player</TableHead>
+                        <TableHead className="text-right text-white/60">Weekly Wins</TableHead>
+                        <TableHead className="text-right text-white/60">Total</TableHead>
+                        <TableHead className="text-white/60">Breakdown</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedWinnings.map((winner) => (
+                        <TableRow key={winner.playerName} className="border-white/10">
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{winner.playerName}</div>
+                              <div className="text-sm text-white/60">{winner.teamName}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">{winner.weeklyWins || '-'}</TableCell>
+                          <TableCell className="text-right font-bold">{winner.totalAmount} ETB</TableCell>
+                          <TableCell>
+                            <div className="text-sm text-white/60">
+                              {winner.prizes.join(', ')}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Rules Reference */}
+            <Card className="bg-black/20">
+              <CardHeader>
+                <CardTitle>The Rules of the Game 📜</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 text-white/70">
+                  <p>🎯 Current Leader - 17K ETB awaits (if they survive till the end! 😅)</p>
+                  <p>🥈 Second Place - 4K ETB (not bad, not bad at all!)</p>
+                  <p>🥉 Third Place - A &ldquo;ሩቅ አሳቢ ቅርብ አዳሪ&rdquo; mug (at least it&apos;s something! 🤷‍♂️)</p>
+                  <p>⚡ Weekly Glory - 140 birr per gameweek win (small wins add up! 💪)</p>
+                  <p>🔋 Bench Boost Champion - 2K ETB (for the genius who times it perfectly)</p>
+                  <p>👑 Triple Captain Master - 2K ETB (for the brave soul who picks the right moment)</p>
+                  <p>🥄 12th Place Special - &ldquo;የተከበሩ ቂጥ አውራሪ&rdquo; mug (hey, at least you&apos;re memorable! 😂)</p>
+                  <p className="text-sm italic mt-4 text-white/50">* All standings are current as of GW{prizesData.currentGameweek}. Anything can happen! 🎭</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
           
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
@@ -34,7 +235,7 @@ export default async function PrizesPage() {
                   <Award className="h-6 w-6 text-slate-400" />
                 </div>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xl">Second Place</CardTitle>
+                  <CardTitle className="text-xl">The Pursuer</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex flex-col items-center justify-center">
@@ -64,10 +265,11 @@ export default async function PrizesPage() {
                       <span className="text-6xl">🏆</span>
                     </div>
                     <h3 className="text-2xl font-bold bg-gradient-to-r from-amber-400 to-yellow-200 bg-clip-text text-transparent">
-                      {prizesData.firstPlace?.playerName || "TBD"}
+                      {prizesData.firstPlace?.playerName || "Still up for grabs!"}
                     </h3>
                     <p className="text-sm text-white/60">{prizesData.firstPlace?.teamName || ""}</p>
-                    <div className="mt-3 text-lg font-semibold text-green-400">17,000 ETB</div>
+                    <div className="mt-3 text-lg font-semibold text-green-400">17,000 ETB*</div>
+                    <p className="text-xs text-white/50 mt-1">*if he can hold on! 😅</p>
                   </div>
                 </CardContent>
               </Card>
@@ -78,7 +280,7 @@ export default async function PrizesPage() {
                   <Award className="h-6 w-6 text-amber-700" />
                 </div>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xl">Third Place</CardTitle>
+                  <CardTitle className="text-xl">The Bronze Hopeful</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex flex-col items-center justify-center">
@@ -152,147 +354,26 @@ export default async function PrizesPage() {
                   <ZapOff className="h-6 w-6 text-red-400" />
                 </div>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xl">Last Place (12th)</CardTitle>
+                  <CardTitle className="text-xl">Favorite for Qitawrari</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex flex-col items-center justify-center">
                     <div className="w-20 h-20 relative flex items-center justify-center rounded-full bg-gradient-to-br from-red-500/30 to-orange-500/30 text-4xl mb-3">
-                      <span className="text-4xl">😅</span>
+                      <span className="text-4xl">🙈</span>
                     </div>
                     <h3 className="text-xl font-bold text-white">
-                      {prizesData.lastPlace?.playerName || "TBD"}
+                      {prizesData.lastPlace?.playerName || "Could be you! 😱"}
                     </h3>
                     <p className="text-sm text-white/60">{prizesData.lastPlace?.teamName || ""}</p>
                     <div className="mt-3 text-lg font-semibold text-white/70">&ldquo;የተከበሩ ቂጥ አውራሪ&rdquo; mug</div>
+                    <p className="text-xs text-white/50 mt-1">Still time to escape! 🏃‍♂️</p>
                   </div>
                 </CardContent>
               </Card>
             </div>
-            
-            {/* Weekly Winners Summary */}
-            <Card className="relative overflow-hidden bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-green-700">
-              <div className="absolute top-2 right-2">
-                <Gift className="h-6 w-6 text-green-400" />
-              </div>
-              <CardHeader>
-                <CardTitle className="text-xl">Weekly Winners Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {prizesData.weeklyWinners.map((winner: WeeklyWinner, index: number) => (
-                    <div key={index} className="p-3 rounded-lg bg-white/5 flex flex-col items-center">
-                      <div className="text-sm text-white/60">Gameweek {winner.gameweek}</div>
-                      <div className="font-medium text-white">{winner.playerName}</div>
-                      <div className="text-sm text-white/60 mt-1">{winner.points} pts</div>
-                      <div className="mt-1 text-sm font-semibold text-green-400">140 ETB</div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
           
-          {/* Details Tab */}
-          <TabsContent value="details" className="space-y-6">
-            {/* Prize Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Prize Distribution Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      <Trophy className="h-5 w-5 text-yellow-400" /> 
-                      Season Placement Prizes
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      <div className="p-4 rounded-lg bg-gradient-to-br from-amber-500/20 to-yellow-500/20">
-                        <div className="font-semibold">Overall Winner</div>
-                        <div className="text-lg text-green-400">17,000 ETB</div>
-                        <div className="mt-1 text-white/60">Current: {prizesData.firstPlace?.playerName || "TBD"}</div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-gradient-to-br from-slate-500/20 to-gray-500/20">
-                        <div className="font-semibold">Second Place</div>
-                        <div className="text-lg text-green-400">4,000 ETB</div>
-                        <div className="mt-1 text-white/60">Current: {prizesData.secondPlace?.playerName || "TBD"}</div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-gradient-to-br from-amber-700/20 to-orange-700/20">
-                        <div className="font-semibold">Third Place</div>
-                        <div className="text-lg text-white/70">&ldquo;ሩቅ አሳቢ ቅርብ አዳሪ&rdquo; mug</div>
-                        <div className="mt-1 text-white/60">Current: {prizesData.thirdPlace?.playerName || "TBD"}</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      <Zap className="h-5 w-5 text-blue-400" /> 
-                      Special Achievement Prizes
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      <div className="p-4 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20">
-                        <div className="font-semibold">Highest Bench Boost</div>
-                        <div className="text-lg text-green-400">2,000 ETB</div>
-                        <div className="mt-1 text-white/60">
-                          Current: {prizesData.highestBenchBoost?.playerName || "TBD"} 
-                          {prizesData.highestBenchBoost?.points ? ` (${prizesData.highestBenchBoost.points}pts)` : ""}
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20">
-                        <div className="font-semibold">Highest Triple Captain</div>
-                        <div className="text-lg text-green-400">2,000 ETB</div>
-                        <div className="mt-1 text-white/60">
-                          Current: {prizesData.highestTripleCaptain?.playerName || "TBD"} 
-                          {prizesData.highestTripleCaptain?.points ? ` (${prizesData.highestTripleCaptain.points}pts)` : ""}
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-lg bg-gradient-to-br from-red-500/20 to-orange-500/20">
-                        <div className="font-semibold">Last Place (12th)</div>
-                        <div className="text-lg text-white/70">&ldquo;የተከበሩ ቂጥ አውራሪ&rdquo; mug</div>
-                        <div className="mt-1 text-white/60">Current: {prizesData.lastPlace?.playerName || "TBD"}</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      <Star className="h-5 w-5 text-emerald-400" /> 
-                      Weekly Winners Prize
-                    </h3>
-                    <div className="p-4 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20">
-                      <div className="font-semibold">Weekly Winner</div>
-                      <div className="text-lg text-green-400">140 ETB per gameweek win</div>
-                      <div className="mt-2 text-white/60 text-sm">
-                        Total prize pot for weekly winners: {prizesData.currentGameweek * 140} ETB
-                      </div>
-                      <div className="mt-3 text-white/80 text-sm">
-                        Weekly prizes are awarded to the manager with the highest points in each gameweek.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Rules Reference */}
-            <Card className="bg-black/20">
-              <CardHeader>
-                <CardTitle>Prize Rules Reference</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 text-white/70">
-                  <p>🚀🌟 Total Overall Winner - 17K 💥💥</p>
-                  <p>🚀🌟 Second Place - 4K 💥💥</p>
-                  <p>🚀🌟 Third Place - &ldquo;ሩቅ አሳቢ ቅርብ አዳሪ&rdquo; mug</p>
-                  <p>🚀🌟 Weekly winners - 140 birr per gameweek win</p>
-                  <p>🚀🌟 Highest BenchBoost Points - 2K (highest points by a team when bench boost was activated)</p>
-                  <p>🚀🌟 Highest Triple Captain - 2K (highest points gained by a triple captained player)</p>
-                  <p>🚀🌟 Last place, 12th - &ldquo;የተከበሩ ቂጥ አውራሪ&rdquo; mug</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          
         </Tabs>
       </div>
     </DashboardLayout>
