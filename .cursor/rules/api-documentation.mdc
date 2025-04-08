@@ -1,6 +1,7 @@
 ---
 description: This is the official documentation of the API that this application will call to fetch data
 globs: 
+alwaysApply: false
 ---
 
 https://www.fantasy.premierleague.com/api/{some-other-parameter-here}
