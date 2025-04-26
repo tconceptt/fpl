@@ -157,6 +157,73 @@ export async function getStatsData() {
       });
     });
 
+    // --- Assistant Manager Chip Usage Logic ---
+    const assistantManagerMap = new Map<number, AssistantManagerStats>();
+    teams.forEach((team) => {
+      assistantManagerMap.set(team.id, {
+        id: team.id,
+        name: team.name,
+        managerName: team.managerName,
+        hasUsed: false,
+        totalPoints: 0,
+        startGameweek: null,
+        selections: [],
+      });
+    });
+
+    // Only check gameweeks 23 and up for Assistant Manager chip
+    const relevantGameweeks = (events
+      .filter((event: { id: number }) => event.id >= 23)
+      .map((event: { id: number }) => event.id));
+
+    await Promise.all(
+      teams.map(async (team) => {
+        // Find the first gameweek where the chip was activated
+        let startGW: number | null = null;
+        for (const gw of relevantGameweeks) {
+          const resp = await fetch(fplApiRoutes.teamDetails(team.id.toString(), gw.toString()));
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.active_chip === "manager") {
+              startGW = gw;
+              break;
+            }
+          }
+        }
+        if (startGW) {
+          const stats = assistantManagerMap.get(team.id);
+          if (stats) {
+            stats.hasUsed = true;
+            stats.startGameweek = startGW;
+            // Get the 3 consecutive GWs
+            const threeGWs = [startGW, startGW + 1, startGW + 2];
+            const selections = await Promise.all(
+              threeGWs.map(async (gw) => {
+                const selectedManager = team.managerName;
+                // Get points for this GW
+                const history = teamHistories.get(team.id);
+                let points = 0;
+                if (history) {
+                  const gwData = history.current.find((h) => h.event === gw);
+                  if (gwData) points = gwData.points;
+                }
+                return { gameweek: gw, selectedManager, points };
+              })
+            );
+            stats.selections = selections;
+            stats.totalPoints = selections.reduce((sum, sel) => sum + sel.points, 0);
+          }
+        }
+      })
+    );
+
+    const assistantManagerStats = Array.from(assistantManagerMap.values()).sort((a, b) => {
+      if (a.hasUsed === b.hasUsed) {
+        return b.totalPoints - a.totalPoints;
+      }
+      return b.hasUsed ? -1 : 1;
+    });
+
     // Convert maps to arrays and sort
     const stats = Array.from(teamStatsMap.values()).sort(
       (a, b) => b.wins - a.wins || b.totalPoints - a.totalPoints
@@ -174,6 +241,7 @@ export async function getStatsData() {
       stats,
       chipStats,
       benchStats,
+      assistantManagerStats,
       finishedGameweeks: finishedGameweeks.length,
     };
   } catch (error) {
@@ -182,6 +250,7 @@ export async function getStatsData() {
       stats: [],
       chipStats: [],
       benchStats: [],
+      assistantManagerStats: [],
       finishedGameweeks: 0,
     };
   }
@@ -247,4 +316,14 @@ export interface ChipUsage {
     name: string;
     gameweek: number;
   }>;
+}
+
+export interface AssistantManagerStats {
+  id: number;
+  name: string;
+  managerName: string;
+  hasUsed: boolean;
+  totalPoints: number;
+  startGameweek: number | null;
+  selections: { gameweek: number; selectedManager: string; points: number }[];
 }
