@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Wand2, Medal } from "lucide-react";
+import { Trophy, Wand2, Medal, CalendarDays, Zap, Layers, UserCheck } from "lucide-react";
 import { getStatsData } from "./getStatData";
 import { formatPoints } from "@/lib/fpl";
 
@@ -67,11 +67,51 @@ export default async function StatsLandingPage() {
           <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500 to-blue-600" />
         </Card>
       </div>
-      <div className="flex flex-col gap-4 mt-8">
-        <Link href="/stats/gameweek-winners" className="text-lg font-bold hover:underline">Gameweek Winners</Link>
-        <Link href="/stats/chips-usage" className="text-lg font-bold hover:underline">Chips Usage</Link>
-        <Link href="/stats/bench-points" className="text-lg font-bold hover:underline">Bench Points</Link>
-        <Link href="/stats/assistant-manager" className="text-lg font-bold hover:underline">Assistant Manager Chip Usage</Link>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+        <Link href="/stats/gameweek-winners">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex items-center space-x-2 pb-2">
+              <CalendarDays className="h-4 w-4 text-green-500" />
+              <CardTitle className="text-sm font-medium">Gameweek Winners</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-white/60">View weekly winners for each gameweek.</p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/stats/chips-usage">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex items-center space-x-2 pb-2">
+              <Zap className="h-4 w-4 text-purple-500" />
+              <CardTitle className="text-sm font-medium">Chips Usage</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-white/60">Analyze chip usage across managers.</p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/stats/bench-points">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex items-center space-x-2 pb-2">
+              <Layers className="h-4 w-4 text-blue-500" />
+              <CardTitle className="text-sm font-medium">Bench Points</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-white/60">See who scored the most on the bench.</p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/stats/assistant-manager">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex items-center space-x-2 pb-2">
+              <UserCheck className="h-4 w-4 text-pink-500" />
+              <CardTitle className="text-sm font-medium">Assistant Manager Chip Usage</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-white/60">Explore assistant manager chip stats.</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </DashboardLayout>
   );
