@@ -216,15 +216,24 @@ export async function getStatsData() {
               return { gameweek: gw, selectedManager: 'Unknown', points: 0 };
             }
             const data = await resp.json();
-            const entryHistory = data.entry_history;
             // The 16th pick (position 16) is the real-world manager
             const managerPick = data.picks.find((p: { element: number; position: number }) => p.position === 16);
             let selectedManager = 'Unknown Manager';
+            let managerPoints = 0;
             if (managerPick) {
+              // Lookup the manager card's own points for this GW
               selectedManager = await getPlayerName(managerPick.element, 'full_name');
+              const summaryResp = await fetch(`https://fantasy.premierleague.com/api/element-summary/${managerPick.element}/`);
+              if (summaryResp.ok) {
+                const summary = await summaryResp.json();
+                // Sum all fixtures in the same round to account for double gameweeks
+                const roundPoints = summary.history
+                  .filter((h: { round: number; total_points: number }) => h.round === gw)
+                  .reduce((sum: number, h: { total_points: number }) => sum + h.total_points, 0);
+                managerPoints = roundPoints;
+              }
             }
-            const points = entryHistory?.points ?? 0;
-            return { gameweek: gw, selectedManager, points };
+            return { gameweek: gw, selectedManager, points: managerPoints };
           })
         );
         stats.selections = selections;
