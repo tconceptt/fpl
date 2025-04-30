@@ -114,8 +114,12 @@ export function calculateMovement(currentRank: number, lastRank: number): 'up' |
   return 'none'
 }
 
-export function formatPoints(points: number): string {
-  return points.toLocaleString()
+/**
+ * Formats a points number, defaulting to 0 if nullish, and uses locale separators.
+ */
+export function formatPoints(points?: number | null): string {
+  const val = points ?? 0;
+  return val.toLocaleString();
 }
 
 export function getAvatarInitial(name: string): string {
