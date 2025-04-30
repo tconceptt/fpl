@@ -1,4 +1,5 @@
 import { fplApiRoutes } from "@/lib/routes";
+import { getPlayerName } from "@/services/get-player-name";
 
 export async function getStatsData() {
   try {
@@ -107,9 +108,10 @@ export async function getStatsData() {
       chipUsage.totalChipsUsed = validChips.length;
     });
 
-    // Process each finished gameweek
+    // Process each finished gameweek and record the top performer for manager chip use
+    const gameweekWinnerMap = new Map<number, { id: number; managerName: string; points: number }>();
     finishedGameweeks.forEach((gameweek: number) => {
-      let highestNetPoints = -Infinity;  // Changed to -Infinity to handle negative net points
+      let highestNetPoints = -Infinity;  
       let winners: { id: number; points: number; net_points: number }[] = [];
 
       // Find highest net points for the gameweek
@@ -140,6 +142,18 @@ export async function getStatsData() {
         }
       });
 
+      // Record the top winner for this gameweek
+      if (winners.length > 0) {
+        const firstWinner = winners[0];
+        const ts = teamStatsMap.get(firstWinner.id);
+        if (ts) {
+          gameweekWinnerMap.set(gameweek, {
+            id: ts.id,
+            managerName: ts.managerName,
+            points: firstWinner.points
+          });
+        }
+      }
       // Award wins to all teams that tied for highest net points
       winners.forEach((winner) => {
         const teamStats = teamStatsMap.get(winner.id);
@@ -157,7 +171,7 @@ export async function getStatsData() {
       });
     });
 
-    // --- Assistant Manager Chip Usage Logic ---
+    // --- Manager Chip Usage Logic ---
     const assistantManagerMap = new Map<number, AssistantManagerStats>();
     teams.forEach((team) => {
       assistantManagerMap.set(team.id, {
@@ -171,58 +185,55 @@ export async function getStatsData() {
       });
     });
 
-    // Only check gameweeks 23 and up for Assistant Manager chip
-    const relevantGameweeks = (events
-      .filter((event: { id: number }) => event.id >= 23)
-      .map((event: { id: number }) => event.id));
-
+    // Only check gameweeks 23 and up for Manager chip
+    const relevantGameweeks = events
+      .filter((e: { id: number }) => e.id >= 23)
+      .map((e: { id: number }) => e.id);
     await Promise.all(
       teams.map(async (team) => {
-        // Find the first gameweek where the chip was activated
+        // Find the first gameweek where the manager chip was activated
         let startGW: number | null = null;
         for (const gw of relevantGameweeks) {
           const resp = await fetch(fplApiRoutes.teamDetails(team.id.toString(), gw.toString()));
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data.active_chip === "manager") {
-              startGW = gw;
-              break;
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          if (data.active_chip === "manager") {
+            startGW = gw;
+            break;
+          }
+        }
+        if (!startGW) return;
+
+        const stats = assistantManagerMap.get(team.id);
+        if (!stats) return;
+        stats.hasUsed = true;
+        stats.startGameweek = startGW;
+        const chipWeeks = [startGW, startGW + 1, startGW + 2];
+        const selections = await Promise.all(
+          chipWeeks.map(async (gw) => {
+            const resp = await fetch(fplApiRoutes.teamDetails(team.id.toString(), gw.toString()));
+            if (!resp.ok) {
+              return { gameweek: gw, selectedManager: 'Unknown', points: 0 };
             }
-          }
-        }
-        if (startGW) {
-          const stats = assistantManagerMap.get(team.id);
-          if (stats) {
-            stats.hasUsed = true;
-            stats.startGameweek = startGW;
-            // Get the 3 consecutive GWs
-            const threeGWs = [startGW, startGW + 1, startGW + 2];
-            const selections = await Promise.all(
-              threeGWs.map(async (gw) => {
-                const selectedManager = team.managerName;
-                // Get points for this GW
-                const history = teamHistories.get(team.id);
-                let points = 0;
-                if (history) {
-                  const gwData = history.current.find((h) => h.event === gw);
-                  if (gwData) points = gwData.points;
-                }
-                return { gameweek: gw, selectedManager, points };
-              })
-            );
-            stats.selections = selections;
-            stats.totalPoints = selections.reduce((sum, sel) => sum + sel.points, 0);
-          }
-        }
+            const data = await resp.json();
+            const entryHistory = data.entry_history;
+            // The 16th pick (position 16) is the real-world manager
+            const managerPick = data.picks.find((p: { element: number; position: number }) => p.position === 16);
+            let selectedManager = 'Unknown Manager';
+            if (managerPick) {
+              selectedManager = await getPlayerName(managerPick.element, 'full_name');
+            }
+            const points = entryHistory?.points ?? 0;
+            return { gameweek: gw, selectedManager, points };
+          })
+        );
+        stats.selections = selections;
+        stats.totalPoints = selections.reduce((sum, sel) => sum + sel.points, 0);
       })
     );
-
-    const assistantManagerStats = Array.from(assistantManagerMap.values()).sort((a, b) => {
-      if (a.hasUsed === b.hasUsed) {
-        return b.totalPoints - a.totalPoints;
-      }
-      return b.hasUsed ? -1 : 1;
-    });
+    const assistantManagerStats = Array.from(assistantManagerMap.values()).sort((a, b) =>
+      a.hasUsed === b.hasUsed ? b.totalPoints - a.totalPoints : (b.hasUsed ? -1 : 1)
+    );
 
     // Convert maps to arrays and sort
     const stats = Array.from(teamStatsMap.values()).sort(
