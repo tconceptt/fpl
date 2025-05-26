@@ -4,8 +4,34 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getPrizesData } from "@/services/prizes-service";
-import { getStatsData } from "@/app/stats/getStatData";
-import { Award, Crown, Trophy, Zap, ZapOff } from "lucide-react";
+import { getStatsData, TieBreakDetail as StatsTieBreakDetail } from "@/app/stats/getStatData";
+import { Award, Crown, Trophy, Zap } from "lucide-react";
+
+// Re-define or use imported type for clarity in this file if preferred.
+// For now, we can use the imported StatsTieBreakDetail directly.
+// If StatsTieBreakDetail includes nested types that also need to be accessible, 
+// they might need to be exported from getStatData.ts or redefined here.
+
+// Assuming TieBreakDetail and its nested types are structured as expected by the table:
+interface TiedTeamInfo {
+  id: number;
+  name: string;
+  managerName: string;
+  score: number;
+}
+
+// interface WinningTeamInfo {
+//   id: number;
+//   name: string;
+//   managerName: string;
+// }
+
+// interface TieBreakDetailDisplay extends StatsTieBreakDetail { // Extend imported type or redefine fully
+//   // No new fields needed if StatsTieBreakDetail is complete for display
+//   // This is more for type-checking within this component.
+//   initiallyTiedTeams: TiedTeamInfo[];
+//   winningTeam: WinningTeamInfo;
+// }
 
 export default async function PrizesPage() {
   const prizesData = await getPrizesData();
@@ -264,6 +290,55 @@ export default async function PrizesPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Tie Break Explanations Table - NEW */}
+            {statsData.tieBreakDetails && statsData.tieBreakDetails.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    {/* Using a generic icon, consider a more specific one if available */}
+                    <Zap className="h-5 w-5 text-blue-400" /> 
+                    Weekly Winner Tie-Break Resolutions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/10">
+                        <TableHead className="text-white/60">Tied GW</TableHead>
+                        <TableHead className="text-white/60">Teams & Scores (in Tied GW)</TableHead>
+                        <TableHead className="text-white/60">Winning Team</TableHead>
+                        <TableHead className="text-white/60">Resolution</TableHead>
+                        <TableHead className="text-white/60">Details</TableHead> {/* Added for full resolution string */}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {statsData.tieBreakDetails.map((tie: StatsTieBreakDetail, index: number) => (
+                        <TableRow key={index} className="border-white/10">
+                          <TableCell className="font-medium">GW{tie.gameweek}</TableCell>
+                          <TableCell>
+                            {tie.initiallyTiedTeams.map((team: TiedTeamInfo, i: number) => (
+                              <div key={i} className="text-sm text-white/80">
+                                {team.managerName} ({team.score} pts)
+                              </div>
+                            ))}
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-white">{tie.winningTeam.managerName}</div>
+                            <div className="text-sm text-white/60">{tie.winningTeam.name}</div>
+                          </TableCell>
+                          <TableCell className="text-sm text-white/70">
+                            {tie.resolutionMethod}
+                            {tie.resolutionGameweek && ` (in GW${tie.resolutionGameweek})`}
+                          </TableCell>
+                          <TableCell className="text-xs text-white/60 italic">{tie.details}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
           
           {/* Overview Tab */}
@@ -339,6 +414,28 @@ export default async function PrizesPage() {
             
             {/* Special Prizes */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Cup Winner */}
+              <Card className="relative overflow-hidden bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-green-700">
+                <div className="absolute top-2 right-2">
+                  <Award className="h-6 w-6 text-green-400" />
+                </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">Cup Winner</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="w-20 h-20 relative flex items-center justify-center rounded-full bg-gradient-to-br from-green-500/30 to-emerald-500/30 text-4xl mb-3">
+                      <span className="text-4xl">🏆</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">
+                      {cupWinnerName}
+                    </h3>
+                    <p className="text-sm text-white/60">{determinedTeamNameForCupWinner}</p>
+                    <div className="mt-2 text-lg font-semibold text-green-400">{cupPrizeAmount} ETB</div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Highest Bench Boost */}
               <Card className="relative overflow-hidden bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-700">
                 <div className="absolute top-2 right-2">
@@ -384,28 +481,6 @@ export default async function PrizesPage() {
                       {prizesData.highestTripleCaptain?.playerName ? `${prizesData.highestTripleCaptain.captainName} (${prizesData.highestTripleCaptain.points}pts)` : ""}
                     </p>
                     <div className="mt-2 text-lg font-semibold text-green-400">2,000 ETB</div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* Last Place (12th) */}
-              <Card className="relative overflow-hidden bg-gradient-to-br from-red-500/20 to-orange-500/20 border-red-700">
-                <div className="absolute top-2 right-2">
-                  <ZapOff className="h-6 w-6 text-red-400" />
-                </div>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xl">12th Place</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="w-20 h-20 relative flex items-center justify-center rounded-full bg-gradient-to-br from-red-500/30 to-orange-500/30 text-4xl mb-3">
-                      <span className="text-4xl">🙈</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-white">
-                      {prizesData.lastPlace?.playerName || "N/A"}
-                    </h3>
-                    <p className="text-sm text-white/60">{prizesData.lastPlace?.teamName || ""}</p>
-                    <div className="mt-3 text-lg font-semibold text-white/70">&ldquo;የተከበሩ ቂጥ አውራሪ&rdquo; mug</div>
                   </div>
                 </CardContent>
               </Card>
