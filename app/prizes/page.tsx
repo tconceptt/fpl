@@ -88,6 +88,42 @@ export default async function PrizesPage() {
     }
   }
   
+  // Add Cup Winner prize (5,000)
+  const cupWinnerName = "Thijs Dekker";
+  const cupPrizeAmount = 5000;
+  
+  let determinedTeamNameForCupWinner = "Unknown Team"; // Default
+  if (prizesData.firstPlace?.playerName === cupWinnerName) determinedTeamNameForCupWinner = prizesData.firstPlace.teamName;
+  else if (prizesData.secondPlace?.playerName === cupWinnerName) determinedTeamNameForCupWinner = prizesData.secondPlace.teamName;
+  else if (prizesData.highestBenchBoost?.playerName === cupWinnerName) determinedTeamNameForCupWinner = prizesData.highestBenchBoost.teamName;
+  else if (prizesData.highestTripleCaptain?.playerName === cupWinnerName) determinedTeamNameForCupWinner = prizesData.highestTripleCaptain.teamName;
+  else {
+      const statEntry = statsData?.stats?.find(s => s.managerName === cupWinnerName);
+      if (statEntry) {
+          determinedTeamNameForCupWinner = statEntry.name;
+      }
+  }
+
+  const existingCupWinnerEntry = totalWinnings.get(cupWinnerName);
+  if (existingCupWinnerEntry) {
+    existingCupWinnerEntry.prizeAmount += cupPrizeAmount;
+    existingCupWinnerEntry.totalAmount += cupPrizeAmount;
+    existingCupWinnerEntry.prizes.push(`Cup Winner (5,000)`);
+    if ((existingCupWinnerEntry.teamName === "Unknown Team" || existingCupWinnerEntry.teamName === "N/A") && determinedTeamNameForCupWinner !== "Unknown Team") {
+        existingCupWinnerEntry.teamName = determinedTeamNameForCupWinner;
+    }
+  } else {
+    totalWinnings.set(cupWinnerName, {
+      playerName: cupWinnerName,
+      teamName: determinedTeamNameForCupWinner,
+      prizeAmount: cupPrizeAmount,
+      weeklyWins: 0,
+      weeklyAmount: 0,
+      totalAmount: cupPrizeAmount,
+      prizes: [`Cup Winner (5,000)`]
+    });
+  }
+  
   // Add weekly wins (140 each)
   if (statsData && statsData.stats) {
     statsData.stats.forEach(stat => {
@@ -126,16 +162,16 @@ export default async function PrizesPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
-          title="Qitawrari League Prizes"
-          description="Current prize winners if the league ended today"
+          title="Qitawrari League Final Prizes"
+          description="Final prize standings for the season."
           currentGameweek={prizesData.currentGameweek}
           selectedGameweek={prizesData.currentGameweek}
         />
         
         <Tabs defaultValue="details" className="space-y-4">
           <TabsList className="grid grid-cols-2">
-            <TabsTrigger value="details">Show Me The Money</TabsTrigger>
-            <TabsTrigger value="overview">The Money Pit</TabsTrigger>
+            <TabsTrigger value="details">Prize Details</TabsTrigger>
+            <TabsTrigger value="overview">Prize Overview</TabsTrigger>
           </TabsList>
           
           {/* Details Tab */}
@@ -145,7 +181,7 @@ export default async function PrizesPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-yellow-400" />
-                  Current Prize Standings
+                  Final Prize Breakdown
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -212,18 +248,19 @@ export default async function PrizesPage() {
             {/* Rules Reference */}
             <Card className="bg-black/20">
               <CardHeader>
-                <CardTitle>The Rules of the Game 📜</CardTitle>
+                <CardTitle>Prize Structure</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3 text-white/70">
-                  <p>🎯 Current Leader - 17K ETB awaits (if they survive till the end! 😅)</p>
-                  <p>🥈 Second Place - 4K ETB (not bad, not bad at all!)</p>
-                  <p>🥉 Third Place - A &ldquo;ሩቅ አሳቢ ቅርብ አዳሪ&rdquo; mug (at least it&apos;s something! 🤷‍♂️)</p>
-                  <p>⚡ Weekly Glory - 140 birr per gameweek win (small wins add up! 💪)</p>
-                  <p>🔋 Bench Boost Champion - 2K ETB (for the genius who times it perfectly)</p>
-                  <p>👑 Triple Captain Master - 2K ETB (for the brave soul who picks the right moment)</p>
-                  <p>🥄 12th Place Special - &ldquo;የተከበሩ ቂጥ አውራሪ&rdquo; mug (hey, at least you&apos;re memorable! 😂)</p>
-                  <p className="text-sm italic mt-4 text-white/50">* All standings are current as of GW{prizesData.currentGameweek}. Anything can happen! 🎭</p>
+                  <p>🏆 Overall Winner - 17,000 ETB</p>
+                  <p>🥈 Second Place - 4,000 ETB</p>
+                  <p>🥉 Third Place - &ldquo;ሩቅ አሳቢ ቅርብ አዳሪ&rdquo; mug</p>
+                  <p>💸 Weekly Wins - 140 ETB per gameweek win</p>
+                  <p>🏅 Cup Winner - 5,000 ETB</p>
+                  <p>🚀 Highest Bench Boost - 2,000 ETB</p>
+                  <p>👑 Highest Triple Captain - 2,000 ETB</p>
+                  <p>🥄 12th Place - &ldquo;የተከበሩ ቂጥ አውራሪ&rdquo; mug</p>
+                  <p className="text-sm italic mt-4 text-white/50">* Final standings as of GW{prizesData.currentGameweek}.</p>
                 </div>
               </CardContent>
             </Card>
@@ -239,7 +276,7 @@ export default async function PrizesPage() {
                   <Award className="h-6 w-6 text-slate-400" />
                 </div>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xl">The Pursuer</CardTitle>
+                  <CardTitle className="text-xl">Second Place</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex flex-col items-center justify-center">
@@ -261,7 +298,7 @@ export default async function PrizesPage() {
                   <Trophy className="h-6 w-6 text-yellow-400" />
                 </div>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xl">ዝሆኔ 🐘</CardTitle>
+                  <CardTitle className="text-xl">Overall Winner</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex flex-col items-center justify-center">
@@ -272,8 +309,7 @@ export default async function PrizesPage() {
                       {prizesData.firstPlace?.playerName || "Still up for grabs!"}
                     </h3>
                     <p className="text-sm text-white/60">{prizesData.firstPlace?.teamName || ""}</p>
-                    <div className="mt-3 text-lg font-semibold text-green-400">17,000 ETB*</div>
-                    <p className="text-xs text-white/50 mt-1">*if he can hold on! 😅</p>
+                    <div className="mt-3 text-lg font-semibold text-green-400">17,000 ETB</div>
                   </div>
                 </CardContent>
               </Card>
@@ -284,7 +320,7 @@ export default async function PrizesPage() {
                   <Award className="h-6 w-6 text-amber-700" />
                 </div>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xl">The Bronze Hopeful</CardTitle>
+                  <CardTitle className="text-xl">Third Place</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex flex-col items-center justify-center">
@@ -358,7 +394,7 @@ export default async function PrizesPage() {
                   <ZapOff className="h-6 w-6 text-red-400" />
                 </div>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xl">Favorite for Qitawrari</CardTitle>
+                  <CardTitle className="text-xl">12th Place</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex flex-col items-center justify-center">
@@ -366,11 +402,10 @@ export default async function PrizesPage() {
                       <span className="text-4xl">🙈</span>
                     </div>
                     <h3 className="text-xl font-bold text-white">
-                      {prizesData.lastPlace?.playerName || "Could be you! 😱"}
+                      {prizesData.lastPlace?.playerName || "N/A"}
                     </h3>
                     <p className="text-sm text-white/60">{prizesData.lastPlace?.teamName || ""}</p>
                     <div className="mt-3 text-lg font-semibold text-white/70">&ldquo;የተከበሩ ቂጥ አውራሪ&rdquo; mug</div>
-                    <p className="text-xs text-white/50 mt-1">Still time to escape! 🏃‍♂️</p>
                   </div>
                 </CardContent>
               </Card>
