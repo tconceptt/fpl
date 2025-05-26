@@ -9,8 +9,7 @@ export async function getCurrentGameweek(): Promise<number> {
     next: { 
       revalidate: 300,
       tags: ['bootstrap']  // Add a tag for better cache control
-    },
-    cache: 'no-store'  // Prevent Next.js from trying to cache large responses
+    }
   });
 
   if (!response.ok) {
@@ -227,8 +226,7 @@ export async function getLeagueData(selectedGameweek?: number): Promise<LeagueDa
       retryFetch(
         fplApiRoutes.standings(leagueId),
         {
-          next: { revalidate: 300 },
-          cache: 'no-store'
+          next: { revalidate: 300 }
         }
       ),
       getCurrentGameweek()

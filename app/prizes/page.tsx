@@ -49,7 +49,7 @@ export default async function PrizesPage() {
   }
   
   // Add highest bench boost prize (2,000)
-  if (prizesData.highestBenchBoost) {
+  if (prizesData.highestBenchBoost && prizesData.highestBenchBoost.playerName) {
     const existing = totalWinnings.get(prizesData.highestBenchBoost.playerName);
     if (existing) {
       existing.prizeAmount += 2000;
@@ -69,7 +69,7 @@ export default async function PrizesPage() {
   }
   
   // Add highest triple captain prize (2,000)
-  if (prizesData.highestTripleCaptain) {
+  if (prizesData.highestTripleCaptain && prizesData.highestTripleCaptain.playerName) {
     const existing = totalWinnings.get(prizesData.highestTripleCaptain.playerName);
     if (existing) {
       existing.prizeAmount += 2000;
@@ -89,29 +89,33 @@ export default async function PrizesPage() {
   }
   
   // Add weekly wins (140 each)
-  statsData.stats.forEach(stat => {
-    const existing = totalWinnings.get(stat.managerName);
-    const weeklyAmount = stat.wins * 140;
-    
-    if (existing) {
-      existing.weeklyWins = stat.wins;
-      existing.weeklyAmount = weeklyAmount;
-      existing.totalAmount += weeklyAmount;
-      if (stat.wins > 0) {
-        existing.prizes.push(`${stat.wins} Weekly Wins (${weeklyAmount})`);
+  if (statsData && statsData.stats) {
+    statsData.stats.forEach(stat => {
+      if (stat && stat.managerName) {
+        const existing = totalWinnings.get(stat.managerName);
+        const weeklyAmount = stat.wins * 140;
+        
+        if (existing) {
+          existing.weeklyWins = stat.wins;
+          existing.weeklyAmount = weeklyAmount;
+          existing.totalAmount += weeklyAmount;
+          if (stat.wins > 0) {
+            existing.prizes.push(`${stat.wins} Weekly Wins (${weeklyAmount})`);
+          }
+        } else {
+          totalWinnings.set(stat.managerName, {
+            playerName: stat.managerName,
+            teamName: stat.name,
+            prizeAmount: 0,
+            weeklyWins: stat.wins,
+            weeklyAmount: weeklyAmount,
+            totalAmount: weeklyAmount,
+            prizes: stat.wins > 0 ? [`${stat.wins} Weekly Wins (${weeklyAmount})`] : []
+          });
+        }
       }
-    } else {
-      totalWinnings.set(stat.managerName, {
-        playerName: stat.managerName,
-        teamName: stat.name,
-        prizeAmount: 0,
-        weeklyWins: stat.wins,
-        weeklyAmount: weeklyAmount,
-        totalAmount: weeklyAmount,
-        prizes: stat.wins > 0 ? [`${stat.wins} Weekly Wins (${weeklyAmount})`] : []
-      });
-    }
-  });
+    });
+  }
   
   // Convert to array and sort by total amount
   const sortedWinnings = Array.from(totalWinnings.values())
