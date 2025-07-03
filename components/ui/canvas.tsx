@@ -235,7 +235,7 @@ export const renderCanvas = function () {
   });
 
   window.addEventListener("blur", () => {
-    ctx.running = true;
+    ctx.running = false;
   });
 
   resizeCanvas();
