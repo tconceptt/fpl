@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { BarChart, Zap, Trophy, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function MainNav() {
+export function BottomNav() {
   const pathname = usePathname();
 
   const routes = [
@@ -36,25 +36,22 @@ export function MainNav() {
   ];
 
   return (
-    <nav className="hidden md:flex items-center gap-6">
-      <Link href="/" className="text-lg font-bold text-white">
-        FPL
-      </Link>
-      <div className="flex items-center gap-4">
+    <nav className="fixed bottom-0 left-0 z-30 block w-full border-t border-white/10 bg-background/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
+      <div className="container flex justify-around">
         {routes.map((route) => (
           <Link
             key={route.href}
             href={route.href}
             className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-white/10",
-              route.active ? "bg-white/20 text-white" : "text-white/70"
+              "flex flex-col items-center gap-1 rounded-md p-2 text-xs font-medium transition-colors hover:bg-white/10",
+              route.active ? "text-white" : "text-white/60"
             )}
           >
-            <route.icon className="h-4 w-4" />
-            {route.label}
+            <route.icon className="h-5 w-5" />
+            <span>{route.label}</span>
           </Link>
         ))}
       </div>
     </nav>
   );
-} 
+}

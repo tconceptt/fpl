@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Circle, Trophy, BarChart3, Flag, Shirt, Star } from "lucide-react";
+import { Trophy, BarChart3, Flag, Shirt, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function FootballShape({
@@ -87,10 +87,12 @@ function FootballHero({
     badge = "The Beautiful Game",
     title1 = "Fantasy Premier League",
     title2 = "Summarizer",
+    subtitle,
 }: {
     badge?: string;
     title1?: string;
     title2?: string;
+    subtitle?: string;
 }) {
     const fadeUpVariants = {
         hidden: { opacity: 0, y: 30 },
@@ -106,7 +108,7 @@ function FootballHero({
     };
 
     return (
-        <div className="relative w-full flex items-center justify-center overflow-hidden bg-[#051937] py-16 md:py-24 lg:py-32">
+        <div className="relative w-full flex items-center justify-center overflow-hidden bg-[#051937] py-20 md:py-28 lg:py-36">
             <div className="absolute inset-0 opacity-10">
                 <div className="absolute top-0 left-0 w-full h-full bg-[url('/images/pitch-pattern.png')] bg-repeat"></div>
             </div>
@@ -172,60 +174,49 @@ function FootballHero({
             </div>
 
             <div className="relative z-10 container mx-auto px-4 md:px-6">
-                <div className="max-w-3xl mx-auto text-center">
+                <div className="max-w-4xl mx-auto text-center">
                     <motion.div
                         custom={0}
                         variants={fadeUpVariants}
                         initial="hidden"
                         animate="visible"
-                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.1] border border-white/[0.15] mb-8 md:mb-12"
+                        className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 mb-8"
                     >
-                        <Circle className="h-2 w-2 fill-green-500" />
-                        <span className="text-sm text-white/80 tracking-wide font-medium">
+                        <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
+                        <span className="text-sm text-green-300 tracking-wide font-medium">
                             {badge}
                         </span>
                     </motion.div>
 
-                    <motion.div
+                    <motion.h1
                         custom={1}
                         variants={fadeUpVariants}
                         initial="hidden"
                         animate="visible"
-                        className="relative"
+                        className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tighter mb-6 text-white drop-shadow-lg"
                     >
-                        <div className="absolute inset-0 bg-black/20 blur-xl -m-4 rounded-3xl"></div>
-                        <h1 className="relative text-4xl sm:text-6xl md:text-7xl font-bold mb-6 md:mb-8 tracking-tight">
-                            <span className="bg-clip-text text-transparent bg-gradient-to-b from-white to-white/90 drop-shadow-sm">
-                                {title1}
-                            </span>
-                            <br />
-                            <span
-                                className={cn(
-                                    "bg-clip-text text-transparent bg-gradient-to-r from-green-400 via-white to-blue-400 drop-shadow-sm"
-                                )}
-                            >
-                                {title2}
-                            </span>
-                        </h1>
-                    </motion.div>
+                        {title1}
+                        <br />
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-300 to-blue-400">
+                            {title2}
+                        </span>
+                    </motion.h1>
 
-                    <motion.div
-                        custom={2}
-                        variants={fadeUpVariants}
-                        initial="hidden"
-                        animate="visible"
-                    >
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-black/20 blur-lg -m-2 rounded-xl"></div>
-                            <p className="relative text-base sm:text-lg md:text-xl text-white/80 mb-8 leading-relaxed font-light tracking-wide max-w-xl mx-auto px-4">
-                                Your one-stop dashboard for Fantasy Premier League mini-league statistics, insights, and bragging rights.
-                            </p>
-                        </div>
-                    </motion.div>
+                    {subtitle && (
+                        <motion.p
+                            custom={2}
+                            variants={fadeUpVariants}
+                            initial="hidden"
+                            animate="visible"
+                            className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto"
+                        >
+                            {subtitle}
+                        </motion.p>
+                    )}
                 </div>
             </div>
 
-            <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#131928] to-transparent"></div>
+            <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#051937] to-transparent"></div>
         </div>
     );
 }

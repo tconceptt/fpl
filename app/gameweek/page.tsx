@@ -22,6 +22,19 @@ interface GameweekTeamData {
   captain?: number;
 }
 
+interface GameweekData {
+  name: string;
+  team: string;
+  entry: number;
+  points: number;
+  net_points: number;
+  total_points: number;
+  chip: string | null;
+  captain?: number;
+  currentLeagueRank?: number;
+  movement?: number;
+}
+
 interface GameweekStats {
   currentGameweek: number;
   selectedGameweek: number;
@@ -105,10 +118,17 @@ async function getCurrentGameweek(): Promise<number> {
     }
 
     const data = await response.json();
-    return data.events.find((event: BootstrapEvent) => event.is_current).id;
+    const events: BootstrapEvent[] = data.events || [];
+    const current = events.find((e) => e.is_current);
+    if (current) return current.id;
+    const next = events.find((e) => e.is_next);
+    if (next) return next.id;
+    const lastFinished = [...events].reverse().find((e) => e.finished);
+    if (lastFinished) return lastFinished.id;
+    return 1;
   } catch (error) {
     console.error("Error fetching current gameweek:", error);
-    throw error;
+    return 1;
   }
 }
 
@@ -141,7 +161,9 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
     }
 
     const bootstrapData = await bootstrapResponse.json();
-    const currentGameweek = bootstrapData.events.find((e: BootstrapEvent) => e.is_current).id;
+    const events: BootstrapEvent[] = bootstrapData.events || [];
+    const currentEvent = events.find((e) => e.is_current) || events.find((e) => e.is_next) || [...events].reverse().find((e) => e.finished);
+    const currentGameweek = currentEvent ? currentEvent.id : 1;
     const isCurrentGameweek = selectedGameweek === currentGameweek;
 
     // Fetch historical data for all managers
@@ -251,17 +273,21 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
       };
     }).filter(Boolean);
 
+    const hasData = (gameweekData as unknown[]).length > 0;
+
     // Sort by total points to get current ranks
-    const sortedByPoints = [...gameweekData]
-      .sort((a, b) => b.total_points - a.total_points)
-      .map((team, index) => ({
-        ...team,
-        currentLeagueRank: index + 1
-      }));
+    const sortedByPoints = hasData
+      ? [...(gameweekData as GameweekData[])]
+          .sort((a, b) => b.total_points - a.total_points)
+          .map((team, index) => ({
+            ...team,
+            currentLeagueRank: index + 1
+          }))
+      : [];
 
     // If not gameweek 1, get previous gameweek data for rank movement
     let previousGameweekRanks = new Map();
-    if (selectedGameweek > 1) {
+    if (hasData && selectedGameweek > 1) {
       const previousGameweekData = standings.map((team: LeagueTeam, index: number) => {
         const history = managersHistory[index];
         if (!history) return null;
@@ -289,23 +315,25 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
     }
 
     // Calculate rank movements and find highest riser and steepest faller
-    const teamsWithMovement = sortedByPoints.map(team => {
-      const previousRank = previousGameweekRanks.get(team.entry) || team.currentLeagueRank;
-      const movement = previousRank - team.currentLeagueRank;
-      return {
-        name: team.name,
-        team: team.team,
-        movement
-      };
-    });
+    const teamsWithMovement = hasData
+      ? (sortedByPoints as GameweekData[]).map(team => {
+          const previousRank = previousGameweekRanks.get(team.entry) || team.currentLeagueRank!;
+          const movement = previousRank - team.currentLeagueRank!;
+          return {
+            name: team.name,
+            team: team.team,
+            movement
+          };
+        })
+      : [];
 
-    const highestRiser = [...teamsWithMovement].sort((a, b) => b.movement - a.movement)[0];
-    const steepestFaller = [...teamsWithMovement].sort((a, b) => a.movement - b.movement)[0];
+    const highestRiser = hasData ? [...teamsWithMovement].sort((a, b) => b.movement - a.movement)[0] : { name: "-", team: "-", movement: 0 };
+    const steepestFaller = hasData ? [...teamsWithMovement].sort((a, b) => a.movement - b.movement)[0] : { name: "-", team: "-", movement: 0 };
 
     // Get current leader and struggler based on net points
-    const sortedByNetPoints = [...gameweekData].sort((a, b) => b.net_points - a.net_points);
-    const currentLeader = sortedByNetPoints[0];
-    const lowestPoints = sortedByNetPoints[sortedByNetPoints.length - 1];
+    const sortedByNetPoints = hasData ? [...(gameweekData as GameweekData[])].sort((a, b) => b.net_points - a.net_points) : [];
+    const currentLeader = hasData ? sortedByNetPoints[0] : { name: "-", team: "-", points: 0, net_points: 0, chip: null };
+    const lowestPoints = hasData ? sortedByNetPoints[sortedByNetPoints.length - 1] : { name: "-", team: "-", points: 0, net_points: 0 };
 
     // Count chips used in selected gameweek
     const chipCounts = {
@@ -322,8 +350,8 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
       freehit: [] as string[],
     };
 
-    gameweekData.forEach((team: GameweekTeamData) => {
-      if (team.chip) {
+    (gameweekData as GameweekData[]).forEach((team: GameweekTeamData) => {
+      if (team && team.chip) {
         const chipType = team.chip.toLowerCase();
         switch (chipType) {
           case "wildcard":
@@ -351,8 +379,8 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
     let mostCaptainedInfo = undefined;
     
     // Count captains
-    gameweekData.forEach((team: GameweekTeamData) => {
-      if (team.captain) {
+    (gameweekData as GameweekData[]).forEach((team: GameweekTeamData) => {
+      if (team && team.captain) {
         const count = captainCounts.get(team.captain) || 0;
         captainCounts.set(team.captain, count + 1);
       }
@@ -404,7 +432,7 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
     ];
 
     return {
-      currentGameweek: bootstrapData.events.find((e: BootstrapEvent) => e.is_current).id,
+      currentGameweek,
       selectedGameweek,
       currentLeader: {
         name: currentLeader.name,

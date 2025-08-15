@@ -17,7 +17,16 @@ export async function getCurrentGameweek(): Promise<number> {
   }
 
   const data = await response.json();
-  return data.events.find((event: { id: number; is_current: boolean }) => event.is_current).id;
+  const events: Array<{ id: number; is_current: boolean; is_next: boolean; finished: boolean }> = data.events || [];
+  // Handle preseason or downtime gracefully
+  const current = events.find((e) => e.is_current);
+  if (current) return current.id;
+  const next = events.find((e) => e.is_next);
+  if (next) return next.id;
+  const lastFinished = [...events].reverse().find((e) => e.finished);
+  if (lastFinished) return lastFinished.id;
+  // Fallback to GW1 if nothing else is available
+  return 1;
 }
 
 export async function getHistoricalStandings(

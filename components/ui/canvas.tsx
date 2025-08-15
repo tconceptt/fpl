@@ -1,6 +1,16 @@
-/* eslint-disable no-var */
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+"use client"
+// @ts-nocheck
+
+
+// class Point {
+//   x: number
+//   y: number
+
+//   constructor(x: number, y: number) {
+//     this.x = x
+//     this.y = y
+//   }
+// }
 
 interface OscillatorParams {
   phase?: number;

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPL Gameweek Points Calculation Flow</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+        }
+        .mermaid {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .api-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .api-table th, .api-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .api-table th {
+            background-color: #3498db;
+            color: white;
+        }
+        .api-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        .business-rules {
+            background: #e8f4fd;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FPL Gameweek Points Calculation - Process Flow</h1>
+        
+        <h2>1. Complete Business Process Flow</h2>
+        <div class="mermaid">
+            graph TD
+                %% User Interaction
+                A[User Requests Gameweek Data] --> B[Get Current Gameweek]
+                
+                %% Initial Setup
+                B --> C[Fetch Bootstrap Data]
+                C --> D[Extract Current Gameweek ID]
+                D --> E[Fetch League Standings]
+                E --> F[Extract Team IDs from League]
+                
+                %% Decision Point
+                F --> G{Is Current Gameweek?}
+                
+                %% Live Points Path (Current Gameweek)
+                G -->|Yes| H[Fetch Live Points Data]
+                G -->|No| I[Fetch Historical Data]
+                
+                %% Live Points Calculation
+                H --> J[Fetch Team Details for All Teams]
+                J --> K[Fetch Live Standings]
+                K --> L[Create Live Points Map]
+                L --> M[Process Each Team's Picks]
+                M --> N[Apply Captain Multipliers]
+                N --> O[Calculate Transfer Costs]
+                O --> P[Calculate Net Points]
+                
+                %% Historical Data Path
+                I --> Q[Fetch Team History for All Teams]
+                Q --> R[Find Specific Gameweek Data]
+                R --> S[Extract Historical Points]
+                S --> T[Calculate Historical Net Points]
+                
+                %% Data Processing
+                P --> U[Process Team Details]
+                T --> U
+                U --> V[Get Captain Names]
+                V --> W[Track Active Chips]
+                W --> X[Calculate Rankings]
+                
+                %% Final Processing
+                X --> Y[Sort by Total Points]
+                Y --> Z[Assign Current Ranks]
+                Z --> AA[Calculate Rank Movement]
+                AA --> BB[Display Results]
+                
+                %% Styling
+                classDef decision fill:#ff9999,stroke:#333,stroke-width:2px
+                classDef process fill:#99ccff,stroke:#333,stroke-width:2px
+                classDef data fill:#99ff99,stroke:#333,stroke-width:2px
+                classDef endpoint fill:#ffcc99,stroke:#333,stroke-width:2px
+                
+                class G decision
+                class A,B,C,D,E,F,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,BB process
+        </div>
+
+        <h2>2. API Endpoints Used</h2>
+        <table class="api-table">
+            <thead>
+                <tr>
+                    <th>Endpoint</th>
+                    <th>Purpose</th>
+                    <th>Data Returned</th>
+                    <th>Cache Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>GET /api/bootstrap-static/</code></td>
+                    <td>Get current gameweek, player data, fixtures</td>
+                    <td>Events, players, teams, fixtures</td>
+                    <td>1 hour</td>
+                </tr>
+                <tr>
+                    <td><code>GET /api/leagues-classic/{leagueId}/standings/</code></td>
+                    <td>Get league table and team IDs</td>
+                    <td>Team standings, entry IDs</td>
+                    <td>5 minutes</td>
+                </tr>
+                <tr>
+                    <td><code>GET /api/entry/{teamId}/history/</code></td>
+                    <td>Get historical gameweek data</td>
+                    <td>Past gameweek points, transfers, rankings</td>
+                    <td>5 minutes</td>
+                </tr>
+                <tr>
+                    <td><code>GET /api/event/{gameweekId}/live/</code></td>
+                    <td>Get live player performance</td>
+                    <td>Real-time player stats and points</td>
+                    <td>30 seconds</td>
+                </tr>
+                <tr>
+                    <td><code>GET /api/entry/{teamId}/event/{gameweekId}/picks/</code></td>
+                    <td>Get team lineup and captain</td>
+                    <td>Team picks, captain, chips used</td>
+                    <td>30 seconds</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>3. Points Calculation Logic</h2>
+        <div class="code-block">
+            <strong>Live Points Calculation:</strong><br>
+            const livePoints = livePointsMap.get(pick.element) || 0;<br>
+            const points = livePoints * pick.multiplier; // Captain = 2x, Triple Captain = 3x<br><br>
+            
+            <strong>Net Points Calculation:</strong><br>
+            const netPoints = gameweekData.points - gameweekData.event_transfers_cost;<br><br>
+            
+            <strong>Total Points:</strong><br>
+            const totalPoints = starters.reduce((sum, player) => sum + player.points, 0);
+        </div>
+
+        <h2>4. Data Transformation Flow</h2>
+        <div class="mermaid">
+            graph LR
+                A[Raw API Data] --> B[Data Processing]
+                B --> C[Points Calculation]
+                C --> D[Ranking Logic]
+                D --> E[Final Display]
+                
+                subgraph "Raw API Data"
+                    A1[Team Picks]
+                    A2[Live Player Stats]
+                    A3[Historical Data]
+                    A4[League Standings]
+                end
+                
+                subgraph "Data Processing"
+                    B1[Map Player IDs to Points]
+                    B2[Apply Captain Multipliers]
+                    B3[Calculate Transfer Costs]
+                    B4[Extract Team Details]
+                end
+                
+                subgraph "Points Calculation"
+                    C1[Sum Starting 11 Points]
+                    C2[Apply Chip Effects]
+                    C3[Calculate Net Points]
+                    C4[Track Bench Points]
+                end
+                
+                subgraph "Ranking Logic"
+                    D1[Sort by Total Points]
+                    D2[Assign Ranks]
+                    D3[Calculate Movement]
+                    D4[Track Previous Ranks]
+                end
+        </div>
+
+        <h2>5. Key Business Rules</h2>
+        <div class="business-rules">
+            <ul>
+                <li><strong>Captain Points:</strong> Automatically doubles captain's points</li>
+                <li><strong>Triple Captain:</strong> Triples captain's points (chip effect)</li>
+                <li><strong>Bench Boost:</strong> All 15 players count towards total</li>
+                <li><strong>Transfer Costs:</strong> Deducted from net points calculation</li>
+                <li><strong>Live vs Historical:</strong> Different calculation methods based on gameweek status</li>
+                <li><strong>Ranking:</strong> Based on total points, with tie-breakers</li>
+                <li><strong>Movement:</strong> Calculated against previous gameweek rankings</li>
+            </ul>
+        </div>
+
+        <h2>6. Error Handling Flow</h2>
+        <div class="mermaid">
+            graph TD
+                A[API Request] --> B{Request Successful?}
+                B -->|Yes| C[Process Data]
+                B -->|No| D[Retry Logic]
+                D --> E{Retries < 3?}
+                E -->|Yes| F[Wait 1s & Retry]
+                E -->|No| G[Return Fallback Data]
+                F --> A
+                C --> H[Validate Data]
+                H --> I{Data Valid?}
+                I -->|Yes| J[Continue Processing]
+                I -->|No| K[Use Default Values]
+                J --> L[Display Results]
+                K --> L
+                G --> L
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
+        });
+    </script>
+</body>
+</html> 
