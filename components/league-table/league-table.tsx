@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatPoints } from "@/lib/fpl";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ import {
 interface LeagueTableProps {
   standings: GameweekStanding[];
   className?: string;
+  selectedGameweek?: number;
 }
 
 // Function to get chip icon based on chip name
@@ -43,7 +45,7 @@ function getChipIcon(chipName: string | null | undefined) {
   }
 }
 
-export function LeagueTable({ standings, className }: LeagueTableProps) {
+export function LeagueTable({ standings, className, selectedGameweek }: LeagueTableProps) {
   const [view, setView] = useState<"full" | "compact">("compact");
   
   return (
@@ -66,22 +68,23 @@ export function LeagueTable({ standings, className }: LeagueTableProps) {
       </CardHeader>
       <CardContent className="px-0 sm:px-6">
         {view === "compact" ? (
-          <CompactView standings={standings} />
+          <CompactView standings={standings} selectedGameweek={selectedGameweek} />
         ) : (
-          <FullView standings={standings} />
+          <FullView standings={standings} selectedGameweek={selectedGameweek} />
         )}
       </CardContent>
     </Card>
   );
 }
 
-function CompactView({ standings }: { standings: GameweekStanding[] }) {
+function CompactView({ standings, selectedGameweek }: { standings: GameweekStanding[]; selectedGameweek?: number }) {
   return (
     <div className="space-y-4">
       {standings.map((team) => (
-        <div
+        <Link
+          href={`/team/${team.entry}${selectedGameweek ? `?gameweek=${selectedGameweek}` : ""}`}
           key={team.entry}
-          className="flex items-center justify-between rounded-lg bg-white/5 p-3"
+          className="flex items-center justify-between rounded-lg bg-white/5 p-3 hover:bg-white/10 transition-colors"
         >
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-sm font-bold">
@@ -98,13 +101,13 @@ function CompactView({ standings }: { standings: GameweekStanding[] }) {
               {formatPoints(team.event_total)} pts
             </div>
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );
 }
 
-function FullView({ standings }: { standings: GameweekStanding[] }) {
+function FullView({ standings, selectedGameweek }: { standings: GameweekStanding[]; selectedGameweek?: number }) {
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -135,7 +138,9 @@ function FullView({ standings }: { standings: GameweekStanding[] }) {
                 <TableCell>
                   <div>
                     <div className="font-medium flex items-center gap-1">
-                      {team.entry_name}
+                      <Link href={`/team/${team.entry}${selectedGameweek ? `?gameweek=${selectedGameweek}` : ""}`} className="hover:underline">
+                        {team.entry_name}
+                      </Link>
                       {chipInfo && (
                         <TooltipProvider>
                           <Tooltip>

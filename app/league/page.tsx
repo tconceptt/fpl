@@ -32,7 +32,7 @@ export default async function LeaguePage() {
           selectedGameweek={data.selectedGameweek}
         />
 
-        <LeagueTable standings={data.standings} />
+        <LeagueTable standings={data.standings} selectedGameweek={data.selectedGameweek} />
       </div>
     </DashboardLayout>
   );
