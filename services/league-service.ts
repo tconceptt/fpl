@@ -6,10 +6,7 @@ import { GameweekStanding, LeagueData, LeagueStanding } from "@/types/league";
 
 export async function getCurrentGameweek(): Promise<number> {
   const response = await fetch(fplApiRoutes.bootstrap, {
-    next: { 
-      revalidate: 300,
-      tags: ['bootstrap']  // Add a tag for better cache control
-    }
+    cache: "no-store",
   });
 
   if (!response.ok) {
@@ -57,7 +54,7 @@ export async function getHistoricalStandings(
     teamIds.map(async teamId => {
       try {
         const response = await fetch(fplApiRoutes.teamDetails(teamId.toString(), selectedGameweek.toString()), {
-          next: { revalidate: 30 },
+          cache: "no-store",
         });
         if (!response.ok) return null;
         const data = await response.json();
@@ -232,13 +229,10 @@ export async function getLeagueData(selectedGameweek?: number): Promise<LeagueDa
     }
 
     const [response, currentGameweek] = await Promise.all([
-      retryFetch(
-        fplApiRoutes.standings(leagueId),
-        {
-          next: { revalidate: 300 }
-        }
-      ),
-      getCurrentGameweek()
+      retryFetch(fplApiRoutes.standings(leagueId), {
+        cache: "no-store",
+      }),
+      getCurrentGameweek(),
     ]);
 
     const data = await response.json();
