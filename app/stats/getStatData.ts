@@ -13,10 +13,16 @@ export interface TieBreakDetail {
 
 export async function getStatsData() {
   try {
+    const headers = {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+    };
     // Fetch league standings and bootstrap data
     const [leagueData, bootstrapData] = await Promise.all([
-      fetch(fplApiRoutes.standings(process.env.FPL_LEAGUE_ID || "")),
-      fetch(fplApiRoutes.bootstrap),
+      fetch(fplApiRoutes.standings(process.env.FPL_LEAGUE_ID || ""), {
+        headers,
+      }),
+      fetch(fplApiRoutes.bootstrap, { headers }),
     ]);
 
     if (!leagueData.ok || !bootstrapData.ok) {
@@ -46,7 +52,8 @@ export async function getStatsData() {
     await Promise.all(
       teams.map(async (team) => {
         const response = await fetch(
-          fplApiRoutes.teamHistory(team.id.toString())
+          fplApiRoutes.teamHistory(team.id.toString()),
+          { headers }
         );
         if (response.ok) {
           const data = await response.json();
@@ -390,7 +397,10 @@ export async function getStatsData() {
         // Find the first gameweek where the manager chip was activated
         let startGW: number | null = null;
         for (const gw of relevantGameweeks) {
-          const resp = await fetch(fplApiRoutes.teamDetails(team.id.toString(), gw.toString()));
+          const resp = await fetch(
+            fplApiRoutes.teamDetails(team.id.toString(), gw.toString()),
+            { headers }
+          );
           if (!resp.ok) continue;
           const data = await resp.json();
           if (data.active_chip === "manager") {
@@ -407,7 +417,10 @@ export async function getStatsData() {
         const chipWeeks = [startGW, startGW + 1, startGW + 2];
         const selections = await Promise.all(
           chipWeeks.map(async (gw) => {
-            const resp = await fetch(fplApiRoutes.teamDetails(team.id.toString(), gw.toString()));
+            const resp = await fetch(
+              fplApiRoutes.teamDetails(team.id.toString(), gw.toString()),
+              { headers }
+            );
             if (!resp.ok) {
               return { gameweek: gw, selectedManager: 'Unknown', points: 0 };
             }
@@ -419,7 +432,7 @@ export async function getStatsData() {
             if (managerPick) {
               // Lookup the manager card's own points for this GW
               selectedManager = await getPlayerName(managerPick.element, 'full_name');
-              const summaryResp = await fetch(`https://fantasy.premierleague.com/api/element-summary/${managerPick.element}/`);
+              const summaryResp = await fetch(`https://fantasy.premierleague.com/api/element-summary/${managerPick.element}/`, { headers });
               if (summaryResp.ok) {
                 const summary = await summaryResp.json();
                 // Sum all fixtures in the same round to account for double gameweeks
