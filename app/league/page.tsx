@@ -5,6 +5,8 @@ import { getLeagueData } from "@/services/league-service";
 import { notFound } from "next/navigation";
 import { getUrlParam } from "@/lib/helpers";
 
+export const revalidate = 0;
+
 export default async function LeaguePage() {
   const gameweekParam = await getUrlParam("gameweek");
   const requestedGameweek = gameweekParam ? parseInt(gameweekParam) : undefined;
