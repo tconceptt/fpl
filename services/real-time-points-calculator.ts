@@ -196,6 +196,44 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
                 );
             }
             break;
+        case "bps":
+            {
+                const allPlayers = [...stat.a, ...stat.h].filter(p => p.value > 0);
+                if (allPlayers.length === 0) break;
+
+                const sortedPlayers = allPlayers.sort((a, b) => b.value - a.value);
+                const uniqueScores = [...new Set(sortedPlayers.map(p => p.value))];
+
+                const ranks = uniqueScores.slice(0, 3).map(score =>
+                    sortedPlayers.filter(p => p.value === score)
+                );
+
+                const rank1Players = ranks[0] || [];
+                const rank2Players = ranks[1] || [];
+                const rank3Players = ranks[2] || [];
+
+                if (rank1Players.length === 0) break;
+
+                if (rank1Players.length > 1) {
+                    // Tie for 1st place
+                    rank1Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 3));
+                    rank2Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 1));
+                } else {
+                    // Clear 1st place
+                    rank1Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 3));
+
+                    if (rank2Players.length > 1) {
+                        // Tie for 2nd place
+                        rank2Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 2));
+                    } else {
+                        // Clear 2nd place
+                        rank2Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 2));
+                        // 3rd place (tie or not)
+                        rank3Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 1));
+                    }
+                }
+            }
+            break;
       }
     }
   }
