@@ -95,7 +95,7 @@ function CompactView({ standings }: { standings: GameweekStanding[] }) {
           <div className="text-right">
             <div className="font-bold">{formatPoints(team.total_points)}</div>
             <div className="text-sm text-white/60">
-              {formatPoints(team.event_total)} pts
+              {team.net_points !== null ? formatPoints(team.net_points) : formatPoints(team.event_total)} Net
             </div>
           </div>
         </div>

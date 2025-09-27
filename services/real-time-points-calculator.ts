@@ -20,6 +20,7 @@ interface FixtureStat {
 interface Player {
   id: number;
   element_type: number; // Position ID
+  team: number;
 }
 
 interface BootstrapData {
@@ -62,28 +63,38 @@ async function getLiveGameweekData(gameweekId: string): Promise<LiveGameweekData
   return response.json();
 }
 
-async function getPlayerPositions(): Promise<Map<number, number>> {
+async function getBootstrapPlayers(): Promise<Map<number, Player>> {
   const response = await fetch(fplApiRoutes.bootstrap);
   if (!response.ok) {
     throw new Error("Failed to fetch bootstrap data");
   }
   const data: BootstrapData = await response.json();
-  return new Map(data.elements.map((player) => [player.id, player.element_type]));
+  return new Map(data.elements.map((player) => [player.id, player]));
 }
 
 export async function calculateRealTimePoints(teamId: string, gameweekId: string) {
-  const [fixtures, playerPositions, liveData] = await Promise.all([
+  const [fixtures, bootstrapPlayers, liveData] = await Promise.all([
     getFixtures(gameweekId),
-    getPlayerPositions(),
+    getBootstrapPlayers(),
     getLiveGameweekData(gameweekId),
   ]);
 
   const playerPoints = new Map<number, number>();
 
+  const livePlayerStatsMap = new Map(liveData.elements.map(p => [p.id, p.stats]));
+  
+  const teamToPlayersMap = new Map<number, number[]>();
+    for (const player of bootstrapPlayers.values()) {
+        if (!teamToPlayersMap.has(player.team)) {
+            teamToPlayersMap.set(player.team, []);
+        }
+        teamToPlayersMap.get(player.team)!.push(player.id);
+    }
+
   // Process live data for minutes, clean sheets, and goals conceded
   for (const player of liveData.elements) {
     let points = 0;
-    const position = playerPositions.get(player.id);
+    const position = bootstrapPlayers.get(player.id)?.element_type;
 
     // Minutes played
     if (player.stats.minutes > 0 && player.stats.minutes < 60) {
@@ -117,11 +128,23 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
   for (const fixture of fixtures) {
     if (!fixture.started) continue;
 
+    const homePlayerIds = teamToPlayersMap.get(fixture.team_h) || [];
+    const awayPlayerIds = teamToPlayersMap.get(fixture.team_a) || [];
+    const fixturePlayerIds = [...homePlayerIds, ...awayPlayerIds];
+
+    let maxMinutes = 0;
+    for (const playerId of fixturePlayerIds) {
+        const stats = livePlayerStatsMap.get(playerId);
+        if (stats && stats.minutes > maxMinutes) {
+            maxMinutes = stats.minutes;
+        }
+    }
+
     for (const stat of fixture.stats) {
       switch (stat.identifier) {
         case "goals_scored":
           for (const player of [...stat.a, ...stat.h]) {
-            const position = playerPositions.get(player.element);
+            const position = bootstrapPlayers.get(player.element)?.element_type;
             let points = 0;
             if (position === 1) points = 6; // Goalkeeper
             else if (position === 2) points = 6; // Defender
@@ -183,7 +206,7 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
           break;
         case "defensive_contribution":
             for (const player of [...stat.a, ...stat.h]) {
-                const position = playerPositions.get(player.element);
+                const position = bootstrapPlayers.get(player.element)?.element_type;
                 let points = 0;
                 if (position === 2 && player.value > 10) { // Defender
                     points = 2;
@@ -198,6 +221,8 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
             break;
         case "bps":
             {
+                if (maxMinutes < 60) break;
+                
                 const allPlayers = [...stat.a, ...stat.h].filter(p => p.value > 0);
                 if (allPlayers.length === 0) break;
 

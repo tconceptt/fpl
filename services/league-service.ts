@@ -139,13 +139,14 @@ export async function getHistoricalStandings(
         player_name: team.player_name,
         event_total,
         total_points: isCurrentGameweek 
-          ? (team.total - gameweekData.points + event_total) 
+          ? (team.total - gameweekData.points + net_points) 
           : gameweekData.total_points,
         net_points,
         rank: 0, // Will be calculated after sorting
         last_rank: 0, // Will be calculated after getting previous gameweek standings
         captain_name: captainMap.get(teamIds[index]),
         active_chip: chipMap.get(teamIds[index]),
+        transfer_cost: transferCost,
       };
     })
     .filter((standing): standing is NonNullable<typeof standing> => standing !== null);
