@@ -26,6 +26,22 @@ interface BootstrapData {
   elements: Player[];
 }
 
+interface LivePlayerStats {
+  minutes: number;
+  clean_sheets: number;
+  goals_conceded: number;
+  saves: number;
+}
+
+interface LivePlayer {
+  id: number;
+  stats: LivePlayerStats;
+}
+
+interface LiveGameweekData {
+  elements: LivePlayer[];
+}
+
 export async function getFixtures(gameweekId: string): Promise<Fixture[]> {
   const response = await fetch(fplApiRoutes.fixtures(gameweekId), {
     next: { revalidate: 30 },
@@ -35,6 +51,14 @@ export async function getFixtures(gameweekId: string): Promise<Fixture[]> {
     throw new Error(`Failed to fetch fixtures: ${response.status}`);
   }
 
+  return response.json();
+}
+
+async function getLiveGameweekData(gameweekId: string): Promise<LiveGameweekData> {
+  const response = await fetch(fplApiRoutes.liveStandings(gameweekId));
+  if (!response.ok) {
+    throw new Error("Failed to fetch live gameweek data");
+  }
   return response.json();
 }
 
@@ -48,12 +72,47 @@ async function getPlayerPositions(): Promise<Map<number, number>> {
 }
 
 export async function calculateRealTimePoints(teamId: string, gameweekId: string) {
-  const [fixtures, playerPositions] = await Promise.all([
+  const [fixtures, playerPositions, liveData] = await Promise.all([
     getFixtures(gameweekId),
     getPlayerPositions(),
+    getLiveGameweekData(gameweekId),
   ]);
 
   const playerPoints = new Map<number, number>();
+
+  // Process live data for minutes, clean sheets, and goals conceded
+  for (const player of liveData.elements) {
+    let points = 0;
+    const position = playerPositions.get(player.id);
+
+    // Minutes played
+    if (player.stats.minutes > 0 && player.stats.minutes < 60) {
+      points += 1;
+    } else if (player.stats.minutes >= 60) {
+      points += 2;
+    }
+
+    // Clean sheets (must play 60+ minutes)
+    if (player.stats.clean_sheets === 1 && player.stats.minutes >= 60) {
+      if (position === 1 || position === 2) { // Goalkeeper or Defender
+        points += 4;
+      } else if (position === 3) { // Midfielder
+        points += 1;
+      }
+    }
+
+    // Goals conceded (only for Goalkeepers and Defenders)
+    if (position === 1 || position === 2) {
+      points -= Math.floor(player.stats.goals_conceded / 2);
+    }
+    
+    // Saves (only for Goalkeepers)
+    if (position === 1) {
+      points += Math.floor(player.stats.saves / 3);
+    }
+
+    playerPoints.set(player.id, (playerPoints.get(player.id) || 0) + points);
+  }
 
   for (const fixture of fixtures) {
     if (!fixture.started) continue;
