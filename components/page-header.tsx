@@ -18,20 +18,22 @@ export function PageHeader({
   showGameweekSelector = true,
 }: PageHeaderProps) {
   return (
-    <div className="flex flex-col space-y-1.5">
-      <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
-        {showGameweekSelector && (
-          <GameweekSelector 
-            currentGameweek={currentGameweek}
-            selectedGameweek={selectedGameweek}
-            className="w-full max-w-[180px]"
-          />
-        )}
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight truncate">{title}</h1>
+          {showGameweekSelector && (
+            <GameweekSelector 
+              currentGameweek={currentGameweek}
+              selectedGameweek={selectedGameweek}
+              className="w-auto"
+            />
+          )}
+        </div>
+        <p className="text-sm text-white/60 mt-1">
+          {description}
+        </p>
       </div>
-      <p className="text-base text-white/60 sm:text-lg">
-        {description}
-      </p>
     </div>
   );
 } 

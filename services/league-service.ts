@@ -4,6 +4,13 @@ import { getPlayerName } from "@/services/get-player-name";
 import { getTeamHistory } from "@/services/net-gameweek-points";
 import { GameweekStanding, LeagueData, LeagueStanding } from "@/types/league";
 
+interface LivePlayer {
+  id: number;
+  stats: {
+    minutes: number;
+  };
+}
+
 export async function getCurrentGameweek(): Promise<number> {
   const response = await fetch(fplApiRoutes.bootstrap, {
     cache: "no-store",
@@ -42,6 +49,15 @@ export async function getHistoricalStandings(
         })
     )
   );
+  
+  let liveData: { elements: LivePlayer[] } = { elements: [] };
+  if (isCurrentGameweek) {
+    const liveResponse = await fetch(fplApiRoutes.liveStandings(selectedGameweek.toString()));
+    if (liveResponse.ok) {
+      liveData = await liveResponse.json();
+    }
+  }
+  const livePlayerStatsMap = new Map(liveData.elements.map(p => [p.id, p.stats]));
 
   // If it's the current gameweek, fetch live points and team details for all teams
   const livePointsMap = new Map<number, number>();
@@ -60,10 +76,24 @@ export async function getHistoricalStandings(
         const data = await response.json();
         const captain = data.picks.find((pick: { is_captain: boolean }) => pick.is_captain);
         const captainName = captain ? await getPlayerName(captain.element) : null;
+        
+        let playersToStart = 0;
+        if (isCurrentGameweek) {
+          for (const pick of data.picks) {
+            if (pick.position <= 11) { // Starters
+              const playerStats = livePlayerStatsMap.get(pick.element);
+              if (!playerStats || playerStats.minutes === 0) {
+                playersToStart++;
+              }
+            }
+          }
+        }
+
         return { 
           teamId, 
           captainName,
-          active_chip: data.active_chip 
+          active_chip: data.active_chip,
+          playersToStart,
         };
       } catch (error) {
         console.error(`Failed to fetch team details for team ${teamId}:`, error);
@@ -110,6 +140,12 @@ export async function getHistoricalStandings(
       .map(result => [result.teamId, result.active_chip])
   );
 
+  const playersToStartMap = new Map(
+    teamDetailsResults
+      .filter((result): result is { teamId: number, playersToStart: number } => result !== null)
+      .map(result => [result.teamId, result.playersToStart])
+  );
+
   // Get gameweek data for each team
   const standings = teamsHistory
     .map((history, index) => {
@@ -147,6 +183,7 @@ export async function getHistoricalStandings(
         captain_name: captainMap.get(teamIds[index]),
         active_chip: chipMap.get(teamIds[index]),
         transfer_cost: transferCost,
+        playersToStart: playersToStartMap.get(teamIds[index]) || 0,
       };
     })
     .filter((standing): standing is NonNullable<typeof standing> => standing !== null);

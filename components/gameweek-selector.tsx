@@ -53,7 +53,7 @@ export function GameweekSelector({
               value={gw.toString()}
               className="cursor-pointer"
             >
-              Gameweek {gw}
+              GW {gw}
               {gw === currentGameweek && " (Current)"}
             </SelectItem>
           ))}

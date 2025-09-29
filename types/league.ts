@@ -24,6 +24,7 @@ export interface GameweekStanding {
   captain_name?: string;
   active_chip?: string | null;
   transfer_cost: number;
+  playersToStart: number;
 }
 
 export interface RankMovement {
