@@ -10,16 +10,16 @@ export function MainNav() {
 
   const routes = [
     {
-      href: "/",
-      label: "Home",
+      href: "/dashboard",
+      label: "Dashboard",
       icon: Home,
-      active: pathname === "/",
+      active: pathname === "/dashboard",
     },
     {
-      href: "/league",
+      href: "/",
       label: "League",
       icon: Trophy,
-      active: pathname === "/league",
+      active: pathname === "/",
     },
     {
       href: "/gameweek",

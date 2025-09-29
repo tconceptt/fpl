@@ -160,6 +160,8 @@ function FullView({ standings }: { standings: GameweekStanding[] }) {
             <TableHead className="text-white/60">Team</TableHead>
             <TableHead className="text-right text-white/60">GW</TableHead>
             <TableHead className="text-right text-white/60">GW Net</TableHead>
+            <TableHead className="text-center text-white/60 leading-tight"><div>In</div><div>Play</div></TableHead>
+            <TableHead className="text-center text-white/60 leading-tight"><div>To</div><div>Start</div></TableHead>
             <TableHead className="text-right text-white/60">Total</TableHead>
             <TableHead className="w-20 text-right text-white/60">Movement</TableHead>
           </TableRow>
@@ -216,6 +218,12 @@ function FullView({ standings }: { standings: GameweekStanding[] }) {
                   team.net_points !== null && team.net_points !== team.event_total && "text-yellow-500"
                 )}>
                   {team.net_points !== null ? formatPoints(team.net_points) : formatPoints(team.event_total)}
+                </TableCell>
+                <TableCell className="text-center font-medium py-2">
+                  {team.playersInPlay}
+                </TableCell>
+                <TableCell className="text-center font-medium py-2">
+                  {team.playersToStart}
                 </TableCell>
                 <TableCell className="text-right font-bold py-2">
                   {formatPoints(team.total_points)}
