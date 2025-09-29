@@ -74,7 +74,7 @@ export async function getHistoricalStandings(
 
   // If it's the current gameweek, fetch live points and team details for all teams
   const livePointsMap = new Map<number, number>();
-  let captainMap = new Map<number, string>();
+  let captainMap = new Map<number, string | null>();
   const transferCostMap = new Map<number, number>();
   let chipMap = new Map<number, string | null>();
   
