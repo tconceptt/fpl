@@ -149,7 +149,7 @@ export async function getHistoricalStandings(
   // Process captain names and chips
   captainMap = new Map(
     teamDetailsResults
-      .filter((result): result is { teamId: number; captainName: string; active_chip: string | null } => 
+      .filter((result): result is { teamId: number; captainName: string; active_chip: string | null; playersToStart: number; playersInPlay: number; } => 
         result !== null && result.captainName !== null
       )
       .map(result => [result.teamId, result.captainName])
@@ -157,7 +157,7 @@ export async function getHistoricalStandings(
   
   chipMap = new Map(
     teamDetailsResults
-      .filter((result): result is { teamId: number; captainName: string | null; active_chip: string | null } => 
+      .filter((result): result is { teamId: number; captainName: string | null; active_chip: string | null, playersToStart: number; playersInPlay: number; } => 
         result !== null
       )
       .map(result => [result.teamId, result.active_chip])
@@ -165,13 +165,13 @@ export async function getHistoricalStandings(
 
   const playersToStartMap = new Map(
     teamDetailsResults
-      .filter((result): result is { teamId: number, playersToStart: number } => result !== null)
+      .filter((result): result is { teamId: number, playersToStart: number, captainName: string | null, active_chip: string | null, playersInPlay: number } => result !== null)
       .map(result => [result.teamId, result.playersToStart])
   );
   
   const playersInPlayMap = new Map(
     teamDetailsResults
-      .filter((result): result is { teamId: number, playersInPlay: number } => result !== null)
+      .filter((result): result is { teamId: number, playersInPlay: number, captainName: string | null, active_chip: string | null, playersToStart: number } => result !== null)
       .map(result => [result.teamId, result.playersInPlay])
   );
 
@@ -209,7 +209,7 @@ export async function getHistoricalStandings(
         net_points,
         rank: 0, // Will be calculated after sorting
         last_rank: 0, // Will be calculated after getting previous gameweek standings
-        captain_name: captainMap.get(teamIds[index]),
+        captain_name: captainMap.get(teamIds[index]) ?? undefined,
         active_chip: chipMap.get(teamIds[index]),
         transfer_cost: transferCost,
         playersToStart: playersToStartMap.get(teamIds[index]) || 0,

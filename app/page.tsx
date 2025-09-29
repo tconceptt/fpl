@@ -8,6 +8,8 @@ import { getStatsData } from "@/app/stats/getStatData"
 import { getLeagueData } from "@/services/league-service"
 import { GameweekStanding } from "@/types/league"
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   const statsData = await getStatsData();
   const leagueResponse = await getLeagueData();
