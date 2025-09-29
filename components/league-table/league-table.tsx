@@ -87,13 +87,14 @@ export function LeagueTable({ standings, currentGameweek, selectedGameweek, clas
 function CompactView({ standings }: { standings: GameweekStanding[] }) {
     return (
         <div className="text-white text-xs">
-            <div className="flex font-bold text-gray-400 px-2 py-1 border-b border-gray-700">
+            <div className="flex font-bold text-gray-400 px-2 py-1 border-b border-gray-700 items-center">
                 <div className="w-8 text-center">#</div>
                 <div className="flex-1">Team</div>
                 <div className="w-10 text-center">Chip</div>
-                <div className="w-10 text-center">To Start</div>
-                <div className="w-12 text-right">GW</div>
-                <div className="w-14 text-right">Total</div>
+                <div className="w-10 text-center leading-tight"><div>In</div><div>Play</div></div>
+                <div className="w-8 text-center leading-tight"><div>To</div><div>Start</div></div>
+                <div className="w-10 text-right">GW</div>
+                <div className="w-12 text-right">Total</div>
             </div>
             <div className="overflow-y-auto">
                 {standings.map((team, index) => {
@@ -105,10 +106,10 @@ function CompactView({ standings }: { standings: GameweekStanding[] }) {
                         >
                             <div className="w-8 text-center flex items-center justify-center gap-1">
                                 <span className="font-bold">{team.rank}</span>
-                                <RankMovement currentRank={team.rank} lastRank={team.last_rank} />
+                                <RankMovement currentRank={team.rank} lastRank={team.last_rank} showDiff={false} />
                             </div>
                             <div className="flex-1 min-w-0 ml-2">
-                                <div className="font-bold truncate">{team.entry_name}</div>
+                                <div className="font-bold">{team.entry_name}</div>
                                 <div className="text-gray-400 truncate text-[10px]">{team.player_name}</div>
                                 {team.captain_name && (
                                     <div className="text-yellow-400 text-[10px] flex items-center">
@@ -130,12 +131,15 @@ function CompactView({ standings }: { standings: GameweekStanding[] }) {
                                 )}
                             </div>
                             <div className="w-10 text-center font-medium">
+                                {team.playersInPlay}
+                            </div>
+                            <div className="w-8 text-center font-medium">
                                 {team.playersToStart}
                             </div>
-                            <div className="w-12 text-right font-medium">
+                            <div className="w-10 text-right font-medium">
                                 {team.net_points !== null ? formatPoints(team.net_points) : formatPoints(team.event_total)}
                             </div>
-                            <div className="w-14 text-right font-bold">
+                            <div className="w-12 text-right font-bold">
                                 {formatPoints(team.total_points)}
                             </div>
                         </div>

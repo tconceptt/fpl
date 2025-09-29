@@ -9,6 +9,13 @@ interface LivePlayer {
   stats: {
     minutes: number;
   };
+  explain: Array<{ fixture: number }>;
+}
+
+interface Fixture {
+  id: number;
+  started: boolean;
+  finished: boolean;
 }
 
 export async function getCurrentGameweek(): Promise<number> {
@@ -51,13 +58,19 @@ export async function getHistoricalStandings(
   );
   
   let liveData: { elements: LivePlayer[] } = { elements: [] };
+  let fixtures: Fixture[] = [];
   if (isCurrentGameweek) {
-    const liveResponse = await fetch(fplApiRoutes.liveStandings(selectedGameweek.toString()));
-    if (liveResponse.ok) {
-      liveData = await liveResponse.json();
-    }
+    const [liveResponse, fixturesResponse] = await Promise.all([
+      fetch(fplApiRoutes.liveStandings(selectedGameweek.toString())),
+      fetch(fplApiRoutes.fixtures(selectedGameweek.toString()))
+    ]);
+
+    if (liveResponse.ok) liveData = await liveResponse.json();
+    if (fixturesResponse.ok) fixtures = await fixturesResponse.json();
   }
-  const livePlayerStatsMap = new Map(liveData.elements.map(p => [p.id, p.stats]));
+
+  const livePlayerMap = new Map(liveData.elements.map(p => [p.id, p]));
+  const fixtureStatusMap = new Map(fixtures.map(f => [f.id, { started: f.started, finished: f.finished }]));
 
   // If it's the current gameweek, fetch live points and team details for all teams
   const livePointsMap = new Map<number, number>();
@@ -78,12 +91,21 @@ export async function getHistoricalStandings(
         const captainName = captain ? await getPlayerName(captain.element) : null;
         
         let playersToStart = 0;
+        let playersInPlay = 0;
         if (isCurrentGameweek) {
           for (const pick of data.picks) {
             if (pick.position <= 11) { // Starters
-              const playerStats = livePlayerStatsMap.get(pick.element);
-              if (!playerStats || playerStats.minutes === 0) {
+              const livePlayer = livePlayerMap.get(pick.element);
+              if (!livePlayer || livePlayer.stats.minutes === 0) {
                 playersToStart++;
+              }
+              
+              if (livePlayer && livePlayer.explain.length > 0) {
+                const fixtureId = livePlayer.explain[0].fixture;
+                const fixtureStatus = fixtureStatusMap.get(fixtureId);
+                if (fixtureStatus && fixtureStatus.started && !fixtureStatus.finished) {
+                  playersInPlay++;
+                }
               }
             }
           }
@@ -94,6 +116,7 @@ export async function getHistoricalStandings(
           captainName,
           active_chip: data.active_chip,
           playersToStart,
+          playersInPlay,
         };
       } catch (error) {
         console.error(`Failed to fetch team details for team ${teamId}:`, error);
@@ -145,6 +168,12 @@ export async function getHistoricalStandings(
       .filter((result): result is { teamId: number, playersToStart: number } => result !== null)
       .map(result => [result.teamId, result.playersToStart])
   );
+  
+  const playersInPlayMap = new Map(
+    teamDetailsResults
+      .filter((result): result is { teamId: number, playersInPlay: number } => result !== null)
+      .map(result => [result.teamId, result.playersInPlay])
+  );
 
   // Get gameweek data for each team
   const standings = teamsHistory
@@ -184,6 +213,7 @@ export async function getHistoricalStandings(
         active_chip: chipMap.get(teamIds[index]),
         transfer_cost: transferCost,
         playersToStart: playersToStartMap.get(teamIds[index]) || 0,
+        playersInPlay: playersInPlayMap.get(teamIds[index]) || 0,
       };
     })
     .filter((standing): standing is NonNullable<typeof standing> => standing !== null);

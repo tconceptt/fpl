@@ -6,9 +6,10 @@ interface RankMovementProps {
   currentRank: number;
   lastRank: number;
   className?: string;
+  showDiff?: boolean;
 }
 
-export function RankMovement({ currentRank, lastRank, className }: RankMovementProps) {
+export function RankMovement({ currentRank, lastRank, className, showDiff = true }: RankMovementProps) {
   const movement = getRankMovement(currentRank, lastRank);
   const MovementIcon = movement.icon;
   
@@ -18,7 +19,7 @@ export function RankMovement({ currentRank, lastRank, className }: RankMovementP
   
   return (
     <div className={cn("flex items-center justify-end gap-1", className)}>
-      <span className={movement.color}>{movement.diff}</span>
+      {showDiff && <span className={movement.color}>{movement.diff}</span>}
       <MovementIcon className={cn("h-4 w-4", movement.color)} />
     </div>
   );
