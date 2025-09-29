@@ -15,7 +15,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "FPL Summarizer",
+  title: "FPL Companion for the Qitawrari League",
   description: "Fantasy Premier League mini-league statistics and insights",
   icons: {
     icon: "/images/fav.png",
