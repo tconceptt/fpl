@@ -45,6 +45,13 @@ function getChipIcon(chipName: string | null | undefined) {
   }
 }
 
+function getCustomRank(rank: number, totalTeams: number) {
+  if (rank === totalTeams) {
+    return "Eyosi";
+  }
+  return rank;
+}
+
 export function LeagueTable({ standings, currentGameweek, selectedGameweek, className }: LeagueTableProps) {
   const [view, setView] = useState<"full" | "compact">("compact");
   
@@ -105,7 +112,7 @@ function CompactView({ standings }: { standings: GameweekStanding[] }) {
                             className={`flex items-center px-2 py-1.5 ${index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-900'}`}
                         >
                             <div className="w-8 text-center flex items-center justify-center gap-1">
-                                <span className="font-bold">{team.rank}</span>
+                                <span className="font-bold">{getCustomRank(team.rank, standings.length)}</span>
                                 <RankMovement currentRank={team.rank} lastRank={team.last_rank} showDiff={false} />
                             </div>
                             <div className="flex-1 min-w-0 ml-2">
@@ -175,10 +182,10 @@ function FullView({ standings }: { standings: GameweekStanding[] }) {
                 <TableCell className="font-medium py-2">
                   {team.rank === 1 ? (
                     <div className="flex items-center gap-2">
-                      {team.rank}
+                      {getCustomRank(team.rank, standings.length)}
                       <Trophy className="h-4 w-4 text-yellow-500" />
                     </div>
-                  ) : team.rank}
+                  ) : getCustomRank(team.rank, standings.length)}
                 </TableCell>
                 <TableCell className="py-2">
                   <div>
