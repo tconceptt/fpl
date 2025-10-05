@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Wand2, Medal, CalendarDays, Zap, Layers } from "lucide-react";
+import { Trophy, Wand2, Medal, CalendarDays, Zap, Layers, TrendingUp } from "lucide-react";
 import { getStatsData } from "./getStatData";
 import { formatPoints } from "@/lib/fpl";
 
@@ -98,6 +98,17 @@ export default async function StatsLandingPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-white/60">See who scored the most on the bench.</p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/stats/hits-leaderboard">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex items-center space-x-2 pb-2">
+              <TrendingUp className="h-4 w-4 text-red-500" />
+              <CardTitle className="text-sm font-medium">Hits Leaderboard</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-white/60">See who&apos;s taken the most transfer hits.</p>
             </CardContent>
           </Card>
         </Link>

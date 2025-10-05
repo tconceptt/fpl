@@ -25,8 +25,12 @@ export async function getStatsData() {
       fetch(fplApiRoutes.bootstrap, { headers }),
     ]);
 
-    if (!leagueData.ok || !bootstrapData.ok) {
-      throw new Error("Failed to fetch data");
+    if (!leagueData.ok) {
+      throw new Error(`Failed to fetch league data: ${leagueData.status} ${leagueData.statusText}`);
+    }
+    
+    if (!bootstrapData.ok) {
+      throw new Error(`Failed to fetch bootstrap data: ${bootstrapData.status} ${bootstrapData.statusText}`);
     }
 
     const { standings } = await leagueData.json();
@@ -68,6 +72,7 @@ export async function getStatsData() {
     // Initialize team stats and chip usage maps
     const teamStatsMap = new Map<number, TeamStats>();
     const chipUsageMap = new Map<number, ChipUsage>();
+    const hitsStatsMap = new Map<number, HitsStats>();
     const tieBreakDetailsList: TieBreakDetail[] = []; // To store details of ties
 
     teams.forEach((team: TeamData) => {
@@ -91,6 +96,15 @@ export async function getStatsData() {
         managerName: team.managerName,
         totalChipsUsed: 0,
         chips: [],
+      });
+
+      hitsStatsMap.set(team.id, {
+        id: team.id,
+        name: team.name,
+        managerName: team.managerName,
+        gameweeksWithHits: 0,
+        totalTransferCost: 0,
+        gameweekHits: [],
       });
     });
 
@@ -125,6 +139,41 @@ export async function getStatsData() {
 
       chipUsage.chips = validChips;
       chipUsage.totalChipsUsed = validChips.length;
+    });
+
+    // Process hits data
+    teams.forEach((team) => {
+      const history = teamHistories.get(team.id);
+      if (!history) return;
+
+      const hitsStats = hitsStatsMap.get(team.id);
+      if (!hitsStats) return;
+
+      let gameweeksWithHits = 0;
+      let totalTransferCost = 0;
+      const gameweekHits: Array<{
+        gameweek: number;
+        transfers: number;
+        cost: number;
+      }> = [];
+
+      history.current.forEach((gameweek) => {
+        const cost = gameweek.event_transfers_cost || 0;
+        
+        if (cost > 0) {
+          gameweeksWithHits++;
+          totalTransferCost += cost;
+          gameweekHits.push({
+            gameweek: gameweek.event,
+            transfers: Math.floor(cost / 4), // Each hit costs 4 points, so divide by 4 to get number of transfers
+            cost,
+          });
+        }
+      });
+
+      hitsStats.gameweeksWithHits = gameweeksWithHits;
+      hitsStats.totalTransferCost = totalTransferCost;
+      hitsStats.gameweekHits = gameweekHits.sort((a, b) => b.cost - a.cost);
     });
 
     // Helper function to get net points for a team in a specific gameweek
@@ -466,10 +515,15 @@ export async function getStatsData() {
       (a, b) => b.benchPoints - a.benchPoints
     );
 
+    const hitsStats = Array.from(hitsStatsMap.values()).sort(
+      (a, b) => b.totalTransferCost - a.totalTransferCost
+    );
+
     return {
       stats,
       chipStats,
       benchStats,
+      hitsStats,
       assistantManagerStats,
       finishedGameweeks: finishedGameweeks.length,
       tieBreakDetails: tieBreakDetailsList, // ADDED tieBreakDetailsList
@@ -480,6 +534,7 @@ export async function getStatsData() {
       stats: [],
       chipStats: [],
       benchStats: [],
+      hitsStats: [],
       assistantManagerStats: [],
       finishedGameweeks: 0,
       tieBreakDetails: [], // Ensure it's present in error case too
@@ -558,4 +613,17 @@ export interface AssistantManagerStats {
   totalPoints: number;
   startGameweek: number | null;
   selections: { gameweek: number; selectedManager: string; points: number }[];
+}
+
+export interface HitsStats {
+  id: number;
+  name: string;
+  managerName: string;
+  gameweeksWithHits: number;
+  totalTransferCost: number;
+  gameweekHits: Array<{
+    gameweek: number;
+    transfers: number;
+    cost: number;
+  }>;
 }
