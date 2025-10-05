@@ -25,11 +25,20 @@ interface HitsLeaderboardClientProps {
 }
 
 function HitsDetailModal({ team, isOpen, onClose }: { team: HitsStats | null; isOpen: boolean; onClose: () => void }) {
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   if (!isOpen || !team) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-gray-900 rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden">
+    <div 
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      onClick={handleBackdropClick}
+    >
+      <div className="bg-gray-900 rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden shadow-2xl border border-gray-700">
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <h3 className="text-lg font-bold text-white">{team.name}</h3>
           <Button
@@ -51,7 +60,7 @@ function HitsDetailModal({ team, isOpen, onClose }: { team: HitsStats | null; is
                   <div key={hit.gameweek} className="flex justify-between items-center bg-gray-800 rounded px-3 py-2">
                     <span className="text-white font-medium">GW {hit.gameweek}</span>
                     <div className="text-right">
-                      <div className="text-red-400 font-bold">{formatPoints(hit.cost)}</div>
+                      <div className="text-red-400 font-bold">-{formatPoints(hit.cost)} Pts </div>
                       <div className="text-xs text-gray-400">{hit.transfers} transfers</div>
                     </div>
                   </div>

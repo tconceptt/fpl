@@ -17,13 +17,22 @@ export async function getStatsData() {
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     };
-    // Fetch league standings and bootstrap data
+    // Fetch league standings and bootstrap data with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
     const [leagueData, bootstrapData] = await Promise.all([
       fetch(fplApiRoutes.standings(process.env.FPL_LEAGUE_ID || ""), {
         headers,
+        signal: controller.signal,
       }),
-      fetch(fplApiRoutes.bootstrap, { headers }),
+      fetch(fplApiRoutes.bootstrap, { 
+        headers,
+        signal: controller.signal,
+      }),
     ]);
+
+    clearTimeout(timeoutId);
 
     if (!leagueData.ok) {
       throw new Error(`Failed to fetch league data: ${leagueData.status} ${leagueData.statusText}`);
@@ -51,20 +60,32 @@ export async function getStatsData() {
       })
     );
 
-    // Fetch history for all teams
+    // Fetch history for all teams with timeout
     const teamHistories = new Map<number, TeamHistory>();
     await Promise.all(
       teams.map(async (team) => {
-        const response = await fetch(
-          fplApiRoutes.teamHistory(team.id.toString()),
-          { headers }
-        );
-        if (response.ok) {
-          const data = await response.json();
-          teamHistories.set(team.id, {
-            current: data.current || [],
-            chips: data.chips || [],
-          });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout per team
+        
+        try {
+          const response = await fetch(
+            fplApiRoutes.teamHistory(team.id.toString()),
+            { 
+              headers,
+              signal: controller.signal,
+            }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            teamHistories.set(team.id, {
+              current: data.current || [],
+              chips: data.chips || [],
+            });
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch history for team ${team.id}:`, error);
+        } finally {
+          clearTimeout(timeoutId);
         }
       })
     );
@@ -159,13 +180,14 @@ export async function getStatsData() {
 
       history.current.forEach((gameweek) => {
         const cost = gameweek.event_transfers_cost || 0;
+        const totalTransfers = gameweek.event_transfers || 0;
         
         if (cost > 0) {
           gameweeksWithHits++;
           totalTransferCost += cost;
           gameweekHits.push({
             gameweek: gameweek.event,
-            transfers: Math.floor(cost / 4), // Each hit costs 4 points, so divide by 4 to get number of transfers
+            transfers: totalTransfers, // Use the actual total transfers made in the gameweek
             cost,
           });
         }
@@ -443,59 +465,100 @@ export async function getStatsData() {
       .map((e: { id: number }) => e.id);
     await Promise.all(
       teams.map(async (team) => {
-        // Find the first gameweek where the manager chip was activated
-        let startGW: number | null = null;
-        for (const gw of relevantGameweeks) {
-          const resp = await fetch(
-            fplApiRoutes.teamDetails(team.id.toString(), gw.toString()),
-            { headers }
-          );
-          if (!resp.ok) continue;
-          const data = await resp.json();
-          if (data.active_chip === "manager") {
-            startGW = gw;
-            break;
-          }
-        }
-        if (!startGW) return;
-
-        const stats = assistantManagerMap.get(team.id);
-        if (!stats) return;
-        stats.hasUsed = true;
-        stats.startGameweek = startGW;
-        const chipWeeks = [startGW, startGW + 1, startGW + 2];
-        const selections = await Promise.all(
-          chipWeeks.map(async (gw) => {
-            const resp = await fetch(
-              fplApiRoutes.teamDetails(team.id.toString(), gw.toString()),
-              { headers }
-            );
-            if (!resp.ok) {
-              return { gameweek: gw, selectedManager: 'Unknown', points: 0 };
-            }
-            const data = await resp.json();
-            // The 16th pick (position 16) is the real-world manager
-            const managerPick = data.picks.find((p: { element: number; position: number }) => p.position === 16);
-            let selectedManager = 'Unknown Manager';
-            let managerPoints = 0;
-            if (managerPick) {
-              // Lookup the manager card's own points for this GW
-              selectedManager = await getPlayerName(managerPick.element, 'full_name');
-              const summaryResp = await fetch(`https://fantasy.premierleague.com/api/element-summary/${managerPick.element}/`, { headers });
-              if (summaryResp.ok) {
-                const summary = await summaryResp.json();
-                // Sum all fixtures in the same round to account for double gameweeks
-                const roundPoints = summary.history
-                  .filter((h: { round: number; total_points: number }) => h.round === gw)
-                  .reduce((sum: number, h: { total_points: number }) => sum + h.total_points, 0);
-                managerPoints = roundPoints;
+        try {
+          // Find the first gameweek where the manager chip was activated
+          let startGW: number | null = null;
+          for (const gw of relevantGameweeks) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            try {
+              const resp = await fetch(
+                fplApiRoutes.teamDetails(team.id.toString(), gw.toString()),
+                { 
+                  headers,
+                  signal: controller.signal,
+                }
+              );
+              if (!resp.ok) continue;
+              const data = await resp.json();
+              if (data.active_chip === "manager") {
+                startGW = gw;
+                break;
               }
+            } catch (error) {
+              console.warn(`Failed to fetch team details for team ${team.id} GW ${gw}:`, error);
+            } finally {
+              clearTimeout(timeoutId);
             }
-            return { gameweek: gw, selectedManager, points: managerPoints };
-          })
-        );
-        stats.selections = selections;
-        stats.totalPoints = selections.reduce((sum, sel) => sum + sel.points, 0);
+          }
+          if (!startGW) return;
+
+          const stats = assistantManagerMap.get(team.id);
+          if (!stats) return;
+          stats.hasUsed = true;
+          stats.startGameweek = startGW;
+          const chipWeeks = [startGW, startGW + 1, startGW + 2];
+          const selections = await Promise.all(
+            chipWeeks.map(async (gw) => {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 5000);
+              
+              try {
+                const resp = await fetch(
+                  fplApiRoutes.teamDetails(team.id.toString(), gw.toString()),
+                  { 
+                    headers,
+                    signal: controller.signal,
+                  }
+                );
+                if (!resp.ok) {
+                  return { gameweek: gw, selectedManager: 'Unknown', points: 0 };
+                }
+                const data = await resp.json();
+                // The 16th pick (position 16) is the real-world manager
+                const managerPick = data.picks.find((p: { element: number; position: number }) => p.position === 16);
+                let selectedManager = 'Unknown Manager';
+                let managerPoints = 0;
+                if (managerPick) {
+                  // Lookup the manager card's own points for this GW
+                  selectedManager = await getPlayerName(managerPick.element, 'full_name');
+                  const summaryController = new AbortController();
+                  const summaryTimeoutId = setTimeout(() => summaryController.abort(), 5000);
+                  
+                  try {
+                    const summaryResp = await fetch(`https://fantasy.premierleague.com/api/element-summary/${managerPick.element}/`, { 
+                      headers,
+                      signal: summaryController.signal,
+                    });
+                    if (summaryResp.ok) {
+                      const summary = await summaryResp.json();
+                      // Sum all fixtures in the same round to account for double gameweeks
+                      const roundPoints = summary.history
+                        .filter((h: { round: number; total_points: number }) => h.round === gw)
+                        .reduce((sum: number, h: { total_points: number }) => sum + h.total_points, 0);
+                      managerPoints = roundPoints;
+                    }
+                  } catch (error) {
+                    console.warn(`Failed to fetch player summary for ${managerPick.element}:`, error);
+                  } finally {
+                    clearTimeout(summaryTimeoutId);
+                  }
+                }
+                return { gameweek: gw, selectedManager, points: managerPoints };
+              } catch (error) {
+                console.warn(`Failed to fetch team details for team ${team.id} GW ${gw}:`, error);
+                return { gameweek: gw, selectedManager: 'Unknown', points: 0 };
+              } finally {
+                clearTimeout(timeoutId);
+              }
+            })
+          );
+          stats.selections = selections;
+          stats.totalPoints = selections.reduce((sum, sel) => sum + sel.points, 0);
+        } catch (error) {
+          console.warn(`Failed to process assistant manager stats for team ${team.id}:`, error);
+        }
       })
     );
     const assistantManagerStats = Array.from(assistantManagerMap.values()).sort((a, b) =>
@@ -530,6 +593,8 @@ export async function getStatsData() {
     };
   } catch (error) {
     console.error("Error fetching stats:", error);
+    
+    // Return empty data structure to prevent build failures
     return {
       stats: [],
       chipStats: [],
@@ -537,8 +602,8 @@ export async function getStatsData() {
       hitsStats: [],
       assistantManagerStats: [],
       finishedGameweeks: 0,
-      tieBreakDetails: [], // Ensure it's present in error case too
-      error: (error as Error).message,
+      tieBreakDetails: [],
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
 }
@@ -556,6 +621,7 @@ export interface TeamHistory {
     points: number;
     points_on_bench: number;
     event_transfers_cost: number;
+    event_transfers: number;
   }>;
   chips: Array<{
     name: string;
