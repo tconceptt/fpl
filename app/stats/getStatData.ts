@@ -125,6 +125,7 @@ export async function getStatsData() {
         managerName: team.managerName,
         gameweeksWithHits: 0,
         totalTransferCost: 0,
+        totalTransfers: 0,
         gameweekHits: [],
       });
     });
@@ -172,6 +173,7 @@ export async function getStatsData() {
 
       let gameweeksWithHits = 0;
       let totalTransferCost = 0;
+      let totalTransfers = 0;
       const gameweekHits: Array<{
         gameweek: number;
         transfers: number;
@@ -180,14 +182,17 @@ export async function getStatsData() {
 
       history.current.forEach((gameweek) => {
         const cost = gameweek.event_transfers_cost || 0;
-        const totalTransfers = gameweek.event_transfers || 0;
+        const gameweekTransfers = gameweek.event_transfers || 0;
+        
+        // Count all transfers made (including free ones)
+        totalTransfers += gameweekTransfers;
         
         if (cost > 0) {
           gameweeksWithHits++;
           totalTransferCost += cost;
           gameweekHits.push({
             gameweek: gameweek.event,
-            transfers: totalTransfers, // Use the actual total transfers made in the gameweek
+            transfers: gameweekTransfers, // Use the actual total transfers made in the gameweek
             cost,
           });
         }
@@ -195,6 +200,7 @@ export async function getStatsData() {
 
       hitsStats.gameweeksWithHits = gameweeksWithHits;
       hitsStats.totalTransferCost = totalTransferCost;
+      hitsStats.totalTransfers = totalTransfers;
       hitsStats.gameweekHits = gameweekHits.sort((a, b) => b.cost - a.cost);
     });
 
@@ -687,6 +693,7 @@ export interface HitsStats {
   managerName: string;
   gameweeksWithHits: number;
   totalTransferCost: number;
+  totalTransfers: number;
   gameweekHits: Array<{
     gameweek: number;
     transfers: number;

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Zap, X } from "lucide-react";
 import { formatPoints } from "@/lib/fpl";
 
@@ -13,6 +14,7 @@ interface HitsStats {
   managerName: string;
   gameweeksWithHits: number;
   totalTransferCost: number;
+  totalTransfers: number;
   gameweekHits: Array<{
     gameweek: number;
     transfers: number;
@@ -23,6 +25,8 @@ interface HitsStats {
 interface HitsLeaderboardClientProps {
   hitsStats: HitsStats[];
 }
+
+type SortOption = "cost" | "transfers";
 
 function HitsDetailModal({ team, isOpen, onClose }: { team: HitsStats | null; isOpen: boolean; onClose: () => void }) {
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -83,6 +87,7 @@ function CompactHitsView({ hitsStats, onTeamClick }: { hitsStats: HitsStats[]; o
         <div className="w-8 text-center">#</div>
         <div className="flex-1">Team</div>
         <div className="w-12 text-center leading-tight"><div>GWs</div><div>Hits</div></div>
+        <div className="w-12 text-center leading-tight"><div>Total</div><div>Transfers</div></div>
         <div className="w-12 text-right">Cost</div>
       </div>
       <div className="overflow-y-auto">
@@ -102,6 +107,9 @@ function CompactHitsView({ hitsStats, onTeamClick }: { hitsStats: HitsStats[]; o
             <div className="w-12 text-center font-medium">
               {team.gameweeksWithHits}
             </div>
+            <div className="w-12 text-center font-medium">
+              {team.totalTransfers}
+            </div>
             <div className="w-12 text-right font-bold">
               {formatPoints(team.totalTransferCost)}
             </div>
@@ -115,6 +123,7 @@ function CompactHitsView({ hitsStats, onTeamClick }: { hitsStats: HitsStats[]; o
 export function HitsLeaderboardClient({ hitsStats }: HitsLeaderboardClientProps) {
   const [selectedTeam, setSelectedTeam] = useState<HitsStats | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>("cost");
 
   const handleTeamClick = (team: HitsStats) => {
     setSelectedTeam(team);
@@ -126,19 +135,63 @@ export function HitsLeaderboardClient({ hitsStats }: HitsLeaderboardClientProps)
     setSelectedTeam(null);
   };
 
+  // Sort the hits stats based on the selected option
+  const sortedHitsStats = [...hitsStats].sort((a, b) => {
+    if (sortBy === "transfers") {
+      return b.totalTransfers - a.totalTransfers;
+    } else {
+      return b.totalTransferCost - a.totalTransferCost;
+    }
+  });
+
   return (
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Zap className="h-5 w-5 text-red-500" />
-            Transfer Hits Taken
-          </CardTitle>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Zap className="h-5 w-5 text-red-500" />
+              Transfer Hits Taken
+            </CardTitle>
+            
+            {/* Desktop: Button group */}
+            <div className="hidden sm:flex gap-2">
+              <Button
+                variant={sortBy === "cost" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("cost")}
+                className="text-xs"
+              >
+                Sort by Cost
+              </Button>
+              <Button
+                variant={sortBy === "transfers" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("transfers")}
+                className="text-xs"
+              >
+                Sort by Transfers
+              </Button>
+            </div>
+
+            {/* Mobile: Dropdown */}
+            <div className="sm:hidden w-full">
+              <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Sort by..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cost">Sort by Cost</SelectItem>
+                  <SelectItem value="transfers">Sort by Transfers</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="px-0 sm:px-6">
           {/* Mobile View - Compact */}
           <div className="sm:hidden">
-            <CompactHitsView hitsStats={hitsStats} onTeamClick={handleTeamClick} />
+            <CompactHitsView hitsStats={sortedHitsStats} onTeamClick={handleTeamClick} />
           </div>
 
           {/* Desktop View */}
@@ -149,11 +202,12 @@ export function HitsLeaderboardClient({ hitsStats }: HitsLeaderboardClientProps)
                   <TableHead className="w-12 text-white/60">Rank</TableHead>
                   <TableHead className="text-white/60">Team</TableHead>
                   <TableHead className="text-right text-white/60">GWs with Hits</TableHead>
+                  <TableHead className="text-right text-white/60">Total Transfers</TableHead>
                   <TableHead className="text-right text-white/60">Total Cost</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {hitsStats.map((team: HitsStats, index: number) => (
+                {sortedHitsStats.map((team: HitsStats, index: number) => (
                   <TableRow key={team.id} className="border-white/10 hover:bg-white/5 cursor-pointer" onClick={() => handleTeamClick(team)}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
@@ -163,6 +217,7 @@ export function HitsLeaderboardClient({ hitsStats }: HitsLeaderboardClientProps)
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-bold">{team.gameweeksWithHits}</TableCell>
+                    <TableCell className="text-right font-bold">{team.totalTransfers}</TableCell>
                     <TableCell className="text-right font-bold">{formatPoints(team.totalTransferCost)}</TableCell>
                   </TableRow>
                 ))}
