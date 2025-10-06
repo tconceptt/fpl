@@ -17,17 +17,34 @@ let playerCache: Map<number, Player> | null = null;
 async function initializePlayerCache(): Promise<Map<number, Player>> {
   if (playerCache) return playerCache;
 
-  const response = await fetch(fplApiRoutes.bootstrap, {
-    next: { revalidate: 3600 }, // Cache for 1 hour
-  });
+  // Add headers and simple retry for robustness
+  const headers = {
+    'User-Agent': 'Mozilla/5.0',
+    'Origin': 'https://fantasy.premierleague.com',
+    'Referer': 'https://fantasy.premierleague.com/'
+  };
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch player data: ${response.status}`);
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await fetch(fplApiRoutes.bootstrap, {
+        next: { revalidate: 3600 }, // Cache for 1 hour
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch player data: ${response.status}`);
+      }
+
+      const data: BootstrapResponse = await response.json();
+      playerCache = new Map(data.elements.map(player => [player.id, player]));
+      return playerCache;
+    } catch (err) {
+      lastError = err;
+      await new Promise(res => setTimeout(res, 500));
+    }
   }
-
-  const data: BootstrapResponse = await response.json();
-  playerCache = new Map(data.elements.map(player => [player.id, player]));
-  return playerCache;
+  throw lastError instanceof Error ? lastError : new Error('Failed to initialize player cache');
 }
 
 export async function getPlayerName(playerId: number, nameType: 'web_name' | 'full_name' | 'first_name' | 'second_name' = 'web_name'): Promise<string> {

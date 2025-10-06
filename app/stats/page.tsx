@@ -112,6 +112,17 @@ export default async function StatsLandingPage() {
             </CardContent>
           </Card>
         </Link>
+        <Link href="/stats/template-leaderboard">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex items-center space-x-2 pb-2">
+              <Layers className="h-4 w-4 text-green-500" />
+              <CardTitle className="text-sm font-medium">Template Leaderboard</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-white/60">Ranked by average ownership of starting XI.</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </DashboardLayout>
   );
