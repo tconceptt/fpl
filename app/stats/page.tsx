@@ -119,7 +119,7 @@ export default async function StatsLandingPage() {
               <CardTitle className="text-sm font-medium">Template Leaderboard</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-white/60">Ranked by average ownership of starting XI.</p>
+              <p className="text-sm text-white/60">Ranked by average ownership of entire squad.</p>
             </CardContent>
           </Card>
         </Link>
