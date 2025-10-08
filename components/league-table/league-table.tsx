@@ -4,15 +4,10 @@ import { useRouter } from "next/navigation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatPoints } from "@/lib/fpl";
 import { cn } from "@/lib/utils";
-import { Trophy, Star, Zap, Sparkles, Rocket, Wand2 } from "lucide-react";
+import { Trophy, Star, ArrowDownUp } from "lucide-react";
 import { GameweekStanding } from "@/types/league";
 import { RankMovement } from "@/components/ui/rank-movement";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -28,18 +23,18 @@ interface LeagueTableProps {
   className?: string;
 }
 
-function getChipIcon(chipName: string | null | undefined) {
+function getChipInfo(chipName: string | null | undefined) {
   if (!chipName) return null;
   
   switch (chipName) {
     case "wildcard":
-      return { icon: Wand2, color: "text-green-500", label: "Wildcard" };
+      return { abbr: "WC", color: "bg-green-500/20 text-green-400 border-green-500/30", label: "Wildcard" };
     case "3xc":
-      return { icon: Sparkles, color: "text-purple-500", label: "Triple Captain" };
+      return { abbr: "TC", color: "bg-purple-500/20 text-purple-400 border-purple-500/30", label: "Triple Captain" };
     case "bboost":
-      return { icon: Rocket, color: "text-blue-500", label: "Bench Boost" };
+      return { abbr: "BB", color: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Bench Boost" };
     case "freehit":
-      return { icon: Zap, color: "text-amber-500", label: "Free Hit" };
+      return { abbr: "FH", color: "bg-amber-500/20 text-amber-400 border-amber-500/30", label: "Free Hit" };
     default:
       return null;
   }
@@ -55,7 +50,22 @@ function getCustomRank(rank: number, totalTeams: number) {
 
 export function LeagueTable({ standings, currentGameweek, selectedGameweek, className }: LeagueTableProps) {
   const [view, setView] = useState<"full" | "compact">("compact");
+  const [sortByGW, setSortByGW] = useState(false);
   const router = useRouter();
+
+  // Sort standings based on sortByGW state and assign GW ranks
+  const sortedStandings = sortByGW
+    ? [...standings]
+        .sort((a, b) => {
+          const aPoints = a.net_points !== null ? a.net_points : a.event_total;
+          const bPoints = b.net_points !== null ? b.net_points : b.event_total;
+          return bPoints - aPoints;
+        })
+        .map((team, index) => ({
+          ...team,
+          gwRank: index + 1, // Add GW-specific rank
+        }))
+    : standings.map((team) => ({ ...team, gwRank: team.rank })); // Use league rank when not sorting by GW
 
   function openBreakdown(teamId: number) {
     // Navigate to team page instead of opening popup
@@ -66,34 +76,72 @@ export function LeagueTable({ standings, currentGameweek, selectedGameweek, clas
 
   return (
     <Card className={className}>
-      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 sm:gap-2 pb-1.5 sm:pb-2 pt-2 sm:pt-6 px-3 sm:px-6">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 pb-2 sm:pb-3 pt-2 sm:pt-6 px-3 sm:px-6">
         <CardTitle className="flex items-center gap-1.5 sm:gap-2 text-sm sm:text-lg">
           <Trophy className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-yellow-500" />
           League Standings
         </CardTitle>
-        <div className="flex w-full sm:w-auto items-center gap-1.5 sm:gap-2">
+        <div className="flex w-full sm:w-auto items-center gap-2 sm:gap-3 flex-wrap">
           <GameweekSelector
             currentGameweek={currentGameweek}
             selectedGameweek={selectedGameweek}
             className="w-auto"
           />
-          <Tabs
-            value={view}
-            onValueChange={(v) => setView(v as "full" | "compact")}
-            className="w-full sm:w-[200px] flex-1"
-          >
-            <TabsList className="grid w-full grid-cols-2 h-7 sm:h-10">
-              <TabsTrigger value="compact" className="text-[9px] sm:text-sm">Compact</TabsTrigger>
-              <TabsTrigger value="full" className="text-[9px] sm:text-sm">Full</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+          {/* Sleek view toggle with sort icon */}
+          <div className="flex items-center gap-1 bg-gray-800/50 border border-white/10 rounded-lg p-0.5">
+            <button
+              onClick={() => setView("compact")}
+              className={cn(
+                "px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[9px] sm:text-xs font-medium transition-all",
+                view === "compact"
+                  ? "bg-purple-600 text-white shadow-lg"
+                  : "text-white/60 hover:text-white hover:bg-white/5"
+              )}
+            >
+              Compact
+            </button>
+            <button
+              onClick={() => setView("full")}
+              className={cn(
+                "px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[9px] sm:text-xs font-medium transition-all",
+                view === "full"
+                  ? "bg-purple-600 text-white shadow-lg"
+                  : "text-white/60 hover:text-white hover:bg-white/5"
+              )}
+            >
+              Full
+            </button>
+            {/* Sort by GW - with mobile-friendly label */}
+            <div className="w-px h-5 bg-white/10 mx-0.5" />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setSortByGW(!sortByGW)}
+                    className={cn(
+                      "flex items-center gap-1 px-1.5 sm:p-1.5 py-1 sm:py-1.5 rounded-md transition-all",
+                      sortByGW
+                        ? "bg-green-600 text-white shadow-lg"
+                        : "text-white/60 hover:text-white hover:bg-white/5"
+                    )}
+                  >
+                    <ArrowDownUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-[8px] sm:hidden font-medium">GW</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{sortByGW ? "Sort by Rank" : "Sort by GW Points"}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+                </div>
+              </div>
       </CardHeader>
       <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
         {view === "compact" ? (
-          <CompactView standings={standings} onTeamClick={openBreakdown} />
+          <CompactView standings={sortedStandings} onTeamClick={openBreakdown} />
         ) : (
-          <FullView standings={standings} onTeamClick={openBreakdown} />
+          <FullView standings={sortedStandings} onTeamClick={openBreakdown} />
         )}
 
       </CardContent>
@@ -101,11 +149,11 @@ export function LeagueTable({ standings, currentGameweek, selectedGameweek, clas
   );
 }
 
-function CompactView({ standings, onTeamClick }: { standings: GameweekStanding[]; onTeamClick: (teamId: number) => void }) {
+function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStanding & { gwRank: number }>; onTeamClick: (teamId: number) => void }) {
     return (
         <div className="text-white text-xs sm:text-sm rounded-lg overflow-hidden border border-white/10">
             {/* Header */}
-            <div className="flex font-bold text-gray-300 px-1.5 sm:px-3 py-1 sm:py-2 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10px] sm:text-xs">
+            <div className="flex font-bold text-gray-300 px-1.5 sm:px-3 py-1 sm:py-2 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10.5px] sm:text-xs">
                 <div className="w-6 sm:w-10 text-center">#</div>
                 <div className="flex-1">Team</div>
                 <div className="w-6 sm:w-10 text-center">Chip</div>
@@ -116,9 +164,9 @@ function CompactView({ standings, onTeamClick }: { standings: GameweekStanding[]
             {/* Rows */}
             <div className="overflow-y-auto">
                 {standings.map((team, index) => {
-                    const chipInfo = getChipIcon(team.active_chip);
-                    const isFirst = team.rank === 1;
-                    const isLast = team.rank === standings.length;
+                    const chipInfo = getChipInfo(team.active_chip);
+                    const isFirst = team.gwRank === 1;
+                    const isLast = team.gwRank === standings.length;
                     
                     return (
                         <div
@@ -132,42 +180,46 @@ function CompactView({ standings, onTeamClick }: { standings: GameweekStanding[]
                             )}
                             onClick={() => onTeamClick(team.entry)}
                         >
-                            {/* Rank with movement */}
-                            <div className="w-6 sm:w-10 flex items-center justify-center gap-0.5">
+                            {/* Rank - clean and symmetrical */}
+                            <div className="w-6 sm:w-10 flex items-center justify-center">
                                 <span className={cn(
-                                    "font-bold text-[10px] sm:text-sm",
+                                    "font-bold text-[10.5px] sm:text-sm",
                                     isFirst && "text-yellow-400",
                                     isLast && "text-red-400"
                                 )}>
-                                    {isFirst && <Trophy className="h-2.5 w-2.5 sm:h-4 sm:w-4 inline mr-0.5" />}
-                                    {getCustomRank(team.rank, standings.length)}
+                                    {getCustomRank(team.gwRank, standings.length)}
                                 </span>
-                                <RankMovement currentRank={team.rank} lastRank={team.last_rank} showDiff={false} />
                             </div>
                             
-                            {/* Team info */}
+                            {/* Team info with movement indicator */}
                             <div className="flex-1 min-w-0 ml-1 sm:ml-2">
-                                <div className="font-semibold text-[10px] sm:text-sm truncate text-white leading-tight">
-                                    {team.entry_name}
+                                <div className="font-semibold text-[10.5px] sm:text-sm truncate text-white leading-tight flex items-center gap-1">
+                                    <span className="truncate">{team.entry_name}</span>
+                                    <RankMovement currentRank={team.rank} lastRank={team.last_rank} showDiff={false} compact={true} />
                                 </div>
-                                <div className="text-white/60 truncate text-[8px] sm:text-xs leading-tight">
+                                <div className="text-white/60 truncate text-[8.5px] sm:text-xs leading-tight">
                                     {team.player_name}
                                 </div>
                                 {team.captain_name && (
-                                    <div className="text-yellow-400 text-[8px] sm:text-xs flex items-center leading-tight">
+                                    <div className="text-yellow-400 text-[8.5px] sm:text-xs flex items-center leading-tight">
                                         <Star className="h-2 w-2 sm:h-3 sm:w-3 mr-0.5 fill-yellow-400" />
                                         <span className="truncate font-medium">{team.captain_name}</span>
                                     </div>
                                 )}
                             </div>
                             
-                            {/* Chip icon */}
-                            <div className="w-6 sm:w-10 text-center flex items-center justify-center">
+                            {/* Chip badge */}
+                            <div className="w-8 sm:w-12 text-center flex items-center justify-center">
                                 {chipInfo && (
                                     <TooltipProvider>
                                         <Tooltip>
                                             <TooltipTrigger>
-                                                <chipInfo.icon className={cn("h-3 w-3 sm:h-4 sm:w-4", chipInfo.color)} />
+                                                <span className={cn(
+                                                    "text-[7px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.5 rounded border",
+                                                    chipInfo.color
+                                                )}>
+                                                    {chipInfo.abbr}
+                                                </span>
                                             </TooltipTrigger>
                                             <TooltipContent><p>{chipInfo.label}</p></TooltipContent>
                                         </Tooltip>
@@ -176,12 +228,12 @@ function CompactView({ standings, onTeamClick }: { standings: GameweekStanding[]
                             </div>
                             
                             {/* GW Points */}
-                            <div className="w-7 sm:w-12 text-right font-semibold text-[10px] sm:text-sm text-white">
+                            <div className="w-7 sm:w-12 text-right font-semibold text-[10.5px] sm:text-sm text-white">
                                 {team.net_points !== null ? formatPoints(team.net_points) : formatPoints(team.event_total)}
                             </div>
                             
                             {/* Total Points */}
-                            <div className="w-9 sm:w-14 text-right font-bold text-[11px] sm:text-base text-white">
+                            <div className="w-9 sm:w-14 text-right font-bold text-[11.5px] sm:text-base text-white">
                                 {formatPoints(team.total_points)}
                             </div>
                         </div>
@@ -192,7 +244,7 @@ function CompactView({ standings, onTeamClick }: { standings: GameweekStanding[]
     );
 }
 
-function FullView({ standings, onTeamClick }: { standings: GameweekStanding[]; onTeamClick: (teamId: number) => void }) {
+function FullView({ standings, onTeamClick }: { standings: Array<GameweekStanding & { gwRank: number }>; onTeamClick: (teamId: number) => void }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-white/10">
       <Table>
@@ -210,9 +262,8 @@ function FullView({ standings, onTeamClick }: { standings: GameweekStanding[]; o
         </TableHeader>
         <TableBody>
           {standings.map((team, index) => {
-            const chipInfo = getChipIcon(team.active_chip);
-            const isFirst = team.rank === 1;
-            const isLast = team.rank === standings.length;
+            const chipInfo = getChipInfo(team.active_chip);
+            const isFirst = team.gwRank === 1;
             
             return (
               <TableRow 
@@ -220,21 +271,15 @@ function FullView({ standings, onTeamClick }: { standings: GameweekStanding[]; o
                 className={cn(
                   "border-white/5 cursor-pointer transition-all",
                   index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50',
-                  "hover:bg-purple-900/20",
-                  isFirst && "bg-gradient-to-r from-yellow-900/20 to-transparent hover:from-yellow-900/30",
-                  isLast && "bg-gradient-to-r from-red-900/20 to-transparent hover:from-red-900/30"
+                  "hover:bg-purple-900/20"
                 )}
                 onClick={() => onTeamClick(team.entry)}
               >
-                <TableCell className={cn(
-                  "font-bold py-3",
-                  isFirst && "text-yellow-400",
-                  isLast && "text-red-400"
-                )}>
-                  <div className="flex items-center gap-2">
+                <TableCell className="font-bold py-3">
+                    <div className="flex items-center gap-2">
                     {isFirst && <Trophy className="h-4 w-4 text-yellow-400" />}
-                    {getCustomRank(team.rank, standings.length)}
-                  </div>
+                    {getCustomRank(team.gwRank, standings.length)}
+                    </div>
                 </TableCell>
                 <TableCell className="py-3">
                   <div>
@@ -244,7 +289,12 @@ function FullView({ standings, onTeamClick }: { standings: GameweekStanding[]; o
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger>
-                              <chipInfo.icon className={cn("h-4 w-4", chipInfo.color)} />
+                              <span className={cn(
+                                "text-[9px] font-bold px-1.5 py-0.5 rounded border pointer-events-none",
+                                chipInfo.color
+                              )}>
+                                {chipInfo.abbr}
+                              </span>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>{chipInfo.label}</p>

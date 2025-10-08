@@ -145,17 +145,15 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
                   <span className="text-xs font-bold text-white">#{h2hRank}</span>
                 </div>
               )}
-              {transfers > 0 && (
-                <div className="flex flex-col">
-                  <span className="text-[9px] text-white/50 uppercase tracking-wide">Transfers</span>
-                  <span className="text-xs font-bold text-white">
-                    {transfers}
-                    {transferCost > 0 && (
-                      <span className="text-red-400 ml-0.5">(-{transferCost})</span>
-                    )}
-                  </span>
-                </div>
-              )}
+              <div className="flex flex-col">
+                <span className="text-[9px] text-white/50 uppercase tracking-wide">Transfers</span>
+                <span className="text-xs font-bold text-white">
+                  {transfers}
+                  {transferCost > 0 && (
+                    <span className="text-red-400 ml-0.5">(-{transferCost})</span>
+                  )}
+                </span>
+              </div>
             </div>
             <div className="flex flex-col items-end">
               <span className="text-[9px] text-white/50 uppercase tracking-wide">GW Total</span>

@@ -295,6 +295,7 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
   elementType: number; // 1 GK, 2 DEF, 3 MID, 4 FWD
   clubName: string; // mapped for kit
   teamId: number; // canonical FPL team id
+  actualMinutes: number; // actual minutes played
 }>> {
   const [fixtures, liveData, bootstrapPlayersResp, teamDetailsResp] = await Promise.all([
     getFixtures(gameweekId),
@@ -523,6 +524,7 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
     elementType: number;
     clubName: string;
     teamId: number;
+    actualMinutes: number;
   }> = [];
 
   // No hard-coded names here anymore; we will normalize on the client via kits-map
@@ -545,6 +547,8 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
     const teamIdForElement = element?.team ?? -1;
     const clubName = String(teamIdForElement); // temporary label; UI will normalize by teamId
 
+    const actualMinutes = livePlayerStatsMap.get(pick.element)?.minutes ?? 0;
+    
     result.push({
       id: pick.element,
       position: pick.position,
@@ -558,6 +562,7 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
       elementType,
       clubName,
       teamId: teamIdForElement,
+      actualMinutes,
     });
   }
 

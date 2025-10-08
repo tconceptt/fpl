@@ -15,12 +15,12 @@ export function AutoHideBottomNav() {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       
-      // Hide nav when scrolling down, show when scrolling up or at top
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        // Scrolling down and past 100px - hide
+      // Hide nav on any downward scroll, show when scrolling up or at very top
+      if (currentScrollY > lastScrollY && currentScrollY > 5) {
+        // Scrolling down - hide immediately
         setIsVisible(false);
-      } else if (currentScrollY < lastScrollY || currentScrollY <= 50) {
-        // Scrolling up or near top - show
+      } else if (currentScrollY < lastScrollY || currentScrollY <= 5) {
+        // Scrolling up or at very top - show
         setIsVisible(true);
       }
       

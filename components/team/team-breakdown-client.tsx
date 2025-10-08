@@ -20,6 +20,7 @@ type Player = {
   elementType?: number;
   clubName?: string;
   teamId?: number;
+  actualMinutes?: number;
 };
 
 function kitCandidatePaths(p: Pick<Player, "elementType" | "clubName" | "id" | "teamId">): string[] {
@@ -84,8 +85,7 @@ export function TeamBreakdownClient({ players }: { players: Player[] }) {
         <div className="w-10 text-right">Pts</div>
       </div>
       {starters.map((p, index) => {
-        const minutesPts = p.rawMetrics?.minutes ?? undefined;
-        const minutes = minutesPts >= 2 ? "90" : minutesPts === 1 ? "45" : "0";
+        const minutes = p.actualMinutes ?? 0;
         return (
           <button
             key={p.id}
@@ -100,15 +100,23 @@ export function TeamBreakdownClient({ players }: { players: Player[] }) {
               <KitImage player={p} className="h-5 w-5 object-contain" />
             </div>
             <div className="flex-1 min-w-0 ml-2">
-              <div className="font-semibold truncate text-white text-[13px]">
-                {p.name}
-                {p.isCaptain && <span className="ml-1 text-[11px] text-purple-400 font-bold">C×{p.multiplier}</span>}
-                {!p.isCaptain && p.multiplier > 1 && <span className="ml-1 text-[11px] text-purple-400 font-bold">×{p.multiplier}</span>}
+              <div className="font-semibold truncate text-white text-[13px] flex items-center gap-1">
+                <span className="truncate">{p.name}</span>
+                {p.isCaptain && (
+                  <Image 
+                    src="/Images/captain-band.png" 
+                    alt="Captain" 
+                    width={14} 
+                    height={14} 
+                    className="object-contain"
+                  />
+                )}
+                {!p.isCaptain && p.multiplier > 1 && <span className="text-[11px] text-purple-400 font-bold">×{p.multiplier}</span>}
               </div>
             </div>
             <div className={cn(
               "w-12 text-center text-[11px] font-medium",
-              minutes === "90" ? "text-green-400" : minutes === "45" ? "text-yellow-400" : "text-red-400"
+              minutes >= 60 ? "text-green-400" : minutes > 0 ? "text-yellow-400" : "text-red-400"
             )}>
               {minutes}&apos;
             </div>
@@ -123,8 +131,7 @@ export function TeamBreakdownClient({ players }: { players: Player[] }) {
             Bench
           </div>
           {bench.map((p, index) => {
-            const minutesPts = p.rawMetrics?.minutes ?? undefined;
-            const minutes = minutesPts >= 2 ? "90" : minutesPts === 1 ? "45" : "0";
+            const minutes = p.actualMinutes ?? 0;
             return (
               <div
                 key={p.id}
@@ -141,7 +148,7 @@ export function TeamBreakdownClient({ players }: { players: Player[] }) {
                 </div>
                 <div className={cn(
                   "w-12 text-center text-[11px] font-medium",
-                  minutes === "90" ? "text-green-400/70" : minutes === "45" ? "text-yellow-400/70" : "text-red-400/70"
+                  minutes >= 60 ? "text-green-400/70" : minutes > 0 ? "text-yellow-400/70" : "text-red-400/70"
                 )}>
                   {minutes}&apos;
                 </div>
@@ -153,34 +160,57 @@ export function TeamBreakdownClient({ players }: { players: Player[] }) {
       )}
 
       {selectedPlayer && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedPlayer(null)} />
-          <div className="relative z-10 w-full sm:max-w-md sm:mx-4 rounded-t-md sm:rounded-md border border-white/10 bg-neutral-900">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <KitImage player={selectedPlayer} className="h-5 w-5 object-contain" />
-                <div className="font-semibold">{selectedPlayer.name}</div>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedPlayer(null)} />
+          <div className="relative z-10 w-full max-w-sm bg-gray-900 rounded-lg border border-white/10 shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gradient-to-r from-purple-900/30 to-blue-900/30">
+              <div className="flex items-center gap-2.5">
+                <KitImage player={selectedPlayer} className="h-6 w-6 object-contain" />
+                <div className="font-semibold text-sm text-white">{selectedPlayer.name}</div>
               </div>
-              <button onClick={() => setSelectedPlayer(null)} className="text-white/70 hover:text-white">✕</button>
+              <button 
+                onClick={() => setSelectedPlayer(null)} 
+                className="text-white/60 hover:text-white transition-colors text-lg"
+              >
+                ✕
+              </button>
             </div>
-            <div className="p-4 text-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-white/60">Points</div>
-                <div className="text-lg font-bold">{(selectedPlayer.total || 0).toLocaleString()}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                {Object.entries(selectedPlayer.metrics)
-                  .filter(([, v]) => v !== 0)
-                  .map(([k, v]) => (
-                    <div key={k} className="flex items-center justify-between">
-                      <div className="text-white/70">{metricsLabel[k] ?? k}</div>
-                      <div className={v < 0 ? "text-red-300" : "text-green-300"}>{v > 0 ? `+${v}` : v}</div>
-                    </div>
-                  ))}
-                {Object.keys(selectedPlayer.metrics).filter((k) => selectedPlayer.metrics[k] !== 0).length === 0 && (
-                  <div className="text-white/60">No returns</div>
-                )}
-              </div>
+
+            {/* Points Table */}
+            <div className="p-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="text-left py-2 text-xs font-semibold text-white/60 uppercase tracking-wide">Stat</th>
+                    <th className="text-right py-2 text-xs font-semibold text-white/60 uppercase tracking-wide">Points</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(selectedPlayer.isCaptain ? selectedPlayer.rawMetrics : selectedPlayer.metrics)
+                    .filter(([, v]) => v !== 0)
+                    .map(([k, v]) => (
+                      <tr key={k} className="border-b border-white/5">
+                        <td className="py-2.5 text-white/80">{metricsLabel[k] ?? k}</td>
+                        <td className="py-2.5 text-right font-medium text-white">
+                          {v < 0 ? v : v}
+                        </td>
+                      </tr>
+                    ))}
+                  <tr className="border-t-2 border-white/20">
+                    <td className="py-2.5 font-semibold text-white">Total</td>
+                    <td className="py-2.5 text-right font-bold text-base text-white">
+                      {selectedPlayer.isCaptain ? (selectedPlayer.rawTotal || 0) : (selectedPlayer.total || 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              
+              {Object.keys(selectedPlayer.metrics).filter((k) => selectedPlayer.metrics[k] !== 0).length === 0 && (
+                <div className="text-center py-6 text-white/50 text-sm">
+                  No points scored this gameweek
+                </div>
+              )}
             </div>
           </div>
         </div>
