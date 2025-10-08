@@ -28,7 +28,8 @@ async function initializePlayerCache(): Promise<Map<number, Player>> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const response = await fetch(fplApiRoutes.bootstrap, {
-        next: { revalidate: 3600 }, // Cache for 1 hour
+        // The bootstrap payload is >2MB; avoid Next data cache to prevent errors
+        cache: 'no-store',
         headers,
       });
 

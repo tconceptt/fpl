@@ -72,6 +72,7 @@ export async function getHistoricalStandings(
     
     let liveData: { elements: LivePlayer[] } = { elements: [] };
     let fixtures: Fixture[] = [];
+    let finishedAllFixtures = false;
     if (isCurrentGameweek) {
       const [liveResponse, fixturesResponse] = await Promise.all([
         fetch(fplApiRoutes.liveStandings(selectedGameweek.toString())),
@@ -79,7 +80,10 @@ export async function getHistoricalStandings(
       ]);
 
       if (liveResponse.ok) liveData = await liveResponse.json();
-      if (fixturesResponse.ok) fixtures = await fixturesResponse.json();
+      if (fixturesResponse.ok) {
+        fixtures = await fixturesResponse.json();
+        finishedAllFixtures = fixtures.length > 0 && fixtures.every(f => f.finished);
+      }
     }
 
     const livePlayerMap = new Map(liveData.elements.map(p => [p.id, p]));
@@ -138,7 +142,8 @@ export async function getHistoricalStandings(
       })
     );
     
-    if (isCurrentGameweek) {
+    const useLiveForCurrent = isCurrentGameweek && !finishedAllFixtures;
+    if (useLiveForCurrent) {
       // Fetch live points
       const livePointsResults = await Promise.all(
         teamIds.map(teamId =>
@@ -199,13 +204,13 @@ export async function getHistoricalStandings(
         const team = teamInfo.find(t => t.entry === teamIds[index]);
         if (!team) return null;
 
-        // Use live points if available, otherwise use historical points
-        const event_total = isCurrentGameweek
+        // Use live points only if the gameweek is current AND fixtures are not all finished
+        const event_total = useLiveForCurrent
           ? (livePointsMap.get(teamIds[index]) || gameweekData.points)
           : gameweekData.points;
 
-        // Calculate net points based on live data if it's the current gameweek
-        const transferCost = isCurrentGameweek
+        // Calculate net points based on live data only if using live totals
+        const transferCost = useLiveForCurrent
           ? (transferCostMap.get(teamIds[index]) || gameweekData.event_transfers_cost)
           : gameweekData.event_transfers_cost;
         
@@ -216,7 +221,7 @@ export async function getHistoricalStandings(
           entry_name: team.entry_name,
           player_name: team.player_name,
           event_total,
-          total_points: isCurrentGameweek 
+          total_points: useLiveForCurrent 
             ? (team.total - gameweekData.points + net_points) 
             : gameweekData.total_points,
           net_points,

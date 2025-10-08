@@ -1,6 +1,8 @@
 export const fplApiRoutes = {
   standings: (leagueId: string) =>
     `https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/`,
+  h2hStandings: (leagueId: string) =>
+    `https://fantasy.premierleague.com/api/leagues-h2h/${leagueId}/standings/`,
   bootstrap: "https://fantasy.premierleague.com/api/bootstrap-static/",
   teamHistory: (teamId: string) =>
     `https://fantasy.premierleague.com/api/entry/${teamId}/history/`,
