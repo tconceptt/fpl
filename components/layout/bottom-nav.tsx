@@ -64,18 +64,24 @@ export function BottomNav() {
   return (
     <nav 
       className={cn(
-        "fixed bottom-0 left-0 z-30 block w-full border-t border-white/10 bg-background/95 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden transition-transform duration-300 ease-in-out",
+        "fixed bottom-0 left-0 z-30 block w-full md:hidden transition-transform duration-300 ease-in-out",
         isVisible ? "translate-y-0" : "translate-y-full"
       )}
     >
-      <div className="container flex justify-around">
+      {/* Subtle backdrop with blur */}
+      <div className="absolute inset-0 bg-gray-900/95 backdrop-blur-lg border-t border-white/10" />
+      
+      {/* Navigation content */}
+      <div className="relative container flex justify-around items-center px-2 py-2">
         {routes.map((route) => (
           <Link
             key={route.href}
             href={route.href}
             className={cn(
-              "flex flex-col items-center gap-1 rounded-md p-2 text-xs font-medium transition-colors hover:bg-white/10",
-              route.active ? "text-white" : "text-white/60"
+              "flex flex-col items-center gap-1 px-3 py-1.5 text-[9px] font-medium transition-all duration-200 rounded-lg",
+              route.active 
+                ? "bg-gradient-to-r from-purple-900/30 to-blue-900/30 text-white" 
+                : "text-white/60 hover:text-white hover:bg-white/5"
             )}
           >
             <route.icon className="h-5 w-5" />

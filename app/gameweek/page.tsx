@@ -464,17 +464,15 @@ interface GameweekCardProps {
   title: string;
   icon: ReactNode;
   emoji: string;
-  bgColor: string;
-  gradientFrom: string;
-  gradientTo: string;
   teamName: string;
   playerName: string;
   points?: number;
   rawPoints?: number;
   movement?: number;
-  textColor: string;
+  colorScheme: "orange" | "red" | "yellow" | "green" | "blue";
   prefix?: string;
   suffix?: string;
+  compact?: boolean;
 }
 
 export default async function GameweekPage() {
@@ -494,7 +492,7 @@ export default async function GameweekPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <PageHeader
           title={`Gameweek ${stats.selectedGameweek} Stats`}
           description={
@@ -504,107 +502,108 @@ export default async function GameweekPage() {
           }
           currentGameweek={currentGameweek}
           selectedGameweek={requestedGameweek}
+          simpleSelector={true}
         />
 
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Leader & Struggler - Prominent Display */}
+        <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
           <GameweekCard
-            title="Current Gameweek Leader"
-            icon={<Flame className="h-4 w-4 text-orange-500" />}
+            title="GW Leader"
+            icon={<Flame className="h-4 w-4" />}
             emoji="🔥"
-            bgColor="bg-orange-500/10"
-            gradientFrom="from-orange-500"
-            gradientTo="to-orange-600"
             teamName={stats.currentLeader.team}
             playerName={stats.currentLeader.name}
             points={stats.currentLeader.net_points}
             rawPoints={stats.currentLeader.points}
-            textColor="text-orange-500"
+            colorScheme="orange"
           />
 
           <GameweekCard
-            title="Gameweek Struggler"
-            icon={<Trophy className="h-4 w-4 text-red-500" />}
+            title="GW Struggler"
+            icon={<Trophy className="h-4 w-4" />}
             emoji="💩"
-            bgColor="bg-red-500/10"
-            gradientFrom="from-red-500"
-            gradientTo="to-red-600"
             teamName={stats.lowestPoints.team}
             playerName={stats.lowestPoints.name}
             points={stats.lowestPoints.net_points}
             rawPoints={stats.lowestPoints.points}
-            textColor="text-red-500"
+            colorScheme="red"
           />
+        </div>
 
+        {/* Stats Grid */}
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {stats.mostCaptained && (
             <GameweekCard
-              title="Most Captained Player"
-              icon={<Star className="h-4 w-4 text-yellow-500" />}
-              emoji="👑"
-              bgColor="bg-yellow-500/10"
-              gradientFrom="from-yellow-500"
-              gradientTo="to-yellow-600"
+              title="Most Captained"
+              icon={<Star className="h-4 w-4" />}
+              emoji="⚡"
               teamName={stats.mostCaptained.player}
               playerName={`${stats.mostCaptained.count} managers (${stats.mostCaptained.percentage}%)`}
-              textColor="text-yellow-500"
-              prefix=""
-              suffix=""
+              colorScheme="yellow"
+              compact
             />
           )}
 
           <GameweekCard
             title="Highest Riser"
-            icon={<ArrowUp className="h-4 w-4 text-emerald-500" />}
+            icon={<ArrowUp className="h-4 w-4" />}
             emoji="📈"
-            bgColor="bg-emerald-500/10"
-            gradientFrom="from-emerald-500"
-            gradientTo="to-emerald-600"
             teamName={stats.highestRiser.team}
             playerName={stats.highestRiser.name}
             movement={stats.highestRiser.movement}
-            textColor="text-emerald-500"
+            colorScheme="green"
             prefix="+"
-            suffix="positions"
+            suffix=" spots"
+            compact
           />
 
           <GameweekCard
             title="Steepest Faller"
-            icon={<ArrowDown className="h-4 w-4 text-blue-500" />}
+            icon={<ArrowDown className="h-4 w-4" />}
             emoji="📉"
-            bgColor="bg-blue-500/10"
-            gradientFrom="from-blue-500"
-            gradientTo="to-blue-600"
             teamName={stats.steepestFaller.team}
             playerName={stats.steepestFaller.name}
             movement={stats.steepestFaller.movement}
-            textColor="text-blue-500"
-            suffix="positions"
+            colorScheme="blue"
+            suffix=" spots"
+            compact
           />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Chip Usage This Week</CardTitle>
+        {/* Chip Usage Card */}
+        <Card className="border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
+          <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
+            <CardTitle className="text-base sm:text-lg font-semibold text-white">Chip Usage</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {stats.chipsSummary.map((chip) => (
-                <div
-                  key={chip.type}
-                  className="flex flex-col items-center justify-center rounded-lg bg-white/5 p-4"
-                >
-                  <div className="mb-2 text-2xl">
-                    {chip.type === "Wildcard"
-                      ? "🃏"
-                      : chip.type === "Triple Captain"
-                      ? "👑"
-                      : chip.type === "Bench Boost"
-                      ? "💪"
-                      : "🔄"}
+          <CardContent className="pt-4 sm:pt-6">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+              {stats.chipsSummary.map((chip) => {
+                const chipColors = {
+                  "Wildcard": "from-green-500/20 to-green-600/20 border-green-500/30",
+                  "Triple Captain": "from-purple-500/20 to-purple-600/20 border-purple-500/30",
+                  "Bench Boost": "from-blue-500/20 to-blue-600/20 border-blue-500/30",
+                  "Free Hit": "from-amber-500/20 to-amber-600/20 border-amber-500/30"
+                };
+                
+                return (
+                  <div
+                    key={chip.type}
+                    className={`flex flex-col items-center justify-center rounded-lg bg-gradient-to-br ${chipColors[chip.type as keyof typeof chipColors]} border p-4 sm:p-5 transition-all hover:scale-105`}
+                  >
+                    <div className="mb-2 text-2xl sm:text-3xl">
+                      {chip.type === "Wildcard"
+                        ? "🃏"
+                        : chip.type === "Triple Captain"
+                        ? "👑"
+                        : chip.type === "Bench Boost"
+                        ? "💪"
+                        : "🔄"}
+                    </div>
+                    <div className="text-[10px] sm:text-xs font-medium text-white/70 text-center">{chip.type}</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-white mt-1">{chip.count}</div>
                   </div>
-                  <div className="text-sm font-medium">{chip.type}</div>
-                  <div className="text-2xl font-bold">{chip.count}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -617,57 +616,92 @@ function GameweekCard({
   title,
   icon,
   emoji,
-  bgColor,
-  gradientFrom,
-  gradientTo,
   teamName,
   playerName,
   points,
   rawPoints,
   movement,
-  textColor,
+  colorScheme,
   prefix = "",
-  suffix = "pts"
+  suffix = "pts",
+  compact = false
 }: GameweekCardProps) {
+  const colorSchemes = {
+    orange: {
+      gradient: "from-orange-500/20 to-orange-600/20",
+      border: "border-orange-500/30",
+      text: "text-orange-400",
+      iconBg: "bg-orange-500/10",
+      headerGradient: "from-orange-900/30 to-orange-800/30"
+    },
+    red: {
+      gradient: "from-red-500/20 to-red-600/20",
+      border: "border-red-500/30",
+      text: "text-red-400",
+      iconBg: "bg-red-500/10",
+      headerGradient: "from-red-900/30 to-red-800/30"
+    },
+    yellow: {
+      gradient: "from-yellow-500/20 to-yellow-600/20",
+      border: "border-yellow-500/30",
+      text: "text-yellow-400",
+      iconBg: "bg-yellow-500/10",
+      headerGradient: "from-yellow-900/30 to-yellow-800/30"
+    },
+    green: {
+      gradient: "from-green-500/20 to-green-600/20",
+      border: "border-green-500/30",
+      text: "text-green-400",
+      iconBg: "bg-green-500/10",
+      headerGradient: "from-green-900/30 to-green-800/30"
+    },
+    blue: {
+      gradient: "from-blue-500/20 to-blue-600/20",
+      border: "border-blue-500/30",
+      text: "text-blue-400",
+      iconBg: "bg-blue-500/10",
+      headerGradient: "from-blue-900/30 to-blue-800/30"
+    }
+  };
+
+  const colors = colorSchemes[colorScheme];
+
   return (
-    <Card className="relative overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">
+    <Card className={`relative overflow-hidden border ${colors.border} bg-gray-900/50 backdrop-blur-sm transition-all hover:scale-[1.02] shadow-lg`}>
+      <CardHeader className={`flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r ${colors.headerGradient} ${compact ? 'pt-3' : 'pt-4'}`}>
+        <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
+          <span className={colors.iconBg + " p-1.5 rounded-lg"}>
+            {icon}
+          </span>
           {title}
         </CardTitle>
-        {icon}
+        <span className="text-2xl sm:text-3xl">{emoji}</span>
       </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-4">
-          <div className={`flex h-16 w-16 items-center justify-center rounded-full ${bgColor} text-2xl`}>
-            {emoji}
+      <CardContent className={compact ? "pb-3 pt-3" : "pb-4 pt-4"}>
+        <div className={compact ? "space-y-1" : "space-y-2"}>
+          <div className={`font-bold ${compact ? 'text-sm sm:text-base' : 'text-base sm:text-lg'} text-white truncate`}>
+            {teamName}
           </div>
-          <div>
-            <div className="font-bold text-lg">
-              {teamName}
-            </div>
-            <div className="text-white/60">{playerName}</div>
-            <div className={`text-2xl font-bold ${textColor}`}>
-              {points !== undefined && (
-                <>
-                  {prefix}{points} {suffix}
-                  {rawPoints !== undefined && rawPoints !== points && (
-                    <span className="ml-2 text-sm text-white/60">
-                      ({formatPoints(rawPoints)} raw)
-                    </span>
-                  )}
-                </>
-              )}
-              {movement !== undefined && (
-                <>
-                  {prefix}{movement} {suffix}
-                </>
-              )}
-            </div>
+          <div className={`text-white/60 ${compact ? 'text-[10px] sm:text-xs' : 'text-xs sm:text-sm'} truncate`}>
+            {playerName}
+          </div>
+          <div className={`font-bold ${colors.text} ${compact ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl'} mt-1 sm:mt-2`}>
+            {points !== undefined && (
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span>{prefix}{points}{suffix}</span>
+                {rawPoints !== undefined && rawPoints !== points && (
+                  <span className="text-[10px] sm:text-xs text-white/50 font-medium">
+                    ({formatPoints(rawPoints)} raw)
+                  </span>
+                )}
+              </div>
+            )}
+            {movement !== undefined && (
+              <span>{prefix}{movement}{suffix}</span>
+            )}
           </div>
         </div>
       </CardContent>
-      <div className={`absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r ${gradientFrom} ${gradientTo}`} />
     </Card>
   );
 }

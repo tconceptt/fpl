@@ -312,6 +312,7 @@ export async function getLeagueData(selectedGameweek?: number): Promise<LeagueDa
 
     try {
       const leagueId = process.env.FPL_LEAGUE_ID;
+      const h2hLeagueId = "2489497"; // Head to Head league ID
       if (!leagueId) {
         throw new Error('FPL_LEAGUE_ID environment variable is not set. Please set it in your .env.local file.');
       }
@@ -329,6 +330,29 @@ export async function getLeagueData(selectedGameweek?: number): Promise<LeagueDa
       // Get team IDs from current standings
       const teamIds = data.standings.results.map((team: LeagueStanding) => team.entry);
 
+      // Fetch H2H standings
+      const h2hRanks = new Map<number, number>();
+      try {
+        const h2hResponse = await retryFetch(fplApiRoutes.h2hStandings(h2hLeagueId), {
+          cache: "no-store",
+        });
+        const h2hData = await h2hResponse.json();
+        
+        // H2H API structure: check if standings exists and has results
+        if (h2hData.standings?.results) {
+          h2hData.standings.results.forEach((team: { entry: number; rank: number }) => {
+            h2hRanks.set(team.entry, team.rank);
+          });
+        } else if (Array.isArray(h2hData.standings)) {
+          // Sometimes standings is directly an array
+          h2hData.standings.forEach((team: { entry: number; rank: number }) => {
+            h2hRanks.set(team.entry, team.rank);
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch H2H standings:", error);
+      }
+
       // Get historical standings for selected gameweek
       const historicalStandings = await getHistoricalStandings(
         teamIds,
@@ -337,11 +361,17 @@ export async function getLeagueData(selectedGameweek?: number): Promise<LeagueDa
         gameweek === currentGameweek
       );
 
+      // Add H2H ranks to the standings
+      const standingsWithH2H = historicalStandings.map(standing => ({
+        ...standing,
+        h2h_rank: h2hRanks.get(standing.entry),
+      }));
+
       return {
         leagueName: data.league.name,
         currentGameweek,
         selectedGameweek: gameweek,
-        standings: historicalStandings
+        standings: standingsWithH2H
       };
     } catch (error) {
       console.error("Error fetching league data:", error);

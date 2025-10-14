@@ -1,87 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Trophy, BarChart3, Flag, Shirt, Star } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-function FootballShape({
-    className,
-    delay = 0,
-    width = 400,
-    height = 100,
-    rotate = 0,
-    gradient = "from-white/[0.08]",
-    icon: Icon = Shirt,
-    iconColor = "text-white/50",
-    hideOnMobile = false,
-}: {
-    className?: string;
-    delay?: number;
-    width?: number;
-    height?: number;
-    rotate?: number;
-    gradient?: string;
-    icon?: React.ElementType;
-    iconColor?: string;
-    hideOnMobile?: boolean;
-}) {
-    return (
-        <motion.div
-            initial={{
-                opacity: 0,
-                y: -150,
-                rotate: rotate - 15,
-            }}
-            animate={{
-                opacity: 1,
-                y: 0,
-                rotate: rotate,
-            }}
-            transition={{
-                duration: 2.4,
-                delay,
-                ease: [0.23, 0.86, 0.39, 0.96],
-                opacity: { duration: 1.2 },
-            }}
-            className={cn(
-                "absolute",
-                hideOnMobile && "hidden sm:block",
-                className
-            )}
-        >
-            <motion.div
-                animate={{
-                    y: [0, 15, 0],
-                }}
-                transition={{
-                    duration: 12,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: "easeInOut",
-                }}
-                style={{
-                    width,
-                    height,
-                }}
-                className="relative"
-            >
-                <div
-                    className={cn(
-                        "absolute inset-0 rounded-full",
-                        "bg-gradient-to-r to-transparent",
-                        gradient,
-                        "backdrop-blur-[2px] border-2 border-white/[0.15]",
-                        "shadow-[0_8px_32px_0_rgba(255,255,255,0.1)]",
-                        "after:absolute after:inset-0 after:rounded-full",
-                        "after:bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.2),transparent_70%)]",
-                        "flex items-center justify-center"
-                    )}
-                >
-                    <Icon className={cn("h-12 w-12", iconColor)} />
-                </div>
-            </motion.div>
-        </motion.div>
-    );
-}
+import { Trophy, BarChart3, Star } from "lucide-react";
+import Link from "next/link";
 
 function FootballHero({
     badge = "The Beautiful Game",
@@ -100,123 +21,144 @@ function FootballHero({
             opacity: 1,
             y: 0,
             transition: {
-                duration: 1,
-                delay: 0.5 + i * 0.2,
+                duration: 0.8,
+                delay: 0.3 + i * 0.15,
                 ease: [0.25, 0.4, 0.25, 1],
             },
         }),
     };
 
     return (
-        <div className="relative w-full flex items-center justify-center overflow-hidden bg-[#051937] py-20 md:py-28 lg:py-36">
-            <div className="absolute inset-0 opacity-10">
-                <div className="absolute top-0 left-0 w-full h-full bg-[url('/images/pitch-pattern.png')] bg-repeat"></div>
+        <div className="relative w-full flex items-center justify-center overflow-hidden py-16 sm:py-20 md:py-24">
+            {/* Subtle background gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-gray-900 to-blue-900/20" />
+            
+            {/* Animated grid pattern */}
+            <div className="absolute inset-0 opacity-[0.03]">
+                <div className="absolute inset-0" style={{
+                    backgroundImage: `linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)`,
+                    backgroundSize: '50px 50px'
+                }} />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-br from-green-600/[0.08] via-transparent to-blue-600/[0.08] blur-3xl" />
 
-            <div className="absolute inset-0 overflow-hidden">
-                <FootballShape
-                    delay={0.3}
-                    width={200}
-                    height={200}
-                    rotate={12}
-                    gradient="from-green-500/[0.15]"
-                    icon={Trophy}
-                    iconColor="text-yellow-500/90"
-                    className="left-[-10%] md:left-[5%] top-[15%] md:top-[20%]"
+            {/* Minimal floating orbs for depth */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <motion.div
+                    animate={{
+                        x: [0, 100, 0],
+                        y: [0, -50, 0],
+                    }}
+                    transition={{
+                        duration: 20,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: "easeInOut",
+                    }}
+                    className="absolute top-20 left-10 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"
                 />
-
-                <FootballShape
-                    delay={0.5}
-                    width={180}
-                    height={180}
-                    rotate={-15}
-                    gradient="from-blue-500/[0.15]"
-                    icon={BarChart3}
-                    iconColor="text-blue-400/90"
-                    className="right-[-10%] md:right-[10%] top-[70%] md:top-[65%]"
-                />
-
-                <FootballShape
-                    delay={0.4}
-                    width={160}
-                    height={160}
-                    rotate={-8}
-                    gradient="from-yellow-500/[0.15]"
-                    icon={Flag}
-                    iconColor="text-yellow-400/90"
-                    className="left-[-5%] md:left-[15%] bottom-[10%] md:bottom-[15%]"
-                />
-
-                <FootballShape
-                    delay={0.6}
-                    width={140}
-                    height={140}
-                    rotate={20}
-                    gradient="from-red-500/[0.15]"
-                    icon={Shirt}
-                    iconColor="text-red-400/90"
-                    className="right-[-5%] md:right-[5%] top-[10%] md:top-[25%]"
-                    hideOnMobile={true}
-                />
-
-                <FootballShape
-                    delay={0.7}
-                    width={120}
-                    height={120}
-                    rotate={-25}
-                    gradient="from-purple-500/[0.15]"
-                    icon={Star}
-                    iconColor="text-purple-400/90"
-                    className="left-[30%] md:left-[25%] top-[5%] md:top-[10%]"
-                    hideOnMobile={true}
+                <motion.div
+                    animate={{
+                        x: [0, -80, 0],
+                        y: [0, 60, 0],
+                    }}
+                    transition={{
+                        duration: 18,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: "easeInOut",
+                    }}
+                    className="absolute bottom-20 right-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl"
                 />
             </div>
 
-            <div className="relative z-10 container mx-auto px-4 md:px-6">
-                <div className="max-w-4xl mx-auto text-center">
+            <div className="relative z-10 container mx-auto px-4 sm:px-6">
+                <div className="max-w-5xl mx-auto">
+                    {/* Badge */}
                     <motion.div
                         custom={0}
                         variants={fadeUpVariants}
                         initial="hidden"
                         animate="visible"
-                        className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 mb-8"
+                        className="flex justify-center mb-6 sm:mb-8"
                     >
-                        <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
-                        <span className="text-sm text-green-300 tracking-wide font-medium">
-                            {badge}
-                        </span>
+                        <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 backdrop-blur-sm">
+                            <Trophy className="h-4 w-4 text-yellow-400" />
+                            <span className="text-xs sm:text-sm text-white/90 tracking-wide font-semibold">
+                                {badge}
+                            </span>
+                            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                        </div>
                     </motion.div>
 
-                    <motion.h1
+                    {/* Title */}
+                    <motion.div
                         custom={1}
                         variants={fadeUpVariants}
                         initial="hidden"
                         animate="visible"
-                        className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tighter mb-6 text-white drop-shadow-lg"
+                        className="text-center mb-6 sm:mb-8"
                     >
-                        {title1}
-                        <br />
-                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-300 to-blue-400">
-                            {title2}
-                        </span>
-                    </motion.h1>
+                        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight mb-3 sm:mb-4">
+                            <span className="block text-white drop-shadow-2xl leading-tight">
+                                {title1}
+                            </span>
+                            <span className="block bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 leading-tight">
+                                {title2}
+                            </span>
+                        </h1>
+                    </motion.div>
 
+                    {/* Subtitle */}
                     {subtitle && (
-                        <motion.p
+                        <motion.div
                             custom={2}
                             variants={fadeUpVariants}
                             initial="hidden"
                             animate="visible"
-                            className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto"
+                            className="text-center"
                         >
-                            {subtitle}
-                        </motion.p>
+                            <p className="text-base sm:text-lg md:text-xl text-white/60 max-w-2xl mx-auto leading-relaxed">
+                                {subtitle}
+                            </p>
+                        </motion.div>
                     )}
+
+                    {/* Quick Links */}
+                    <motion.div
+                        custom={3}
+                        variants={fadeUpVariants}
+                        initial="hidden"
+                        animate="visible"
+                        className="flex items-center justify-center gap-4 sm:gap-6 mt-8 sm:mt-12"
+                    >
+                        <Link href="/stats" className="group">
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white/5 active:scale-95">
+                                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-white/40 group-hover:text-purple-400 transition-colors" />
+                                <span className="text-xs sm:text-sm font-medium text-white/40 group-hover:text-white/80 transition-colors">Stats</span>
+                            </div>
+                        </Link>
+                        
+                        <div className="w-px h-4 bg-white/20" />
+                        
+                        <Link href="/" className="group">
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white/5 active:scale-95">
+                                <Trophy className="h-4 w-4 sm:h-5 sm:w-5 text-white/40 group-hover:text-yellow-400 transition-colors" />
+                                <span className="text-xs sm:text-sm font-medium text-white/40 group-hover:text-white/80 transition-colors">Rankings</span>
+                            </div>
+                        </Link>
+                        
+                        <div className="w-px h-4 bg-white/20" />
+                        
+                        <Link href="/gameweek" className="group">
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white/5 active:scale-95">
+                                <Star className="h-4 w-4 sm:h-5 sm:w-5 text-white/40 group-hover:text-blue-400 transition-colors" />
+                                <span className="text-xs sm:text-sm font-medium text-white/40 group-hover:text-white/80 transition-colors">Live</span>
+                            </div>
+                        </Link>
+                    </motion.div>
                 </div>
             </div>
 
-            <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#051937] to-transparent"></div>
+            {/* Bottom fade */}
+            <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-900 to-transparent"></div>
         </div>
     );
 }

@@ -14,37 +14,6 @@ interface BenchStats {
   benchPoints: number;
 }
 
-function BenchPointsCard({ team, rank, finishedGameweeks, totalTeams }: { team: BenchStats; rank: number; finishedGameweeks: number; totalTeams: number; }) {
-  return (
-    <div className="bg-white/5 rounded-lg p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-white/60">{rank}</span>
-        <div className="text-right">
-          {rank === 1 ? (
-            <TrendingUp className="ml-auto h-4 w-4 text-emerald-500" />
-          ) : rank === totalTeams ? (
-            <TrendingDown className="ml-auto h-4 w-4 text-red-500" />
-          ) : null}
-        </div>
-      </div>
-      <div>
-        <div className="font-medium">{team.name}</div>
-        <div className="text-sm text-white/60">{team.managerName}</div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="bg-white/5 rounded p-2">
-          <div className="text-sm text-white/60">Total</div>
-          <div className="font-bold">{formatPoints(team.benchPoints)}</div>
-        </div>
-        <div className="bg-white/5 rounded p-2">
-          <div className="text-sm text-white/60">Per GW</div>
-          <div className="font-bold">{formatPoints(Math.round(team.benchPoints / finishedGameweeks))}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default async function BenchPointsPage() {
   const data = await getStatsData();
 
@@ -60,54 +29,81 @@ export default async function BenchPointsPage() {
       <div className="mb-6">
         <Link href="/stats" className="text-sm text-blue-400 hover:underline">← Back to Stats</Link>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
+      <Card className="border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
+        <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">
             <Medal className="h-5 w-5 text-blue-500" />
             Points on Bench
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {/* Mobile View */}
-          <div className="space-y-3 sm:hidden">
-            {data.benchStats.map((team: BenchStats, index: number) => (
-              <BenchPointsCard
-                key={team.id}
-                team={team}
-                rank={index + 1}
-                finishedGameweeks={data.finishedGameweeks}
-                totalTeams={data.benchStats.length}
-              />
-            ))}
+        <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
+          {/* Mobile View - Compact Table */}
+          <div className="sm:hidden text-white text-xs rounded-lg overflow-hidden border border-white/10">
+            {/* Header */}
+            <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10.5px]">
+              <div className="w-8 text-center">#</div>
+              <div className="flex-1">Team</div>
+              <div className="w-14 text-right">Total</div>
+              <div className="w-12 text-right">Per GW</div>
+            </div>
+            {/* Rows */}
+            <div className="overflow-y-auto">
+              {data.benchStats.map((team: BenchStats, index: number) => (
+                <div
+                  key={team.id}
+                  className={`flex items-center px-2 py-1.5 border-b border-white/5 ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'}`}
+                >
+                  <div className="w-8 flex items-center justify-center">
+                    <span className="font-bold text-[10.5px]">
+                      {index + 1}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0 ml-2">
+                    <div className="font-semibold text-[10.5px] truncate text-white leading-tight">
+                      {team.name}
+                    </div>
+                    <div className="text-white/60 truncate text-[8.5px] leading-tight">
+                      {team.managerName}
+                    </div>
+                  </div>
+                  <div className="w-14 text-right font-bold text-[11.5px] text-white">
+                    {formatPoints(team.benchPoints)}
+                  </div>
+                  <div className="w-12 text-right font-semibold text-[10.5px] text-white/80">
+                    {formatPoints(Math.round(team.benchPoints / data.finishedGameweeks))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Desktop View */}
-          <div className="hidden sm:block">
+          <div className="hidden sm:block overflow-x-auto rounded-lg border border-white/10">
             <Table>
               <TableHeader>
-                <TableRow className="border-white/10">
-                  <TableHead className="w-12 text-white/60">Rank</TableHead>
-                  <TableHead className="text-white/60">Team</TableHead>
-                  <TableHead className="text-right text-white/60">Total</TableHead>
-                  <TableHead className="text-right text-white/60">Per GW</TableHead>
-                  <TableHead className="text-right text-white/60">Trend</TableHead>
+                <TableRow className="border-white/10 bg-gradient-to-r from-gray-800 to-gray-900 hover:bg-gradient-to-r">
+                  <TableHead className="w-12 text-gray-300 font-bold">Rank</TableHead>
+                  <TableHead className="text-gray-300 font-bold">Team</TableHead>
+                  <TableHead className="text-right text-gray-300 font-bold">Total</TableHead>
+                  <TableHead className="text-right text-gray-300 font-bold">Per GW</TableHead>
+                  <TableHead className="text-right text-gray-300 font-bold">Trend</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.benchStats.map((team: BenchStats, index: number) => (
-                  <TableRow key={team.id} className="border-white/10 hover:bg-white/5">
-                    <TableCell className="font-medium">{index + 1}</TableCell>
-                    <TableCell>
+                  <TableRow key={team.id} className={`border-white/5 transition-all ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'} hover:bg-purple-900/20`}>
+                    <TableCell className="font-bold py-3">{index + 1}</TableCell>
+                    <TableCell className="py-3">
                       <div>
-                        <div className="font-medium">{team.name}</div>
+                        <div className="font-medium text-white">{team.name}</div>
                         <div className="text-sm text-white/60">{team.managerName}</div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-bold">{formatPoints(team.benchPoints)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right font-bold py-3 text-white">{formatPoints(team.benchPoints)}</TableCell>
+                    <TableCell className="text-right py-3 text-white/80">
                       {formatPoints(Math.round(team.benchPoints / data.finishedGameweeks))}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right py-3">
                       {index === 0 ? (
                         <TrendingUp className="ml-auto h-4 w-4 text-emerald-500" />
                       ) : index === data.benchStats.length - 1 ? (

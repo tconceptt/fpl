@@ -47,6 +47,51 @@ function getCustomRank(rank: number, totalTeams: number) {
   return rank;
 }
 
+function toAmharic(num: number): string {
+  const amharicNumerals: { [key: number]: string } = {
+    1: '፩',
+    2: '፪',
+    3: '፫',
+    4: '፬',
+    5: '፭',
+    6: '፮',
+    7: '፯',
+    8: '፰',
+    9: '፱',
+    10: '፲',
+    11: '፲፩',
+    12: '፲፪',
+    13: '፲፫',
+    14: '፲፬',
+    15: '፲፭',
+    16: '፲፮',
+    17: '፲፯',
+    18: '፲፰',
+    19: '፲፱',
+    20: '፳',
+    21: '፳፩',
+    22: '፳፪',
+    23: '፳፫',
+    24: '፳፬',
+    25: '፳፭',
+    30: '፴',
+    40: '፵',
+    50: '፶',
+    60: '፷',
+    70: '፸',
+    80: '፹',
+    90: '፺',
+    100: '፻'
+  };
+  
+  // For numbers beyond 100, we'll use a simpler approach
+  if (num > 100) {
+    return num.toString(); // Fall back to Arabic for very high numbers
+  }
+  
+  return amharicNumerals[num] || num.toString();
+}
+
 
 export function LeagueTable({ standings, currentGameweek, selectedGameweek, className }: LeagueTableProps) {
   const [view, setView] = useState<"full" | "compact">("compact");
@@ -156,6 +201,7 @@ function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStan
             <div className="flex font-bold text-gray-300 px-1.5 sm:px-3 py-1 sm:py-2 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10.5px] sm:text-xs">
                 <div className="w-6 sm:w-10 text-center">#</div>
                 <div className="flex-1">Team</div>
+                <div className="w-8 sm:w-10 text-center">H2H</div>
                 <div className="w-6 sm:w-10 text-center">Chip</div>
                 <div className="w-7 sm:w-12 text-right">GW</div>
                 <div className="w-9 sm:w-14 text-right">Total</div>
@@ -208,8 +254,17 @@ function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStan
                                 )}
                             </div>
                             
+                            {/* H2H Rank */}
+                            <div className="w-8 sm:w-10 text-center flex items-center justify-center">
+                                {team.h2h_rank && (
+                                    <span className="text-[10px] sm:text-xs font-semibold text-blue-400">
+                                        {toAmharic(team.h2h_rank)}
+                                    </span>
+                                )}
+                            </div>
+                            
                             {/* Chip badge */}
-                            <div className="w-8 sm:w-12 text-center flex items-center justify-center">
+                            <div className="w-6 sm:w-10 text-center flex items-center justify-center">
                                 {chipInfo && (
                                     <TooltipProvider>
                                         <Tooltip>
@@ -252,6 +307,7 @@ function FullView({ standings, onTeamClick }: { standings: Array<GameweekStandin
           <TableRow className="border-white/10 bg-gradient-to-r from-gray-800 to-gray-900 hover:bg-gradient-to-r">
             <TableHead className="w-16 text-gray-300 font-bold">Rank</TableHead>
             <TableHead className="text-gray-300 font-bold">Team</TableHead>
+            <TableHead className="text-center text-gray-300 font-bold">H2H</TableHead>
             <TableHead className="text-right text-gray-300 font-bold">GW</TableHead>
             <TableHead className="text-right text-gray-300 font-bold">GW Net</TableHead>
             <TableHead className="text-center text-gray-300 font-bold leading-tight"><div>In</div><div>Play</div></TableHead>
@@ -315,6 +371,13 @@ function FullView({ standings, onTeamClick }: { standings: Array<GameweekStandin
                       )}
                     </div>
                   </div>
+                </TableCell>
+                <TableCell className="text-center font-semibold py-3">
+                  {team.h2h_rank && (
+                    <span className="text-blue-400">
+                      {toAmharic(team.h2h_rank)}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right font-semibold py-3 text-white">
                   {formatPoints(team.event_total)}
