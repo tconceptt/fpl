@@ -201,10 +201,10 @@ function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStan
             <div className="flex font-bold text-gray-300 px-1.5 sm:px-3 py-1 sm:py-2 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10.5px] sm:text-xs">
                 <div className="w-6 sm:w-10 text-center">#</div>
                 <div className="flex-1">Team</div>
-                <div className="w-8 sm:w-10 text-center">H2H</div>
-                <div className="w-6 sm:w-10 text-center">Chip</div>
-                <div className="w-7 sm:w-12 text-right">GW</div>
-                <div className="w-9 sm:w-14 text-right">Total</div>
+                <div className="w-10 sm:w-12 text-center">H2H</div>
+                <div className="w-10 sm:w-12 text-center">Chip</div>
+                <div className="w-10 sm:w-12 text-right">GW</div>
+                <div className="w-12 sm:w-14 text-right">Total</div>
             </div>
             
             {/* Rows */}
@@ -255,7 +255,7 @@ function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStan
                             </div>
                             
                             {/* H2H Rank */}
-                            <div className="w-8 sm:w-10 text-center flex items-center justify-center">
+                            <div className="w-10 sm:w-12 text-center flex items-center justify-center">
                                 {team.h2h_rank && (
                                     <span className="text-[10px] sm:text-xs font-semibold text-blue-400">
                                         {toAmharic(team.h2h_rank)}
@@ -264,7 +264,7 @@ function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStan
                             </div>
                             
                             {/* Chip badge */}
-                            <div className="w-6 sm:w-10 text-center flex items-center justify-center">
+                            <div className="w-10 sm:w-12 text-center flex items-center justify-center">
                                 {chipInfo && (
                                     <TooltipProvider>
                                         <Tooltip>
@@ -283,12 +283,12 @@ function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStan
                             </div>
                             
                             {/* GW Points */}
-                            <div className="w-7 sm:w-12 text-right font-semibold text-[10.5px] sm:text-sm text-white">
+                            <div className="w-10 sm:w-12 text-right font-semibold text-[10.5px] sm:text-sm text-white">
                                 {team.net_points !== null ? formatPoints(team.net_points) : formatPoints(team.event_total)}
                             </div>
                             
                             {/* Total Points */}
-                            <div className="w-9 sm:w-14 text-right font-bold text-[11.5px] sm:text-base text-white">
+                            <div className="w-12 sm:w-14 text-right font-bold text-[11.5px] sm:text-base text-white">
                                 {formatPoints(team.total_points)}
                             </div>
                         </div>
