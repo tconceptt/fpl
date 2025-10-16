@@ -9,11 +9,13 @@ function FootballHero({
     title1 = "Fantasy Premier League",
     title2 = "Summarizer",
     subtitle,
+    showBadge = true,
 }: {
     badge?: string;
     title1?: string;
     title2?: string;
     subtitle?: string;
+    showBadge?: boolean;
 }) {
     const fadeUpVariants = {
         hidden: { opacity: 0, y: 30 },
@@ -72,21 +74,23 @@ function FootballHero({
             <div className="relative z-10 container mx-auto px-4 sm:px-6">
                 <div className="max-w-5xl mx-auto">
                     {/* Badge */}
-                    <motion.div
-                        custom={0}
-                        variants={fadeUpVariants}
-                        initial="hidden"
-                        animate="visible"
-                        className="flex justify-center mb-6 sm:mb-8"
-                    >
-                        <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 backdrop-blur-sm">
-                            <Trophy className="h-4 w-4 text-yellow-400" />
-                            <span className="text-xs sm:text-sm text-white/90 tracking-wide font-semibold">
-                                {badge}
-                            </span>
-                            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                        </div>
-                    </motion.div>
+                    {showBadge && (
+                        <motion.div
+                            custom={0}
+                            variants={fadeUpVariants}
+                            initial="hidden"
+                            animate="visible"
+                            className="flex justify-center mb-6 sm:mb-8"
+                        >
+                            <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 backdrop-blur-sm">
+                                <Trophy className="h-4 w-4 text-yellow-400" />
+                                <span className="text-xs sm:text-sm text-white/90 tracking-wide font-semibold">
+                                    {badge}
+                                </span>
+                                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                            </div>
+                        </motion.div>
+                    )}
 
                     {/* Title */}
                     <motion.div
