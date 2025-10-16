@@ -41,7 +41,7 @@ export default async function DashboardPage() {
           badge="Qitawrari League" 
           title1="Qitawrari League" 
           title2="Track Your FPL Standings" 
-          subtitle="Live gameweek points, detailed stats, and league history."
+          subtitle="Live gameweek points, detailed stats, and league history"
           showBadge={false}
         />
       </div>
