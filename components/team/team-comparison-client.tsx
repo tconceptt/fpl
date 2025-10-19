@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Repeat } from "lucide-react";
 import { BreakdownTable } from "./breakdown-table";
 import { TeamSelector } from "./team-selector";
 
@@ -257,7 +258,7 @@ export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps
                   <div className="text-[9px] md:text-[10px] text-white/60 truncate">{team1.managerName}</div>
                 </div>
                 <div className="text-[10px] md:text-xs text-white/40 group-hover:text-white/60 flex-shrink-0">
-                  →
+                  <Repeat className="w-3 h-3" />
                 </div>
               </div>
             </button>
@@ -312,7 +313,7 @@ export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps
                   <div className="text-[9px] md:text-[10px] text-white/60 truncate">{team2.managerName}</div>
                 </div>
                 <div className="text-[10px] md:text-xs text-white/40 group-hover:text-white/60 flex-shrink-0">
-                  →
+                  <Repeat className="w-3 h-3" />
                 </div>
               </div>
             </button>
