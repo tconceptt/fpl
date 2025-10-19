@@ -120,11 +120,22 @@ export function performAutoSubstitutions(
   
   // Try to substitute each starter with 0 minutes
   for (const starterToReplace of startersWithZeroMinutes) {
+    const starterElementType = bootstrapPlayers.get(starterToReplace.element)?.element_type;
+    
     // Try each bench player in order
     for (let i = 0; i < benchPlayers.length; i++) {
       if (usedBenchIndices.has(i)) continue; // Skip already used bench players
       
       const benchPlayer = benchPlayers[i];
+      const benchElementType = bootstrapPlayers.get(benchPlayer.element)?.element_type;
+      
+      // Goalkeeper rule: GK can only be subbed for GK, outfield for outfield
+      const isStarterGK = starterElementType === 1;
+      const isBenchGK = benchElementType === 1;
+      
+      if (isStarterGK !== isBenchGK) {
+        continue; // Cannot substitute GK for outfield player or vice versa
+      }
       
       // Simulate the substitution
       const currentStartingXI = getCurrentStartingXI();

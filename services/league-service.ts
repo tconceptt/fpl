@@ -113,7 +113,21 @@ export async function getHistoricalStandings(
             for (const pick of data.picks) {
               if (pick.position <= 11) { // Starters
                 const livePlayer = livePlayerMap.get(pick.element);
-                if (!livePlayer || livePlayer.stats.minutes === 0) {
+                
+                // Check if player is "to start"
+                if (livePlayer) {
+                  if (livePlayer.stats.minutes === 0 && livePlayer.explain.length > 0) {
+                    // Player has 0 minutes - check their fixture status
+                    const fixtureId = livePlayer.explain[0].fixture;
+                    const fixtureStatus = fixtureStatusMap.get(fixtureId);
+                    
+                    // Only count as "to start" if fixture hasn't finished
+                    if (fixtureStatus && !fixtureStatus.finished) {
+                      playersToStart++;
+                    }
+                  }
+                } else {
+                  // No live data for player - count as "to start"
                   playersToStart++;
                 }
                 

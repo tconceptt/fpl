@@ -203,6 +203,7 @@ function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStan
                 <div className="flex-1">Team</div>
                 <div className="w-10 sm:w-12 text-center">H2H</div>
                 <div className="w-10 sm:w-12 text-center">Chip</div>
+                <div className="w-8 sm:w-10 text-center leading-tight"><div>To</div><div>Start</div></div>
                 <div className="w-10 sm:w-12 text-right">GW</div>
                 <div className="w-12 sm:w-14 text-right">Total</div>
             </div>
@@ -280,6 +281,11 @@ function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStan
                                         </Tooltip>
                                     </TooltipProvider>
                                 )}
+                            </div>
+                            
+                            {/* To Start */}
+                            <div className="w-8 sm:w-10 text-center font-medium text-[10.5px] sm:text-sm text-white/80">
+                                {team.playersToStart}
                             </div>
                             
                             {/* GW Points */}
