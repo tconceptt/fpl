@@ -16,13 +16,17 @@ export function GameweekNav({ currentGameweek }: GameweekNavProps) {
 
   const handlePrevGw = () => {
     if (selectedGw > 1) {
-      router.push(`${pathname}?gw=${selectedGw - 1}`);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("gw", String(selectedGw - 1));
+      router.push(`${pathname}?${params.toString()}`);
     }
   };
 
   const handleNextGw = () => {
     if (selectedGw < currentGameweek) {
-      router.push(`${pathname}?gw=${selectedGw + 1}`);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("gw", String(selectedGw + 1));
+      router.push(`${pathname}?${params.toString()}`);
     }
   };
 
