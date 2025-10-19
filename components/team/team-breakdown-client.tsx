@@ -56,7 +56,6 @@ export function TeamBreakdownClient({ players, teamId }: { players: Player[]; te
         isOpen={showTeamSelector}
         onClose={() => setShowTeamSelector(false)}
         onSelect={handleTeamSelect}
-        currentTeamId={Number(teamId)}
         excludeTeamId={Number(teamId)}
       />
     </>

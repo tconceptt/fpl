@@ -13,11 +13,10 @@ interface TeamSelectorProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (teamId: number) => void;
-  currentTeamId: number;
   excludeTeamId?: number;
 }
 
-export function TeamSelector({ isOpen, onClose, onSelect, currentTeamId, excludeTeamId }: TeamSelectorProps) {
+export function TeamSelector({ isOpen, onClose, onSelect, excludeTeamId }: TeamSelectorProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");

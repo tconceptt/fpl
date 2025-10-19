@@ -299,14 +299,14 @@ export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps
         {/* Team 2 */}
         <div className="space-y-1.5 md:space-y-2.5">
           {/* Team header with selector */}
-          <div className="bg-gradient-to-br from-orange-900/30 to-red-900/30 border border-orange-500/20 rounded-lg p-1.5 md:p-2.5">
+          <div className="bg-gradient-to-br from-red-900/30 to-red-800/30 border border-red-500/20 rounded-lg p-1.5 md:p-2.5">
             <button
               onClick={() => handleSwitchTeam(2)}
               className="w-full text-left hover:bg-white/5 rounded p-1 md:p-1.5 transition-colors group"
             >
               <div className="flex items-center justify-between gap-1">
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs md:text-sm font-bold truncate group-hover:text-orange-300 transition-colors">
+                  <div className="text-xs md:text-sm font-bold truncate group-hover:text-red-300 transition-colors">
                     {team2.teamName}
                   </div>
                   <div className="text-[9px] md:text-[10px] text-white/60 truncate">{team2.managerName}</div>
@@ -356,7 +356,6 @@ export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps
         isOpen={showTeamSelector}
         onClose={() => setShowTeamSelector(false)}
         onSelect={handleTeamSelect}
-        currentTeamId={selectingTeamSide === 1 ? Number(team1.teamId) : Number(team2.teamId)}
         excludeTeamId={getExcludedTeamId()}
       />
     </>
