@@ -216,13 +216,19 @@ export async function getHistoricalStandings(
         
         const net_points = event_total - transferCost;
 
+        // Get previous gameweek's total as baseline for live calculation
+        const previousGWData = selectedGameweek > 1 
+          ? history.current.find(gw => gw.event === selectedGameweek - 1)
+          : null;
+        const previousGWTotal = previousGWData?.total_points || 0;
+
         return {
           entry: teamIds[index],
           entry_name: team.entry_name,
           player_name: team.player_name,
           event_total,
           total_points: useLiveForCurrent 
-            ? (team.total - gameweekData.points + net_points) 
+            ? (previousGWTotal + net_points) 
             : gameweekData.total_points,
           net_points,
           rank: 0, // Will be calculated after sorting

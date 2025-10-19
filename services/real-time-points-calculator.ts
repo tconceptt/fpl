@@ -16,7 +16,7 @@ interface FixtureStat {
   h: { value: number; element: number }[];
 }
 
-interface Player {
+export interface Player {
   id: number;
   element_type: number; // Position ID
   team: number;
@@ -26,7 +26,7 @@ interface BootstrapData {
   elements: Player[];
 }
 
-interface LivePlayerStats {
+export interface LivePlayerStats {
   minutes: number;
   clean_sheets: number;
   goals_conceded: number;
@@ -40,6 +40,122 @@ interface LivePlayer {
 
 interface LiveGameweekData {
   elements: LivePlayer[];
+}
+
+export interface TeamPick {
+  element: number;
+  position: number;
+  multiplier: number;
+  is_captain: boolean;
+  is_vice_captain: boolean;
+}
+
+/**
+ * Performs automatic substitutions for players who played 0 minutes.
+ * Returns modified picks with bench players moved to starting XI where valid.
+ */
+export function performAutoSubstitutions(
+  picks: TeamPick[],
+  livePlayerStatsMap: Map<number, LivePlayerStats>,
+  bootstrapPlayers: Map<number, Player>,
+  fixtures: Fixture[]
+): TeamPick[] {
+  // Create a working copy
+  const workingPicks = picks.map(p => ({ ...p }));
+  
+  // Create a map of team ID to fixture status
+  const teamFixtureStatus = new Map<number, boolean>(); // true if fixture started
+  for (const fixture of fixtures) {
+    teamFixtureStatus.set(fixture.team_h, fixture.started);
+    teamFixtureStatus.set(fixture.team_a, fixture.started);
+  }
+  
+  // Helper to check if a player's fixture has started
+  const hasFixtureStarted = (playerId: number): boolean => {
+    const player = bootstrapPlayers.get(playerId);
+    if (!player) return false;
+    return teamFixtureStatus.get(player.team) ?? false;
+  };
+  
+  // Helper to count formation from a list of player IDs
+  const countFormation = (playerIds: number[]) => {
+    const formation = { gk: 0, def: 0, mid: 0, fwd: 0 };
+    for (const id of playerIds) {
+      const elementType = bootstrapPlayers.get(id)?.element_type;
+      if (elementType === 1) formation.gk++;
+      else if (elementType === 2) formation.def++;
+      else if (elementType === 3) formation.mid++;
+      else if (elementType === 4) formation.fwd++;
+    }
+    return formation;
+  };
+  
+  // Helper to check if formation is valid
+  const isValidFormation = (formation: { gk: number; def: number; mid: number; fwd: number }) => {
+    return formation.gk >= 1 && formation.def >= 3 && formation.mid >= 2 && formation.fwd >= 1;
+  };
+  
+  // Get current starting XI
+  const getCurrentStartingXI = () => {
+    return workingPicks.filter(p => p.position <= 11).map(p => p.element);
+  };
+  
+  // Find starters who played 0 minutes AND whose fixture has started (in position order)
+  const startersWithZeroMinutes = workingPicks
+    .filter(p => p.position <= 11)
+    .filter(p => {
+      const minutes = livePlayerStatsMap.get(p.element)?.minutes ?? 0;
+      const fixtureStarted = hasFixtureStarted(p.element);
+      return minutes === 0 && fixtureStarted;
+    })
+    .sort((a, b) => a.position - b.position);
+  
+  // Get bench players in order (12, 13, 14, 15)
+  const benchPlayers = workingPicks
+    .filter(p => p.position > 11 && p.position <= 15)
+    .sort((a, b) => a.position - b.position);
+  
+  // Track which bench players have been used
+  const usedBenchIndices = new Set<number>();
+  
+  // Try to substitute each starter with 0 minutes
+  for (const starterToReplace of startersWithZeroMinutes) {
+    // Try each bench player in order
+    for (let i = 0; i < benchPlayers.length; i++) {
+      if (usedBenchIndices.has(i)) continue; // Skip already used bench players
+      
+      const benchPlayer = benchPlayers[i];
+      
+      // Simulate the substitution
+      const currentStartingXI = getCurrentStartingXI();
+      const newStartingXI = currentStartingXI
+        .filter(id => id !== starterToReplace.element)
+        .concat([benchPlayer.element]);
+      
+      // Check if this creates a valid formation
+      const testFormation = countFormation(newStartingXI);
+      
+      if (isValidFormation(testFormation)) {
+        // Valid substitution! Swap positions and multipliers
+        const starterPos = starterToReplace.position;
+        const benchPos = benchPlayer.position;
+        const starterMultiplier = starterToReplace.multiplier;
+        
+        // Swap positions
+        starterToReplace.position = benchPos;
+        benchPlayer.position = starterPos;
+        
+        // Update multipliers: bench player gets the starter's multiplier, starter gets 0
+        benchPlayer.multiplier = starterMultiplier;
+        starterToReplace.multiplier = 0;
+        
+        usedBenchIndices.add(i);
+        break; // Move to next starter with 0 minutes
+      }
+    }
+  }
+  
+  return workingPicks;
 }
 
 export async function getFixtures(gameweekId: string): Promise<Fixture[]> {
@@ -272,9 +388,17 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
   }
   const teamDetails = await teamDetailsResponse.json();
 
+  // Perform automatic substitutions for players with 0 minutes whose fixtures have started
+  const adjustedPicks = performAutoSubstitutions(
+    teamDetails.picks,
+    livePlayerStatsMap,
+    bootstrapPlayers,
+    fixtures
+  );
+
   let totalPoints = 0;
-  for (const pick of teamDetails.picks) {
-    if (pick.position <= 11) { // Only count starters
+  for (const pick of adjustedPicks) {
+    if (pick.position <= 11) { // Only count starters (including auto-subs)
       totalPoints += (playerPoints.get(pick.element) || 0) * pick.multiplier;
     }
   }
@@ -510,7 +634,16 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
   // Filter to team picks and apply multipliers per metric
   type TeamPick = { element: number; position: number; is_captain: boolean; is_vice_captain: boolean; multiplier: number };
   const rawPicks: unknown = (teamDetailsResp as { picks?: unknown }).picks ?? [];
-  const picks = (rawPicks as TeamPick[]).filter((p) => p.position <= 15);
+  const originalPicks = (rawPicks as TeamPick[]).filter((p) => p.position <= 15);
+  
+  // Perform automatic substitutions for players with 0 minutes whose fixtures have started
+  const picks = performAutoSubstitutions(
+    originalPicks,
+    livePlayerStatsMap,
+    bootstrapPlayers,
+    fixtures
+  );
+  
   const result: Array<{
     id: number;
     position: number;
