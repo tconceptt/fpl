@@ -4,6 +4,7 @@ import Link from "next/link";
 import { fplApiRoutes } from "@/lib/routes";
 import { getAllPlayersOwnership } from "@/services/get-player-ownership";
 import { getCurrentGameweek } from "@/services/league-service";
+import { getUrlParam } from "@/lib/helpers";
 import { TemplateLeaderboardClient } from "./template-leaderboard-client";
 
 interface StandingsResult {
@@ -31,11 +32,21 @@ export interface TemplateTeamStat {
 }
 
 export default async function TemplateLeaderboardPage() {
-  // Determine gameweek for picks; use current GW
-  const [gameweek, ownershipMap] = await Promise.all([
-    getCurrentGameweek(),
-    getAllPlayersOwnership(),
-  ]);
+  // Get gameweek from URL params, default to current active gameweek
+  const gameweekParam = await getUrlParam("gameweek");
+  const currentGameweek = await getCurrentGameweek();
+  
+  // Determine selected gameweek (default to current active gameweek)
+  const selectedGameweek = gameweekParam 
+    ? parseInt(gameweekParam as string, 10) 
+    : currentGameweek;
+  
+  // Validate selected gameweek
+  const validSelectedGameweek = (selectedGameweek >= 1 && selectedGameweek <= currentGameweek && !isNaN(selectedGameweek))
+    ? selectedGameweek
+    : currentGameweek;
+  
+  const ownershipMap = await getAllPlayersOwnership();
 
   // Fetch league standings to get team IDs and names
   const leagueId = process.env.FPL_LEAGUE_ID;
@@ -57,7 +68,7 @@ export default async function TemplateLeaderboardPage() {
     teams.map(async (team) => {
       try {
         const tdResp = await fetch(
-          fplApiRoutes.teamDetails(team.entry.toString(), gameweek.toString()),
+          fplApiRoutes.teamDetails(team.entry.toString(), validSelectedGameweek.toString()),
           { cache: "no-store" }
         );
         if (!tdResp.ok) {
@@ -105,15 +116,15 @@ export default async function TemplateLeaderboardPage() {
     <DashboardLayout>
       <PageHeader
         title="Template Leaderboard"
-        description="Ranked by average ownership of entire squad (15 players, current GW)"
-        currentGameweek={gameweek}
-        selectedGameweek={gameweek}
-        showGameweekSelector={false}
+        description={`Ranked by average ownership of entire squad (15 players${validSelectedGameweek < currentGameweek ? `, GW ${validSelectedGameweek}` : ', current GW'})`}
+        currentGameweek={currentGameweek}
+        selectedGameweek={validSelectedGameweek}
+        showGameweekSelector={true}
       />
       <div className="mb-6">
         <Link href="/stats" className="text-sm text-blue-400 hover:underline">← Back to Stats</Link>
       </div>
-      <TemplateLeaderboardClient data={sorted} currentGameweek={gameweek} selectedGameweek={gameweek} />
+      <TemplateLeaderboardClient data={sorted} currentGameweek={currentGameweek} selectedGameweek={validSelectedGameweek} />
     </DashboardLayout>
   );
 }

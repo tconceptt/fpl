@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Wand2 } from "lucide-react";
 import { getStatsData } from "../getStatData";
+import { getUrlParam } from "@/lib/helpers";
 import Link from "next/link";
 
 interface ChipInfo {
@@ -20,16 +21,35 @@ interface ChipStats {
 }
 
 export default async function ChipsUsagePage() {
-  const data = await getStatsData();
+  // Get gameweek from URL params
+  const gameweekParam = await getUrlParam("gameweek");
+  
+  // First, get current gameweek by fetching data once
+  const initialData = await getStatsData();
+  
+  // Determine selected gameweek (default to current active gameweek)
+  const selectedGameweek = gameweekParam 
+    ? parseInt(gameweekParam as string, 10) 
+    : initialData.currentGameweek;
+  
+  // Validate selected gameweek
+  const validSelectedGameweek = (selectedGameweek >= 1 && selectedGameweek <= initialData.currentGameweek && !isNaN(selectedGameweek))
+    ? selectedGameweek
+    : initialData.currentGameweek;
+  
+  // Fetch data filtered by selected gameweek (only if different from initial fetch)
+  const data = validSelectedGameweek === initialData.currentGameweek && !gameweekParam
+    ? initialData
+    : await getStatsData(validSelectedGameweek);
 
   return (
     <DashboardLayout>
       <PageHeader
         title="Chips Usage"
-        description={`After ${data.finishedGameweeks} completed gameweeks`}
-        currentGameweek={data.finishedGameweeks}
-        selectedGameweek={data.finishedGameweeks}
-        showGameweekSelector={false}
+        description={`After ${data.finishedGameweeks} completed gameweeks${validSelectedGameweek < data.currentGameweek ? ` (as of GW ${validSelectedGameweek})` : ''}`}
+        currentGameweek={data.currentGameweek}
+        selectedGameweek={validSelectedGameweek}
+        showGameweekSelector={true}
       />
       <div className="mb-6">
         <Link href="/stats" className="text-sm text-blue-400 hover:underline">← Back to Stats</Link>

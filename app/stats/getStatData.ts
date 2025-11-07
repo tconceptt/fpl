@@ -1,5 +1,6 @@
 import { fplApiRoutes } from "@/lib/routes";
 import { getPlayerName } from "@/services/get-player-name";
+import { cache } from 'react';
 
 // NEW INTERFACE for Tie Break Details
 export interface TieBreakDetail {
@@ -11,7 +12,14 @@ export interface TieBreakDetail {
   details: string; // Narrative description, e.g. "Player A (100pts) vs Player B (90pts) in GW Y"
 }
 
-export async function getStatsData() {
+// NEW INTERFACE for Unresolved Ties
+export interface UnresolvedTie {
+  gameweeks: number[]; // Can be multiple consecutive GWs with same teams tied
+  tiedTeams: Array<{ id: number; name: string; managerName: string; netPoints: number }>;
+}
+
+// Use React cache for request deduplication
+export const getStatsData = cache(async (selectedGameweek?: number) => {
   try {
     const headers = {
       "User-Agent":
@@ -45,11 +53,22 @@ export async function getStatsData() {
     const { standings } = await leagueData.json();
     const { events } = await bootstrapData.json();
 
-    // Get finished gameweeks
-    const finishedGameweeks = events
+    // Get current active gameweek
+    const currentEvent = events.find((e: { is_current: boolean }) => e.is_current) 
+      || events.find((e: { is_next: boolean }) => e.is_next) 
+      || [...events].reverse().find((e: { finished: boolean }) => e.finished);
+    const currentGameweek = currentEvent ? currentEvent.id : 1;
+
+    // Get finished gameweeks, filtered by selectedGameweek if provided
+    let finishedGameweeks = events
       .filter((event: { finished: boolean }) => event.finished)
       .map((event: { id: number }) => event.id)
       .sort((a: number, b: number) => a - b); // Ensure sorted
+    
+    // If selectedGameweek is provided, filter to only include gameweeks up to that
+    if (selectedGameweek !== undefined) {
+      finishedGameweeks = finishedGameweeks.filter((gw: number) => gw <= selectedGameweek);
+    }
 
     // Extract team data
     const teams: TeamData[] = standings.results.map(
@@ -95,6 +114,7 @@ export async function getStatsData() {
     const chipUsageMap = new Map<number, ChipUsage>();
     const hitsStatsMap = new Map<number, HitsStats>();
     const tieBreakDetailsList: TieBreakDetail[] = []; // To store details of ties
+    const unresolvedTies: UnresolvedTie[] = []; // To store unresolved ties
 
     teams.forEach((team: TeamData) => {
       teamStatsMap.set(team.id, {
@@ -138,8 +158,8 @@ export async function getStatsData() {
       const chipUsage = chipUsageMap.get(team.id);
       if (!chipUsage) return;
 
-      // Get chips from history and process them
-      const validChips = history.chips
+      // Get chips from history and process them, filtering by selectedGameweek if provided
+      let validChips = history.chips
         .map((chip) => ({
           name:
             chip.name === "wildcard"
@@ -158,6 +178,11 @@ export async function getStatsData() {
           gameweek: chip.event,
         }))
         .sort((a, b) => a.gameweek - b.gameweek);
+      
+      // Filter chips by selectedGameweek if provided
+      if (selectedGameweek !== undefined) {
+        validChips = validChips.filter((chip) => chip.gameweek <= selectedGameweek);
+      }
 
       chipUsage.chips = validChips;
       chipUsage.totalChipsUsed = validChips.length;
@@ -181,6 +206,11 @@ export async function getStatsData() {
       }> = [];
 
       history.current.forEach((gameweek) => {
+        // Filter by selectedGameweek if provided
+        if (selectedGameweek !== undefined && gameweek.event > selectedGameweek) {
+          return;
+        }
+        
         const cost = gameweek.event_transfers_cost || 0;
         const gameweekTransfers = gameweek.event_transfers || 0;
         
@@ -218,14 +248,15 @@ export async function getStatsData() {
       return null; // Team might not have data for this gameweek
     };
 
-    // MODIFIED: resolveTieForGameweek to return details
+    // MODIFIED: resolveTieForGameweek to return details and all tied gameweeks
     const resolveTieForGameweek = (
       tiedGameweek: number,
       initialPotentialWinners: { id: number; points: number; net_points: number }[],
       histories: Map<number, TeamHistory>,
       allFinishedGWs: number[],
-      teamDataMap: Map<number, TeamData> // Pass team data for names
-    ): { winnerId: number; detail: TieBreakDetail | null } => { // Return type changed
+      teamDataMap: Map<number, TeamData>, // Pass team data for names
+      gameweekHighestScorers: Map<number, { id: number; points: number; net_points: number }[]> // To check if subsequent GWs also tied
+    ): { winnerId: number; detail: TieBreakDetail | null; tiedGameweeks: number[] } => { // Return type changed to include tiedGameweeks
       
       let currentTiedEntries = initialPotentialWinners.map(w => ({ // Keep full entry data
           id: w.id,
@@ -243,6 +274,7 @@ export async function getStatsData() {
       });
       
       let resolutionDetail: TieBreakDetail | null = null;
+      const consecutiveTiedGameweeks: number[] = [tiedGameweek]; // Track all GWs where these teams were tied
 
       const subsequentGameweeks = allFinishedGWs.filter(gw => gw > tiedGameweek);
 
@@ -253,6 +285,20 @@ export async function getStatsData() {
         let teamsWithDataCount = 0;
         const pointsNarrative: string[] = [];
 
+        // Check if this subsequent GW also had these teams as the highest scorers (another tie in the league)
+        const subsequentGWHighestScorers = gameweekHighestScorers.get(subsequentGW);
+        const tiedTeamIds = new Set(currentTiedEntries.map(e => e.id));
+        const subsequentGWHighestScorerIds = new Set(subsequentGWHighestScorers?.map(s => s.id) || []);
+        
+        // If the same teams are the highest scorers in the subsequent GW, this GW is also part of the tie chain
+        const isConsecutiveTie = subsequentGWHighestScorers && 
+                                  subsequentGWHighestScorers.length > 1 &&
+                                  tiedTeamIds.size === subsequentGWHighestScorerIds.size &&
+                                  [...tiedTeamIds].every(id => subsequentGWHighestScorerIds.has(id));
+
+        if (isConsecutiveTie) {
+          consecutiveTiedGameweeks.push(subsequentGW);
+        }
 
         for (const entry of currentTiedEntries) {
           const points = getNetPointsForTeamInGameweek(entry.id, subsequentGW, histories);
@@ -277,6 +323,9 @@ export async function getStatsData() {
         if (winnersInSubsequentGW.length === 1 && maxPointsInSubsequentGW > NULL_POINTS_VALUE) {
           const winnerId = winnersInSubsequentGW[0].id;
           const winnerTeamInfo = teamDataMap.get(winnerId);
+          const gwsText = consecutiveTiedGameweeks.length > 1 
+            ? `GWs ${consecutiveTiedGameweeks.join(', ')}` 
+            : `GW${tiedGameweek}`;
           resolutionDetail = {
             gameweek: tiedGameweek,
             initiallyTiedTeams: initiallyTiedTeamsForDetail,
@@ -287,14 +336,17 @@ export async function getStatsData() {
             },
             resolutionMethod: `Higher score in GW${subsequentGW}`,
             resolutionGameweek: subsequentGW,
-            details: `Won with ${winnersInSubsequentGW[0].pointsInSubsequent}pts in GW${subsequentGW}. Scores: ${pointsNarrative.join(', ')}.`
+            details: `Won ${gwsText} with ${winnersInSubsequentGW[0].pointsInSubsequent}pts in GW${subsequentGW}. Scores: ${pointsNarrative.join(', ')}.`
           };
-          return { winnerId, detail: resolutionDetail };
+          return { winnerId, detail: resolutionDetail, tiedGameweeks: consecutiveTiedGameweeks };
         }
         if (maxPointsInSubsequentGW === NULL_POINTS_VALUE && winnersInSubsequentGW.length === currentTiedEntries.length) continue;
         if (winnersInSubsequentGW.length === 1) { // Tie broken
             const winnerId = winnersInSubsequentGW[0].id;
             const winnerTeamInfo = teamDataMap.get(winnerId);
+            const gwsText = consecutiveTiedGameweeks.length > 1 
+              ? `GWs ${consecutiveTiedGameweeks.join(', ')}` 
+              : `GW${tiedGameweek}`;
             resolutionDetail = {
                 gameweek: tiedGameweek,
                 initiallyTiedTeams: initiallyTiedTeamsForDetail,
@@ -305,9 +357,9 @@ export async function getStatsData() {
                 },
                 resolutionMethod: `Higher score in GW${subsequentGW}`,
                 resolutionGameweek: subsequentGW,
-                details: `Won with ${winnersInSubsequentGW[0].pointsInSubsequent}pts in GW${subsequentGW}. Scores: ${pointsNarrative.join(', ')}.`
+                details: `Won ${gwsText} with ${winnersInSubsequentGW[0].pointsInSubsequent}pts in GW${subsequentGW}. Scores: ${pointsNarrative.join(', ')}.`
             };
-            return { winnerId, detail: resolutionDetail };
+            return { winnerId, detail: resolutionDetail, tiedGameweeks: consecutiveTiedGameweeks };
         }
         if (winnersInSubsequentGW.length > 0 && winnersInSubsequentGW.length < currentTiedEntries.length) {
           currentTiedEntries = winnersInSubsequentGW.map(w => ({id: w.id, originalNetPoints: currentTiedEntries.find(ce => ce.id === w.id)?.originalNetPoints || 0 }));
@@ -315,6 +367,9 @@ export async function getStatsData() {
             const winnerId = currentTiedEntries[0].id;
             const winnerTeamInfo = teamDataMap.get(winnerId);
             const finalWinnerPoints = getNetPointsForTeamInGameweek(winnerId, subsequentGW, histories);
+            const gwsText = consecutiveTiedGameweeks.length > 1 
+              ? `GWs ${consecutiveTiedGameweeks.join(', ')}` 
+              : `GW${tiedGameweek}`;
              resolutionDetail = {
                 gameweek: tiedGameweek,
                 initiallyTiedTeams: initiallyTiedTeamsForDetail,
@@ -325,9 +380,9 @@ export async function getStatsData() {
                 },
                 resolutionMethod: `Higher score in GW${subsequentGW}`,
                 resolutionGameweek: subsequentGW,
-                details: `Won with ${finalWinnerPoints}pts in GW${subsequentGW}. Final comparison: ${pointsNarrative.join(', ')}.`
+                details: `Won ${gwsText} with ${finalWinnerPoints}pts in GW${subsequentGW}. Final comparison: ${pointsNarrative.join(', ')}.`
             };
-            return { winnerId, detail: resolutionDetail };
+            return { winnerId, detail: resolutionDetail, tiedGameweeks: consecutiveTiedGameweeks };
           }
            if (currentTiedEntries.length === 0) {
                currentTiedEntries = initialPotentialWinners.map(w => ({id: w.id, originalNetPoints: w.net_points})); // Fallback
@@ -344,6 +399,9 @@ export async function getStatsData() {
       const randomIndex = Math.floor(Math.random() * currentTiedEntries.length);
       const winnerId = currentTiedEntries[randomIndex].id;
       const winnerTeamInfo = teamDataMap.get(winnerId);
+      const gwsText = consecutiveTiedGameweeks.length > 1 
+        ? `GWs ${consecutiveTiedGameweeks.join(', ')}` 
+        : `GW${tiedGameweek}`;
       resolutionDetail = {
         gameweek: tiedGameweek,
         initiallyTiedTeams: initiallyTiedTeamsForDetail,
@@ -353,16 +411,19 @@ export async function getStatsData() {
           managerName: winnerTeamInfo?.managerName || 'Unknown' 
         },
         resolutionMethod: "Coin Toss",
-        details: `Tie persisted through all subsequent gameweeks. Winner chosen by virtual coin toss from ${currentTiedEntries.length} teams.`
+        details: `Tie persisted through all subsequent gameweeks. Winner of ${gwsText} chosen by virtual coin toss from ${currentTiedEntries.length} teams.`
       };
-      return { winnerId, detail: resolutionDetail };
+      return { winnerId, detail: resolutionDetail, tiedGameweeks: consecutiveTiedGameweeks };
     };
     
     // Process each finished gameweek for wins, points, etc.
     // The gameweekWinnerMap is for a different purpose (manager chip) and its original logic is preserved.
     const gameweekWinnerMap = new Map<number, { id: number; managerName: string; points: number }>();
     const teamDataMap = new Map<number, TeamData>(teams.map(t => [t.id, t]));
-
+    
+    // First pass: Build a map of highest scorers for each gameweek
+    const gameweekHighestScorers = new Map<number, { id: number; points: number; net_points: number }[]>();
+    
     finishedGameweeks.forEach((gameweek: number) => {
       let highestNetPointsThisGameweek = -Infinity;
       let potentialWinnersData: { id: number; points: number; net_points: number }[] = [];
@@ -375,6 +436,37 @@ export async function getStatsData() {
 
         const points = gameweekData.points;
         const net_points = gameweekData.points - (gameweekData.event_transfers_cost || 0);
+
+        if (net_points > highestNetPointsThisGameweek) {
+          highestNetPointsThisGameweek = net_points;
+          potentialWinnersData = [{ id: team.id, points, net_points }];
+        } else if (net_points === highestNetPointsThisGameweek) {
+          potentialWinnersData.push({ id: team.id, points, net_points });
+        }
+      });
+      
+      gameweekHighestScorers.set(gameweek, potentialWinnersData);
+    });
+    
+    // Second pass: Process wins, tracking which gameweeks have been awarded
+    const awardedGameweeks = new Set<number>();
+
+    finishedGameweeks.forEach((gameweek: number) => {
+      // Skip if this gameweek was already awarded as part of a multi-gameweek tie resolution
+      if (awardedGameweeks.has(gameweek)) {
+        return;
+      }
+      
+      const potentialWinnersData = gameweekHighestScorers.get(gameweek) || [];
+      
+      // Update team stats (total points, bench points, best gameweek)
+      teams.forEach((team) => {
+        const history = teamHistories.get(team.id);
+        if (!history) return;
+        const gameweekData = history.current.find((gw) => gw.event === gameweek);
+        if (!gameweekData) return;
+
+        const points = gameweekData.points;
         
         const currentTeamStats = teamStatsMap.get(team.id);
         if (currentTeamStats) {
@@ -385,13 +477,6 @@ export async function getStatsData() {
           } else if (points === currentTeamStats.bestGameweek.points && gameweek < currentTeamStats.bestGameweek.gameweek) {
             currentTeamStats.bestGameweek = { gameweek, points };
           }
-        }
-
-        if (net_points > highestNetPointsThisGameweek) {
-          highestNetPointsThisGameweek = net_points;
-          potentialWinnersData = [{ id: team.id, points, net_points }];
-        } else if (net_points === highestNetPointsThisGameweek) {
-          potentialWinnersData.push({ id: team.id, points, net_points });
         }
       });
 
@@ -410,43 +495,88 @@ export async function getStatsData() {
       
       // New logic: Resolve ties and award a single win
       if (potentialWinnersData.length > 0) {
-        let actualWinnerId: number;
-        let winnerDataForGameweek: { id: number; points: number; net_points: number };
+        let actualWinnerId: number | null = null;
+        let winnerDataForGameweek: { id: number; points: number; net_points: number } | null = null;
 
         if (potentialWinnersData.length === 1) {
+          // Clear winner, no tie
           actualWinnerId = potentialWinnersData[0].id;
+          winnerDataForGameweek = potentialWinnersData[0];
         } else {
-          // Pass teamDataMap for names
-          const resolutionResult = resolveTieForGameweek(gameweek, potentialWinnersData, teamHistories, finishedGameweeks, teamDataMap);
-          actualWinnerId = resolutionResult.winnerId;
-          if (resolutionResult.detail) {
-            tieBreakDetailsList.push(resolutionResult.detail); // Store the detail
+          // There's a tie - check if next gameweek is finished
+          const nextGameweek = gameweek + 1;
+          const nextGameweekFinished = finishedGameweeks.includes(nextGameweek);
+          
+          if (nextGameweekFinished) {
+            // Next gameweek has been played, we can resolve the tie
+            const resolutionResult = resolveTieForGameweek(gameweek, potentialWinnersData, teamHistories, finishedGameweeks, teamDataMap, gameweekHighestScorers);
+            actualWinnerId = resolutionResult.winnerId;
+            
+            // Mark all tied gameweeks as awarded
+            resolutionResult.tiedGameweeks.forEach(gw => awardedGameweeks.add(gw));
+            
+            if (resolutionResult.detail) {
+              tieBreakDetailsList.push(resolutionResult.detail); // Store the detail
+            }
+            
+            // Award wins for ALL the tied gameweeks to the winner
+            const teamStats = teamStatsMap.get(actualWinnerId);
+            if (teamStats) {
+              resolutionResult.tiedGameweeks.forEach(tiedGW => {
+                const tiedGWWinnersData = gameweekHighestScorers.get(tiedGW);
+                const tiedGWWinnerData = tiedGWWinnersData?.find(w => w.id === actualWinnerId);
+                
+                if (tiedGWWinnerData) {
+                  teamStats.wins++;
+                  teamStats.gameweekWins.push({
+                    gameweek: tiedGW,
+                    teamId: teamStats.id,
+                    teamName: teamStats.name,
+                    managerName: teamStats.managerName,
+                    points: tiedGWWinnerData.points,
+                    net_points: tiedGWWinnerData.net_points
+                  });
+                }
+              });
+            }
+            
+            // Set to null so we don't award again below
+            actualWinnerId = null;
+            winnerDataForGameweek = null;
+          } else {
+            // Next gameweek hasn't been played yet, don't award win to anyone
+            // actualWinnerId remains null, so no win will be recorded
+            // Track this as an unresolved tie
+            unresolvedTies.push({
+              gameweeks: [gameweek],
+              tiedTeams: potentialWinnersData.map(w => {
+                const teamInfo = teamDataMap.get(w.id);
+                return {
+                  id: w.id,
+                  name: teamInfo?.name || 'Unknown Team',
+                  managerName: teamInfo?.managerName || 'Unknown Manager',
+                  netPoints: w.net_points
+                };
+              })
+            });
           }
         }
-        
-        // Find the original points data for the actual winner for this gameweek
-        const foundWinnerData = potentialWinnersData.find(w => w.id === actualWinnerId);
-        if (foundWinnerData) {
-            winnerDataForGameweek = foundWinnerData;
-        } else {
-            // Should not happen if resolveTieForGameweek returns an ID from the initial list
-            // As a robust fallback, use the first potential winner if something went wrong.
-            // console.error(`Error: Winner ID ${actualWinnerId} from tie-resolution not in potential winners for GW ${gameweek}.`);
-            winnerDataForGameweek = potentialWinnersData[0]; 
-            actualWinnerId = potentialWinnersData[0].id; // Ensure consistency
-        }
 
-        const teamStats = teamStatsMap.get(actualWinnerId);
-        if (teamStats) {
-          teamStats.wins++;
-          teamStats.gameweekWins.push({
-            gameweek,
-            teamId: teamStats.id,
-            teamName: teamStats.name,
-            managerName: teamStats.managerName,
-            points: winnerDataForGameweek.points,      // Points from the original tied gameweek
-            net_points: winnerDataForGameweek.net_points // Net points from the original tied gameweek
-          });
+        // Only award the win if we have a winner (no unresolved tie and not already awarded as part of multi-GW resolution)
+        if (actualWinnerId !== null && winnerDataForGameweek !== null) {
+          const teamStats = teamStatsMap.get(actualWinnerId);
+          if (teamStats) {
+            teamStats.wins++;
+            teamStats.gameweekWins.push({
+              gameweek,
+              teamId: teamStats.id,
+              teamName: teamStats.name,
+              managerName: teamStats.managerName,
+              points: winnerDataForGameweek.points,      // Points from the original tied gameweek
+              net_points: winnerDataForGameweek.net_points // Net points from the original tied gameweek
+            });
+          }
+          awardedGameweeks.add(gameweek);
         }
       }
     });
@@ -588,6 +718,53 @@ export async function getStatsData() {
       (a, b) => b.totalTransferCost - a.totalTransferCost
     );
 
+    // Group consecutive unresolved ties with same teams
+    const groupedUnresolvedTies: UnresolvedTie[] = [];
+    const processedUnresolvedGWs = new Set<number>();
+    
+    unresolvedTies.forEach(tie => {
+      const tieGameweek = tie.gameweeks[0]; // Each unresolved tie starts with one gameweek
+      if (processedUnresolvedGWs.has(tieGameweek)) return;
+      
+      // Find all consecutive gameweeks with the same tied teams
+      const consecutiveGWs = [tieGameweek];
+      processedUnresolvedGWs.add(tieGameweek);
+      
+      const tiedTeamIds = new Set(tie.tiedTeams.map(t => t.id));
+      let currentGW = tieGameweek;
+      
+      // Look ahead for consecutive gameweeks with same teams tied
+      while (true) {
+        const nextGW = currentGW + 1;
+        const nextTie = unresolvedTies.find(t => t.gameweeks[0] === nextGW);
+        
+        if (!nextTie) break;
+        
+        const nextTiedTeamIds = new Set(nextTie.tiedTeams.map(t => t.id));
+        
+        // Check if same teams are tied
+        if (tiedTeamIds.size === nextTiedTeamIds.size && 
+            [...tiedTeamIds].every(id => nextTiedTeamIds.has(id))) {
+          consecutiveGWs.push(nextGW);
+          processedUnresolvedGWs.add(nextGW);
+          currentGW = nextGW;
+        } else {
+          break;
+        }
+      }
+      
+      // Use the latest gameweek's net points for display
+      const latestGW = consecutiveGWs[consecutiveGWs.length - 1];
+      const latestTie = unresolvedTies.find(t => t.gameweeks[0] === latestGW);
+      
+      if (latestTie) {
+        groupedUnresolvedTies.push({
+          gameweeks: consecutiveGWs,
+          tiedTeams: latestTie.tiedTeams
+        });
+      }
+    });
+
     return {
       stats,
       chipStats,
@@ -595,7 +772,9 @@ export async function getStatsData() {
       hitsStats,
       assistantManagerStats,
       finishedGameweeks: finishedGameweeks.length,
+      currentGameweek, // Add current active gameweek
       tieBreakDetails: tieBreakDetailsList, // ADDED tieBreakDetailsList
+      unresolvedTies: groupedUnresolvedTies, // ADDED groupedUnresolvedTies
     };
   } catch (error) {
     console.error("Error fetching stats:", error);
@@ -608,11 +787,13 @@ export async function getStatsData() {
       hitsStats: [],
       assistantManagerStats: [],
       finishedGameweeks: 0,
+      currentGameweek: 1, // Default to 1 on error
       tieBreakDetails: [],
+      unresolvedTies: [],
       error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
-}
+});
 
 
 export interface TeamData {
