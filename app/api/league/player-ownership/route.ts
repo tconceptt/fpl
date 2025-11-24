@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fplApiRoutes } from "@/lib/routes";
-import { getPlayerName } from "@/services/get-player-name";
+
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
