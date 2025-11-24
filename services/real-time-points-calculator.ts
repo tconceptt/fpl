@@ -166,7 +166,25 @@ export function performAutoSubstitutions(
     }
   }
 
-  return workingPicks;
+  // After all substitutions, re-sort the starting XI (positions 1-11) by element type
+  // This ensures that if a defender came on for a forward (or vice versa, if valid), 
+  // they appear in the correct group.
+  const starters = workingPicks.filter(p => p.position <= 11);
+  const bench = workingPicks.filter(p => p.position > 11);
+
+  starters.sort((a, b) => {
+    const typeA = bootstrapPlayers.get(a.element)?.element_type ?? 0;
+    const typeB = bootstrapPlayers.get(b.element)?.element_type ?? 0;
+    return typeA - typeB;
+  });
+
+  // Re-assign positions 1-11
+  starters.forEach((p, index) => {
+    p.position = index + 1;
+  });
+
+  // Combine back together
+  return [...starters, ...bench];
 }
 
 export async function getFixtures(gameweekId: string): Promise<Fixture[]> {
