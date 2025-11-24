@@ -1,6 +1,6 @@
 import { fplApiRoutes } from "@/lib/routes";
 
-interface Fixture {
+export interface Fixture {
   id: number;
   kickoff_time: string;
   started: boolean;
@@ -10,7 +10,7 @@ interface Fixture {
   stats: FixtureStat[];
 }
 
-interface FixtureStat {
+export interface FixtureStat {
   identifier: string;
   a: { value: number; element: number }[];
   h: { value: number; element: number }[];
@@ -22,7 +22,7 @@ export interface Player {
   team: number;
 }
 
-interface BootstrapData {
+export interface BootstrapData {
   elements: Player[];
 }
 
@@ -62,21 +62,21 @@ export function performAutoSubstitutions(
 ): TeamPick[] {
   // Create a working copy
   const workingPicks = picks.map(p => ({ ...p }));
-  
+
   // Create a map of team ID to fixture status
   const teamFixtureStatus = new Map<number, boolean>(); // true if fixture started
   for (const fixture of fixtures) {
     teamFixtureStatus.set(fixture.team_h, fixture.started);
     teamFixtureStatus.set(fixture.team_a, fixture.started);
   }
-  
+
   // Helper to check if a player's fixture has started
   const hasFixtureStarted = (playerId: number): boolean => {
     const player = bootstrapPlayers.get(playerId);
     if (!player) return false;
     return teamFixtureStatus.get(player.team) ?? false;
   };
-  
+
   // Helper to count formation from a list of player IDs
   const countFormation = (playerIds: number[]) => {
     const formation = { gk: 0, def: 0, mid: 0, fwd: 0 };
@@ -89,17 +89,17 @@ export function performAutoSubstitutions(
     }
     return formation;
   };
-  
+
   // Helper to check if formation is valid
   const isValidFormation = (formation: { gk: number; def: number; mid: number; fwd: number }) => {
     return formation.gk >= 1 && formation.def >= 3 && formation.mid >= 2 && formation.fwd >= 1;
   };
-  
+
   // Get current starting XI
   const getCurrentStartingXI = () => {
     return workingPicks.filter(p => p.position <= 11).map(p => p.element);
   };
-  
+
   // Find starters who played 0 minutes AND whose fixture has started (in position order)
   const startersWithZeroMinutes = workingPicks
     .filter(p => p.position <= 11)
@@ -109,63 +109,63 @@ export function performAutoSubstitutions(
       return minutes === 0 && fixtureStarted;
     })
     .sort((a, b) => a.position - b.position);
-  
+
   // Get bench players in order (12, 13, 14, 15)
   const benchPlayers = workingPicks
     .filter(p => p.position > 11 && p.position <= 15)
     .sort((a, b) => a.position - b.position);
-  
+
   // Track which bench players have been used
   const usedBenchIndices = new Set<number>();
-  
+
   // Try to substitute each starter with 0 minutes
   for (const starterToReplace of startersWithZeroMinutes) {
     const starterElementType = bootstrapPlayers.get(starterToReplace.element)?.element_type;
-    
+
     // Try each bench player in order
     for (let i = 0; i < benchPlayers.length; i++) {
       if (usedBenchIndices.has(i)) continue; // Skip already used bench players
-      
+
       const benchPlayer = benchPlayers[i];
       const benchElementType = bootstrapPlayers.get(benchPlayer.element)?.element_type;
-      
+
       // Goalkeeper rule: GK can only be subbed for GK, outfield for outfield
       const isStarterGK = starterElementType === 1;
       const isBenchGK = benchElementType === 1;
-      
+
       if (isStarterGK !== isBenchGK) {
         continue; // Cannot substitute GK for outfield player or vice versa
       }
-      
+
       // Simulate the substitution
       const currentStartingXI = getCurrentStartingXI();
       const newStartingXI = currentStartingXI
         .filter(id => id !== starterToReplace.element)
         .concat([benchPlayer.element]);
-      
+
       // Check if this creates a valid formation
       const testFormation = countFormation(newStartingXI);
-      
+
       if (isValidFormation(testFormation)) {
         // Valid substitution! Swap positions and multipliers
         const starterPos = starterToReplace.position;
         const benchPos = benchPlayer.position;
         const starterMultiplier = starterToReplace.multiplier;
-        
+
         // Swap positions
         starterToReplace.position = benchPos;
         benchPlayer.position = starterPos;
-        
+
         // Update multipliers: bench player gets the starter's multiplier, starter gets 0
         benchPlayer.multiplier = starterMultiplier;
         starterToReplace.multiplier = 0;
-        
+
         usedBenchIndices.add(i);
         break; // Move to next starter with 0 minutes
       }
     }
   }
-  
+
   return workingPicks;
 }
 
@@ -189,7 +189,7 @@ async function getLiveGameweekData(gameweekId: string): Promise<LiveGameweekData
   return response.json();
 }
 
-async function getBootstrapPlayers(): Promise<Map<number, Player>> {
+export async function getBootstrapPlayers(): Promise<Map<number, Player>> {
   const response = await fetch(fplApiRoutes.bootstrap, { cache: 'no-store' });
   if (!response.ok) {
     throw new Error("Failed to fetch bootstrap data");
@@ -208,14 +208,14 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
   const playerPoints = new Map<number, number>();
 
   const livePlayerStatsMap = new Map(liveData.elements.map(p => [p.id, p.stats]));
-  
+
   const teamToPlayersMap = new Map<number, number[]>();
-    for (const player of bootstrapPlayers.values()) {
-        if (!teamToPlayersMap.has(player.team)) {
-            teamToPlayersMap.set(player.team, []);
-        }
-        teamToPlayersMap.get(player.team)!.push(player.id);
+  for (const player of bootstrapPlayers.values()) {
+    if (!teamToPlayersMap.has(player.team)) {
+      teamToPlayersMap.set(player.team, []);
     }
+    teamToPlayersMap.get(player.team)!.push(player.id);
+  }
 
   // Process live data for minutes, clean sheets, and goals conceded
   for (const player of liveData.elements) {
@@ -242,7 +242,7 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
     if (position === 1 || position === 2) {
       points -= Math.floor(player.stats.goals_conceded / 2);
     }
-    
+
     // Saves (only for Goalkeepers)
     if (position === 1) {
       points += Math.floor(player.stats.saves / 3);
@@ -260,10 +260,10 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
 
     let maxMinutes = 0;
     for (const playerId of fixturePlayerIds) {
-        const stats = livePlayerStatsMap.get(playerId);
-        if (stats && stats.minutes > maxMinutes) {
-            maxMinutes = stats.minutes;
-        }
+      const stats = livePlayerStatsMap.get(playerId);
+      if (stats && stats.minutes > maxMinutes) {
+        maxMinutes = stats.minutes;
+      }
     }
 
     for (const stat of fixture.stats) {
@@ -331,61 +331,61 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
           }
           break;
         case "defensive_contribution":
-            for (const player of [...stat.a, ...stat.h]) {
-                const position = bootstrapPlayers.get(player.element)?.element_type;
-                let points = 0;
-                if (position === 2 && player.value >= 10) { // Defender
-                    points = 2;
-                } else if (position === 3 && player.value >= 12) { // Midfielder
-                    points = 2;
-                }
-                playerPoints.set(
-                    player.element,
-                    (playerPoints.get(player.element) || 0) + points
-                );
+          for (const player of [...stat.a, ...stat.h]) {
+            const position = bootstrapPlayers.get(player.element)?.element_type;
+            let points = 0;
+            if (position === 2 && player.value >= 10) { // Defender
+              points = 2;
+            } else if (position === 3 && player.value >= 12) { // Midfielder
+              points = 2;
             }
-            break;
+            playerPoints.set(
+              player.element,
+              (playerPoints.get(player.element) || 0) + points
+            );
+          }
+          break;
         case "bps":
-            {
-                if (maxMinutes < 60) break;
-                
-                const allPlayers = [...stat.a, ...stat.h].filter(p => p.value > 0);
-                if (allPlayers.length === 0) break;
+          {
+            if (maxMinutes < 60) break;
 
-                const sortedPlayers = allPlayers.sort((a, b) => b.value - a.value);
-                const uniqueScores = [...new Set(sortedPlayers.map(p => p.value))];
+            const allPlayers = [...stat.a, ...stat.h].filter(p => p.value > 0);
+            if (allPlayers.length === 0) break;
 
-                const ranks = uniqueScores.slice(0, 3).map(score =>
-                    sortedPlayers.filter(p => p.value === score)
-                );
+            const sortedPlayers = allPlayers.sort((a, b) => b.value - a.value);
+            const uniqueScores = [...new Set(sortedPlayers.map(p => p.value))];
 
-                const rank1Players = ranks[0] || [];
-                const rank2Players = ranks[1] || [];
-                const rank3Players = ranks[2] || [];
+            const ranks = uniqueScores.slice(0, 3).map(score =>
+              sortedPlayers.filter(p => p.value === score)
+            );
 
-                if (rank1Players.length === 0) break;
+            const rank1Players = ranks[0] || [];
+            const rank2Players = ranks[1] || [];
+            const rank3Players = ranks[2] || [];
 
-                if (rank1Players.length > 1) {
-                    // Tie for 1st place: Players 1 & 2 get 3 points, Player 3 gets 1 point
-                    rank1Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 3));
-                    rank2Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 1));
-                } else {
-                    // Clear 1st place: Player 1 gets 3 points
-                    rank1Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 3));
+            if (rank1Players.length === 0) break;
 
-                    if (rank2Players.length > 1) {
-                        // Tie for 2nd place: Player 1 gets 3 points, Players 2 & 3 get 2 points each (no one gets 1 point)
-                        rank2Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 2));
-                        // rank3Players get nothing when there's a tie for 2nd
-                    } else if (rank2Players.length === 1) {
-                        // Clear 2nd place: Player 2 gets 2 points
-                        rank2Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 2));
-                        // 3rd place gets 1 point (tie or not)
-                        rank3Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 1));
-                    }
-                }
+            if (rank1Players.length > 1) {
+              // Tie for 1st place: Players 1 & 2 get 3 points, Player 3 gets 1 point
+              rank1Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 3));
+              rank2Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 1));
+            } else {
+              // Clear 1st place: Player 1 gets 3 points
+              rank1Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 3));
+
+              if (rank2Players.length > 1) {
+                // Tie for 2nd place: Player 1 gets 3 points, Players 2 & 3 get 2 points each (no one gets 1 point)
+                rank2Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 2));
+                // rank3Players get nothing when there's a tie for 2nd
+              } else if (rank2Players.length === 1) {
+                // Clear 2nd place: Player 2 gets 2 points
+                rank2Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 2));
+                // 3rd place gets 1 point (tie or not)
+                rank3Players.forEach(p => playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + 1));
+              }
             }
-            break;
+          }
+          break;
       }
     }
   }
@@ -646,7 +646,7 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
   type TeamPick = { element: number; position: number; is_captain: boolean; is_vice_captain: boolean; multiplier: number };
   const rawPicks: unknown = (teamDetailsResp as { picks?: unknown }).picks ?? [];
   const originalPicks = (rawPicks as TeamPick[]).filter((p) => p.position <= 15);
-  
+
   // Perform automatic substitutions for players with 0 minutes whose fixtures have started
   const picks = performAutoSubstitutions(
     originalPicks,
@@ -654,7 +654,7 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
     bootstrapPlayers,
     fixtures
   );
-  
+
   const result: Array<{
     id: number;
     position: number;
@@ -692,7 +692,7 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
     const clubName = String(teamIdForElement); // temporary label; UI will normalize by teamId
 
     const actualMinutes = livePlayerStatsMap.get(pick.element)?.minutes ?? 0;
-    
+
     result.push({
       id: pick.element,
       position: pick.position,

@@ -3,6 +3,14 @@ import { calculateLivePoints } from "@/services/live-points-calculator";
 import { getPlayerName } from "@/services/get-player-name";
 import { getTeamHistory } from "@/services/net-gameweek-points";
 import { GameweekStanding, LeagueData, LeagueStanding } from "@/types/league";
+import {
+  performAutoSubstitutions,
+  getBootstrapPlayers,
+  TeamPick,
+  LivePlayerStats,
+  Player,
+  Fixture
+} from "@/services/real-time-points-calculator";
 
 function time<T>(fn: () => Promise<T>, name: string): Promise<T> {
   const start = Date.now();
@@ -22,11 +30,7 @@ interface LivePlayer {
   explain: Array<{ fixture: number }>;
 }
 
-interface Fixture {
-  id: number;
-  started: boolean;
-  finished: boolean;
-}
+
 
 export async function getCurrentGameweek(): Promise<number> {
   return time(async () => {
@@ -53,15 +57,15 @@ export async function getCurrentGameweek(): Promise<number> {
 }
 
 export async function getHistoricalStandings(
-  teamIds: number[], 
-  selectedGameweek: number, 
-  teamInfo: LeagueStanding[], 
+  teamIds: number[],
+  selectedGameweek: number,
+  teamInfo: LeagueStanding[],
   isCurrentGameweek: boolean
 ): Promise<GameweekStanding[]> {
   return time(async () => {
     // Fetch historical data for all teams
     const teamsHistory = await Promise.all(
-      teamIds.map(teamId => 
+      teamIds.map(teamId =>
         getTeamHistory(teamId.toString())
           .catch(error => {
             console.error(`Failed to fetch history for team ${teamId}:`, error);
@@ -69,14 +73,17 @@ export async function getHistoricalStandings(
           })
       )
     );
-    
+
     let liveData: { elements: LivePlayer[] } = { elements: [] };
     let fixtures: Fixture[] = [];
     let finishedAllFixtures = false;
+    let bootstrapPlayers = new Map<number, Player>();
+
     if (isCurrentGameweek) {
-      const [liveResponse, fixturesResponse] = await Promise.all([
+      const [liveResponse, fixturesResponse, bootstrapPlayersMap] = await Promise.all([
         fetch(fplApiRoutes.liveStandings(selectedGameweek.toString())),
-        fetch(fplApiRoutes.fixtures(selectedGameweek.toString()))
+        fetch(fplApiRoutes.fixtures(selectedGameweek.toString())),
+        getBootstrapPlayers()
       ]);
 
       if (liveResponse.ok) liveData = await liveResponse.json();
@@ -84,6 +91,7 @@ export async function getHistoricalStandings(
         fixtures = await fixturesResponse.json();
         finishedAllFixtures = fixtures.length > 0 && fixtures.every(f => f.finished);
       }
+      bootstrapPlayers = bootstrapPlayersMap;
     }
 
     const livePlayerMap = new Map(liveData.elements.map(p => [p.id, p]));
@@ -94,7 +102,7 @@ export async function getHistoricalStandings(
     let captainMap = new Map<number, string | null>();
     const transferCostMap = new Map<number, number>();
     let chipMap = new Map<number, string | null>();
-    
+
     // Fetch team details for all teams to get captains and chips
     const teamDetailsResults = await Promise.all(
       teamIds.map(async teamId => {
@@ -106,31 +114,78 @@ export async function getHistoricalStandings(
           const data = await response.json();
           const captain = data.picks.find((pick: { is_captain: boolean }) => pick.is_captain);
           const captainName = captain ? await getPlayerName(captain.element) : null;
-          
+
           let playersToStart = 0;
           let playersInPlay = 0;
           if (isCurrentGameweek) {
-            for (const pick of data.picks) {
-              if (pick.position <= 11) { // Starters
+            // Create livePlayerStatsMap for performAutoSubstitutions
+            const livePlayerStatsMap = new Map<number, LivePlayerStats>();
+            liveData.elements.forEach(p => {
+              livePlayerStatsMap.set(p.id, {
+                minutes: p.stats.minutes,
+                clean_sheets: 0,
+                goals_conceded: 0,
+                saves: 0
+              });
+            });
+
+            const picks = data.picks as TeamPick[];
+            const adjustedPicks = performAutoSubstitutions(
+              picks,
+              livePlayerStatsMap,
+              bootstrapPlayers,
+              fixtures
+            );
+
+            for (const pick of adjustedPicks) {
+              if (pick.position <= 11) { // Starters (including subs)
                 const livePlayer = livePlayerMap.get(pick.element);
-                
+
                 // Check if player is "to start"
                 if (livePlayer) {
-                  if (livePlayer.stats.minutes === 0 && livePlayer.explain.length > 0) {
+                  if (livePlayer.stats.minutes === 0) {
                     // Player has 0 minutes - check their fixture status
-                    const fixtureId = livePlayer.explain[0].fixture;
-                    const fixtureStatus = fixtureStatusMap.get(fixtureId);
-                    
-                    // Only count as "to start" if fixture hasn't finished
-                    if (fixtureStatus && !fixtureStatus.finished) {
-                      playersToStart++;
+                    // If we are here, performAutoSubstitutions has already handled the logic of 
+                    // swapping out players who have 0 mins AND started fixture.
+                    // So if a player is in the XI and has 0 mins, they are either:
+                    // 1. A starter whose fixture hasn't started yet.
+                    // 2. A sub who came in, and whose fixture hasn't started yet (or has started but they haven't played).
+
+                    // We need to check fixture status to be sure.
+                    // If fixture finished and 0 mins, they are NOT "to start" (they just didn't play).
+
+                    let fixtureId = -1;
+                    if (livePlayer.explain.length > 0) {
+                      fixtureId = livePlayer.explain[0].fixture;
+                    } else {
+                      // Fallback: find fixture by team
+                      // This is tricky without player team info easily available here, 
+                      // but livePlayer.explain usually has it.
+                      // If no explain, maybe they have no fixture?
+                    }
+
+                    if (fixtureId !== -1) {
+                      const fixtureStatus = fixtureStatusMap.get(fixtureId);
+                      // Only count as "to start" if fixture hasn't finished
+                      if (fixtureStatus && !fixtureStatus.finished) {
+                        playersToStart++;
+                      }
+                    } else {
+                      // Try to find fixture via bootstrap players if available
+                      const player = bootstrapPlayers.get(pick.element);
+                      if (player) {
+                        const fixture = fixtures.find(f => f.team_h === player.team || f.team_a === player.team);
+                        if (fixture && !fixture.finished) {
+                          playersToStart++;
+                        }
+                      }
                     }
                   }
                 } else {
                   // No live data for player - count as "to start"
                   playersToStart++;
                 }
-                
+
                 if (livePlayer && livePlayer.explain.length > 0) {
                   const fixtureId = livePlayer.explain[0].fixture;
                   const fixtureStatus = fixtureStatusMap.get(fixtureId);
@@ -142,8 +197,8 @@ export async function getHistoricalStandings(
             }
           }
 
-          return { 
-            teamId, 
+          return {
+            teamId,
             captainName,
             active_chip: data.active_chip,
             playersToStart,
@@ -155,7 +210,7 @@ export async function getHistoricalStandings(
         }
       })
     );
-    
+
     const useLiveForCurrent = isCurrentGameweek && !finishedAllFixtures;
     if (useLiveForCurrent) {
       // Fetch live points
@@ -181,15 +236,15 @@ export async function getHistoricalStandings(
     // Process captain names and chips
     captainMap = new Map(
       teamDetailsResults
-        .filter((result): result is { teamId: number; captainName: string; active_chip: string | null; playersToStart: number; playersInPlay: number; } => 
+        .filter((result): result is { teamId: number; captainName: string; active_chip: string | null; playersToStart: number; playersInPlay: number; } =>
           result !== null && result.captainName !== null
         )
         .map(result => [result.teamId, result.captainName])
     );
-    
+
     chipMap = new Map(
       teamDetailsResults
-        .filter((result): result is { teamId: number; captainName: string | null; active_chip: string | null, playersToStart: number; playersInPlay: number; } => 
+        .filter((result): result is { teamId: number; captainName: string | null; active_chip: string | null, playersToStart: number; playersInPlay: number; } =>
           result !== null
         )
         .map(result => [result.teamId, result.active_chip])
@@ -200,7 +255,7 @@ export async function getHistoricalStandings(
         .filter((result): result is { teamId: number, playersToStart: number, captainName: string | null, active_chip: string | null, playersInPlay: number } => result !== null)
         .map(result => [result.teamId, result.playersToStart])
     );
-    
+
     const playersInPlayMap = new Map(
       teamDetailsResults
         .filter((result): result is { teamId: number, playersInPlay: number, captainName: string | null, active_chip: string | null, playersToStart: number } => result !== null)
@@ -227,11 +282,11 @@ export async function getHistoricalStandings(
         const transferCost = useLiveForCurrent
           ? (transferCostMap.get(teamIds[index]) || gameweekData.event_transfers_cost)
           : gameweekData.event_transfers_cost;
-        
+
         const net_points = event_total - transferCost;
 
         // Get previous gameweek's total as baseline for live calculation
-        const previousGWData = selectedGameweek > 1 
+        const previousGWData = selectedGameweek > 1
           ? history.current.find(gw => gw.event === selectedGameweek - 1)
           : null;
         const previousGWTotal = previousGWData?.total_points || 0;
@@ -241,8 +296,8 @@ export async function getHistoricalStandings(
           entry_name: team.entry_name,
           player_name: team.player_name,
           event_total,
-          total_points: useLiveForCurrent 
-            ? (previousGWTotal + net_points) 
+          total_points: useLiveForCurrent
+            ? (previousGWTotal + net_points)
             : gameweekData.total_points,
           net_points,
           rank: 0, // Will be calculated after sorting
@@ -357,7 +412,7 @@ export async function getLeagueData(selectedGameweek?: number): Promise<LeagueDa
           cache: "no-store",
         });
         const h2hData = await h2hResponse.json();
-        
+
         // H2H API structure: check if standings exists and has results
         if (h2hData.standings?.results) {
           h2hData.standings.results.forEach((team: { entry: number; rank: number }) => {
