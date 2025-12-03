@@ -24,6 +24,7 @@ export interface Player {
 
 export interface BootstrapData {
   elements: Player[];
+  teams: { id: number; short_name: string; name: string }[];
 }
 
 export interface LivePlayerStats {
@@ -48,6 +49,8 @@ export interface TeamPick {
   multiplier: number;
   is_captain: boolean;
   is_vice_captain: boolean;
+  autoSubIn?: boolean;
+  autoSubOut?: boolean;
 }
 
 /**
@@ -64,17 +67,17 @@ export function performAutoSubstitutions(
   const workingPicks = picks.map(p => ({ ...p }));
 
   // Create a map of team ID to fixture status
-  const teamFixtureStatus = new Map<number, boolean>(); // true if fixture started
+  const teamFixtureFinished = new Map<number, boolean>(); // true if fixture finished
   for (const fixture of fixtures) {
-    teamFixtureStatus.set(fixture.team_h, fixture.started);
-    teamFixtureStatus.set(fixture.team_a, fixture.started);
+    teamFixtureFinished.set(fixture.team_h, fixture.finished);
+    teamFixtureFinished.set(fixture.team_a, fixture.finished);
   }
 
-  // Helper to check if a player's fixture has started
-  const hasFixtureStarted = (playerId: number): boolean => {
+  // Helper to check if a player's fixture has finished
+  const hasFixtureFinished = (playerId: number): boolean => {
     const player = bootstrapPlayers.get(playerId);
     if (!player) return false;
-    return teamFixtureStatus.get(player.team) ?? false;
+    return teamFixtureFinished.get(player.team) ?? false;
   };
 
   // Helper to count formation from a list of player IDs
@@ -100,13 +103,13 @@ export function performAutoSubstitutions(
     return workingPicks.filter(p => p.position <= 11).map(p => p.element);
   };
 
-  // Find starters who played 0 minutes AND whose fixture has started (in position order)
+  // Find starters who played 0 minutes AND whose fixture has finished (in position order)
   const startersWithZeroMinutes = workingPicks
     .filter(p => p.position <= 11)
     .filter(p => {
       const minutes = livePlayerStatsMap.get(p.element)?.minutes ?? 0;
-      const fixtureStarted = hasFixtureStarted(p.element);
-      return minutes === 0 && fixtureStarted;
+      const fixtureFinished = hasFixtureFinished(p.element);
+      return minutes === 0 && fixtureFinished;
     })
     .sort((a, b) => a.position - b.position);
 
@@ -159,6 +162,10 @@ export function performAutoSubstitutions(
         // Update multipliers: bench player gets the starter's multiplier, starter gets 0
         benchPlayer.multiplier = starterMultiplier;
         starterToReplace.multiplier = 0;
+
+        // Mark as auto-subbed
+        benchPlayer.autoSubIn = true;
+        starterToReplace.autoSubOut = true;
 
         usedBenchIndices.add(i);
         break; // Move to next starter with 0 minutes
@@ -417,7 +424,7 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
   }
   const teamDetails = await teamDetailsResponse.json();
 
-  // Perform automatic substitutions for players with 0 minutes whose fixtures have started
+  // Perform automatic substitutions for players with 0 minutes whose fixtures have finished
   const adjustedPicks = performAutoSubstitutions(
     teamDetails.picks,
     livePlayerStatsMap,
@@ -449,8 +456,12 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
   clubName: string; // mapped for kit
   teamId: number; // canonical FPL team id
   actualMinutes: number; // actual minutes played
+  autoSubIn?: boolean;
+  autoSubOut?: boolean;
+  opponentShortName?: string;
+  fixtureStarted?: boolean;
 }>> {
-  const [fixtures, liveData, bootstrapPlayersResp, teamDetailsResp] = await Promise.all([
+  const [fixtures, liveData, bootstrapData, teamDetailsResp] = await Promise.all([
     getFixtures(gameweekId),
     (async () => {
       const res = await fetch(fplApiRoutes.liveStandings(gameweekId));
@@ -460,8 +471,7 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
     (async () => {
       const res = await fetch(fplApiRoutes.bootstrap, { cache: 'no-store' });
       if (!res.ok) throw new Error("Failed to fetch bootstrap data");
-      const data: BootstrapData = await res.json();
-      return new Map(data.elements.map((player) => [player.id, player]));
+      return res.json() as Promise<BootstrapData>;
     })(),
     (async () => {
       const res = await fetch(fplApiRoutes.teamDetails(teamId, gameweekId), { cache: "no-store" });
@@ -470,7 +480,8 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
     })(),
   ]);
 
-  const bootstrapPlayers = bootstrapPlayersResp;
+  const bootstrapPlayers = new Map(bootstrapData.elements.map((player) => [player.id, player]));
+  const teamsMap = new Map(bootstrapData.teams.map((team) => [team.id, team]));
   const livePlayerStatsMap = new Map(liveData.elements.map(p => [p.id, p.stats]));
 
   const teamToPlayersMap = new Map<number, number[]>();
@@ -661,11 +672,11 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
   }
 
   // Filter to team picks and apply multipliers per metric
-  type TeamPick = { element: number; position: number; is_captain: boolean; is_vice_captain: boolean; multiplier: number };
+  type TeamPick = { element: number; position: number; is_captain: boolean; is_vice_captain: boolean; multiplier: number; autoSubIn?: boolean; autoSubOut?: boolean };
   const rawPicks: unknown = (teamDetailsResp as { picks?: unknown }).picks ?? [];
   const originalPicks = (rawPicks as TeamPick[]).filter((p) => p.position <= 15);
 
-  // Perform automatic substitutions for players with 0 minutes whose fixtures have started
+  // Perform automatic substitutions for players with 0 minutes whose fixtures have finished
   const picks = performAutoSubstitutions(
     originalPicks,
     livePlayerStatsMap,
@@ -687,6 +698,10 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
     clubName: string;
     teamId: number;
     actualMinutes: number;
+    autoSubIn?: boolean;
+    autoSubOut?: boolean;
+    opponentShortName?: string;
+    fixtureStarted?: boolean;
   }> = [];
 
   // No hard-coded names here anymore; we will normalize on the client via kits-map
@@ -725,7 +740,21 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
       clubName,
       teamId: teamIdForElement,
       actualMinutes,
+      autoSubIn: pick.autoSubIn,
+      autoSubOut: pick.autoSubOut,
     });
+
+    // Add opponent info if game hasn't started
+    const fixture = fixtures.find(f => f.team_h === teamIdForElement || f.team_a === teamIdForElement);
+    if (fixture) {
+      const isHome = fixture.team_h === teamIdForElement;
+      const opponentId = isHome ? fixture.team_a : fixture.team_h;
+      const opponent = teamsMap.get(opponentId);
+      if (opponent) {
+        result[result.length - 1].opponentShortName = opponent.short_name;
+        result[result.length - 1].fixtureStarted = fixture.started;
+      }
+    }
   }
 
   // Sort by position

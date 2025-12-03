@@ -146,13 +146,13 @@ export async function getHistoricalStandings(
                   if (livePlayer.stats.minutes === 0) {
                     // Player has 0 minutes - check their fixture status
                     // If we are here, performAutoSubstitutions has already handled the logic of 
-                    // swapping out players who have 0 mins AND started fixture.
+                    // swapping out players who have 0 mins AND finished fixture.
                     // So if a player is in the XI and has 0 mins, they are either:
                     // 1. A starter whose fixture hasn't started yet.
-                    // 2. A sub who came in, and whose fixture hasn't started yet (or has started but they haven't played).
+                    // 2. A starter whose fixture has started but not finished (and they haven't played yet).
 
                     // We need to check fixture status to be sure.
-                    // If fixture finished and 0 mins, they are NOT "to start" (they just didn't play).
+                    // If fixture started (even if not finished) and 0 mins, they are NOT "to start" (they just didn't play).
 
                     let fixtureId = -1;
                     if (livePlayer.explain.length > 0) {
@@ -166,8 +166,8 @@ export async function getHistoricalStandings(
 
                     if (fixtureId !== -1) {
                       const fixtureStatus = fixtureStatusMap.get(fixtureId);
-                      // Only count as "to start" if fixture hasn't finished
-                      if (fixtureStatus && !fixtureStatus.finished) {
+                      // Only count as "to start" if fixture hasn't started
+                      if (fixtureStatus && !fixtureStatus.started) {
                         playersToStart++;
                       }
                     } else {
@@ -175,7 +175,7 @@ export async function getHistoricalStandings(
                       const player = bootstrapPlayers.get(pick.element);
                       if (player) {
                         const fixture = fixtures.find(f => f.team_h === player.team || f.team_a === player.team);
-                        if (fixture && !fixture.finished) {
+                        if (fixture && !fixture.started) {
                           playersToStart++;
                         }
                       }

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { buildKitFilenames, normalizeTeamBasename } from "@/lib/kits-map";
 import { TEAM_IDS } from "@/lib/team-ids";
+import { ChevronUp, ChevronDown } from "lucide-react";
 
 type Player = {
   id: number;
@@ -23,6 +24,10 @@ type Player = {
   clubName?: string;
   teamId?: number;
   actualMinutes?: number;
+  autoSubIn?: boolean;
+  autoSubOut?: boolean;
+  opponentShortName?: string;
+  fixtureStarted?: boolean;
 };
 
 function kitCandidatePaths(p: Pick<Player, "elementType" | "clubName" | "id" | "teamId">): string[] {
@@ -136,6 +141,7 @@ export function BreakdownTable({ players, compact = false }: { players: Player[]
                     />
                   )}
                   {!p.isCaptain && p.multiplier > 1 && <span className="text-[11px] text-purple-400 font-bold">×{p.multiplier}</span>}
+                  {p.autoSubIn && <ChevronUp className="h-3 w-3 text-green-400" />}
                 </div>
               </div>
               {!compact && (
@@ -143,7 +149,11 @@ export function BreakdownTable({ players, compact = false }: { players: Player[]
                   "w-12 text-center text-[11px] font-medium",
                   minutes >= 60 ? "text-green-400" : minutes > 0 ? "text-yellow-400" : "text-red-400"
                 )}>
-                  {minutes}&apos;
+                  {p.fixtureStarted === false && p.opponentShortName ? (
+                    <span className="text-gray-400">v {p.opponentShortName}</span>
+                  ) : (
+                    <>{minutes}&apos;</>
+                  )}
                 </div>
               )}
               <div className="w-10 text-right font-bold text-sm text-white">{p.total || 0}</div>
@@ -170,14 +180,21 @@ export function BreakdownTable({ players, compact = false }: { players: Player[]
                     <KitImage player={p} className="h-5 w-5 object-contain opacity-70" />
                   </div>
                   <div className="flex-1 min-w-0 ml-2">
-                    <div className="truncate text-white/80 text-[13px]">{p.name}</div>
+                    <div className="flex items-center gap-1 truncate text-white/80 text-[13px]">
+                      <span className="truncate">{p.name}</span>
+                      {p.autoSubOut && <ChevronDown className="h-3 w-3 text-red-400" />}
+                    </div>
                   </div>
                   {!compact && (
                     <div className={cn(
                       "w-12 text-center text-[11px] font-medium",
                       minutes >= 60 ? "text-green-400/70" : minutes > 0 ? "text-yellow-400/70" : "text-red-400/70"
                     )}>
-                      {minutes}&apos;
+                      {p.fixtureStarted === false && p.opponentShortName ? (
+                        <span className="text-gray-400/70">v {p.opponentShortName}</span>
+                      ) : (
+                        <>{minutes}&apos;</>
+                      )}
                     </div>
                   )}
                   <div className="w-10 text-right font-semibold text-white/70 text-[13px]">{p.rawTotal || 0}</div>
