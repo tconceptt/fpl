@@ -116,7 +116,6 @@ export async function getHistoricalStandings(
           const captainName = captain ? await getPlayerName(captain.element) : null;
 
           let playersToStart = 0;
-          let playersInPlay = 0;
           if (isCurrentGameweek) {
             // Create livePlayerStatsMap for performAutoSubstitutions
             const livePlayerStatsMap = new Map<number, LivePlayerStats>();
@@ -185,14 +184,6 @@ export async function getHistoricalStandings(
                   // No live data for player - count as "to start"
                   playersToStart++;
                 }
-
-                if (livePlayer && livePlayer.explain.length > 0) {
-                  const fixtureId = livePlayer.explain[0].fixture;
-                  const fixtureStatus = fixtureStatusMap.get(fixtureId);
-                  if (fixtureStatus && fixtureStatus.started && !fixtureStatus.finished) {
-                    playersInPlay++;
-                  }
-                }
               }
             }
           }
@@ -202,7 +193,6 @@ export async function getHistoricalStandings(
             captainName,
             active_chip: data.active_chip,
             playersToStart,
-            playersInPlay,
           };
         } catch (error) {
           console.error(`Failed to fetch team details for team ${teamId}:`, error);
@@ -236,7 +226,7 @@ export async function getHistoricalStandings(
     // Process captain names and chips
     captainMap = new Map(
       teamDetailsResults
-        .filter((result): result is { teamId: number; captainName: string; active_chip: string | null; playersToStart: number; playersInPlay: number; } =>
+        .filter((result): result is { teamId: number; captainName: string; active_chip: string | null; playersToStart: number; } =>
           result !== null && result.captainName !== null
         )
         .map(result => [result.teamId, result.captainName])
@@ -244,7 +234,7 @@ export async function getHistoricalStandings(
 
     chipMap = new Map(
       teamDetailsResults
-        .filter((result): result is { teamId: number; captainName: string | null; active_chip: string | null, playersToStart: number; playersInPlay: number; } =>
+        .filter((result): result is { teamId: number; captainName: string | null; active_chip: string | null, playersToStart: number; } =>
           result !== null
         )
         .map(result => [result.teamId, result.active_chip])
@@ -252,14 +242,8 @@ export async function getHistoricalStandings(
 
     const playersToStartMap = new Map(
       teamDetailsResults
-        .filter((result): result is { teamId: number, playersToStart: number, captainName: string | null, active_chip: string | null, playersInPlay: number } => result !== null)
+        .filter((result): result is { teamId: number, playersToStart: number, captainName: string | null, active_chip: string | null } => result !== null)
         .map(result => [result.teamId, result.playersToStart])
-    );
-
-    const playersInPlayMap = new Map(
-      teamDetailsResults
-        .filter((result): result is { teamId: number, playersInPlay: number, captainName: string | null, active_chip: string | null, playersToStart: number } => result !== null)
-        .map(result => [result.teamId, result.playersInPlay])
     );
 
     // Get gameweek data for each team
@@ -306,7 +290,6 @@ export async function getHistoricalStandings(
           active_chip: chipMap.get(teamIds[index]),
           transfer_cost: transferCost,
           playersToStart: playersToStartMap.get(teamIds[index]) || 0,
-          playersInPlay: playersInPlayMap.get(teamIds[index]) || 0,
         };
       })
       .filter((standing): standing is NonNullable<typeof standing> => standing !== null);

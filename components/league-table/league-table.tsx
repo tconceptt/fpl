@@ -25,7 +25,7 @@ interface LeagueTableProps {
 
 function getChipInfo(chipName: string | null | undefined) {
   if (!chipName) return null;
-  
+
   switch (chipName) {
     case "wildcard":
       return { abbr: "WC", color: "bg-green-500/20 text-green-400 border-green-500/30", label: "Wildcard" };
@@ -83,12 +83,12 @@ function toAmharic(num: number): string {
     90: '፺',
     100: '፻'
   };
-  
+
   // For numbers beyond 100, we'll use a simpler approach
   if (num > 100) {
     return num.toString(); // Fall back to Arabic for very high numbers
   }
-  
+
   return amharicNumerals[num] || num.toString();
 }
 
@@ -101,15 +101,15 @@ export function LeagueTable({ standings, currentGameweek, selectedGameweek, clas
   // Sort standings based on sortByGW state and assign GW ranks
   const sortedStandings = sortByGW
     ? [...standings]
-        .sort((a, b) => {
-          const aPoints = a.net_points !== null ? a.net_points : a.event_total;
-          const bPoints = b.net_points !== null ? b.net_points : b.event_total;
-          return bPoints - aPoints;
-        })
-        .map((team, index) => ({
-          ...team,
-          gwRank: index + 1, // Add GW-specific rank
-        }))
+      .sort((a, b) => {
+        const aPoints = a.net_points !== null ? a.net_points : a.event_total;
+        const bPoints = b.net_points !== null ? b.net_points : b.event_total;
+        return bPoints - aPoints;
+      })
+      .map((team, index) => ({
+        ...team,
+        gwRank: index + 1, // Add GW-specific rank
+      }))
     : standings.map((team) => ({ ...team, gwRank: team.rank })); // Use league rank when not sorting by GW
 
   function openBreakdown(teamId: number) {
@@ -179,8 +179,8 @@ export function LeagueTable({ standings, currentGameweek, selectedGameweek, clas
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-                </div>
-              </div>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
         {view === "compact" ? (
@@ -195,114 +195,114 @@ export function LeagueTable({ standings, currentGameweek, selectedGameweek, clas
 }
 
 function CompactView({ standings, onTeamClick }: { standings: Array<GameweekStanding & { gwRank: number }>; onTeamClick: (teamId: number) => void }) {
-    return (
-        <div className="text-white text-xs sm:text-sm rounded-lg overflow-hidden border border-white/10">
-            {/* Header */}
-            <div className="flex font-bold text-gray-300 px-1.5 sm:px-3 py-1 sm:py-2 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10.5px] sm:text-xs">
-                <div className="w-6 sm:w-10 text-center">#</div>
-                <div className="flex-1">Team</div>
-                <div className="w-10 sm:w-12 text-center">H2H</div>
-                <div className="w-10 sm:w-12 text-center">Chip</div>
-                <div className="w-8 sm:w-10 text-center leading-tight"><div>To</div><div>Start</div></div>
-                <div className="w-10 sm:w-12 text-right">GW</div>
-                <div className="w-12 sm:w-14 text-right">Total</div>
+  return (
+    <div className="text-white text-xs sm:text-sm rounded-lg overflow-hidden border border-white/10">
+      {/* Header */}
+      <div className="flex font-bold text-gray-300 px-1.5 sm:px-3 py-1 sm:py-2 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10.5px] sm:text-xs">
+        <div className="w-6 sm:w-10 text-center">#</div>
+        <div className="flex-1">Team</div>
+        <div className="w-10 sm:w-12 text-center">H2H</div>
+        <div className="w-10 sm:w-12 text-center">Chip</div>
+        <div className="w-8 sm:w-10 text-center leading-tight"><div>To</div><div>Start</div></div>
+        <div className="w-10 sm:w-12 text-right">GW</div>
+        <div className="w-12 sm:w-14 text-right">Total</div>
+      </div>
+
+      {/* Rows */}
+      <div className="overflow-y-auto">
+        {standings.map((team, index) => {
+          const chipInfo = getChipInfo(team.active_chip);
+          const isFirst = team.gwRank === 1;
+          const isLast = team.gwRank === standings.length;
+
+          return (
+            <div
+              key={team.entry}
+              className={cn(
+                "flex items-center px-1.5 sm:px-3 py-1 sm:py-2 border-b border-white/5 cursor-pointer transition-all",
+                index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50',
+                "hover:bg-purple-900/20 active:scale-[0.99]",
+                isFirst && "bg-gradient-to-r from-yellow-900/20 to-transparent",
+                isLast && "bg-gradient-to-r from-red-900/20 to-transparent"
+              )}
+              onClick={() => onTeamClick(team.entry)}
+            >
+              {/* Rank - clean and symmetrical */}
+              <div className="w-6 sm:w-10 flex items-center justify-center">
+                <span className={cn(
+                  "font-bold text-[10.5px] sm:text-sm",
+                  isFirst && "text-yellow-400",
+                  isLast && "text-red-400"
+                )}>
+                  {getCustomRank(team.gwRank, standings.length)}
+                </span>
+              </div>
+
+              {/* Team info with movement indicator */}
+              <div className="flex-1 min-w-0 ml-1 sm:ml-2">
+                <div className="font-semibold text-[10.5px] sm:text-sm truncate text-white leading-tight flex items-center gap-1">
+                  <span className="truncate">{team.entry_name}</span>
+                  <RankMovement currentRank={team.rank} lastRank={team.last_rank} showDiff={false} compact={true} />
+                </div>
+                <div className="text-white/60 truncate text-[8.5px] sm:text-xs leading-tight">
+                  {team.player_name}
+                </div>
+                {team.captain_name && (
+                  <div className="text-yellow-400 text-[8.5px] sm:text-xs flex items-center leading-tight">
+                    <Star className="h-2 w-2 sm:h-3 sm:w-3 mr-0.5 fill-yellow-400" />
+                    <span className="truncate font-medium">{team.captain_name}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* H2H Rank */}
+              <div className="w-10 sm:w-12 text-center flex items-center justify-center">
+                {team.h2h_rank && (
+                  <span className="text-[10px] sm:text-xs font-semibold text-blue-400">
+                    {toAmharic(team.h2h_rank)}
+                  </span>
+                )}
+              </div>
+
+              {/* Chip badge */}
+              <div className="w-10 sm:w-12 text-center flex items-center justify-center">
+                {chipInfo && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <span className={cn(
+                          "text-[7px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.5 rounded border",
+                          chipInfo.color
+                        )}>
+                          {chipInfo.abbr}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{chipInfo.label}</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+
+              {/* To Start */}
+              <div className="w-8 sm:w-10 text-center font-medium text-[10.5px] sm:text-sm text-white/80">
+                {team.playersToStart}
+              </div>
+
+              {/* GW Points */}
+              <div className="w-10 sm:w-12 text-right font-semibold text-[10.5px] sm:text-sm text-white">
+                {team.net_points !== null ? formatPoints(team.net_points) : formatPoints(team.event_total)}
+              </div>
+
+              {/* Total Points */}
+              <div className="w-12 sm:w-14 text-right font-bold text-[11.5px] sm:text-base text-white">
+                {formatPoints(team.total_points)}
+              </div>
             </div>
-            
-            {/* Rows */}
-            <div className="overflow-y-auto">
-                {standings.map((team, index) => {
-                    const chipInfo = getChipInfo(team.active_chip);
-                    const isFirst = team.gwRank === 1;
-                    const isLast = team.gwRank === standings.length;
-                    
-                    return (
-                        <div
-                            key={team.entry}
-                            className={cn(
-                                "flex items-center px-1.5 sm:px-3 py-1 sm:py-2 border-b border-white/5 cursor-pointer transition-all",
-                                index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50',
-                                "hover:bg-purple-900/20 active:scale-[0.99]",
-                                isFirst && "bg-gradient-to-r from-yellow-900/20 to-transparent",
-                                isLast && "bg-gradient-to-r from-red-900/20 to-transparent"
-                            )}
-                            onClick={() => onTeamClick(team.entry)}
-                        >
-                            {/* Rank - clean and symmetrical */}
-                            <div className="w-6 sm:w-10 flex items-center justify-center">
-                                <span className={cn(
-                                    "font-bold text-[10.5px] sm:text-sm",
-                                    isFirst && "text-yellow-400",
-                                    isLast && "text-red-400"
-                                )}>
-                                    {getCustomRank(team.gwRank, standings.length)}
-                                </span>
-                            </div>
-                            
-                            {/* Team info with movement indicator */}
-                            <div className="flex-1 min-w-0 ml-1 sm:ml-2">
-                                <div className="font-semibold text-[10.5px] sm:text-sm truncate text-white leading-tight flex items-center gap-1">
-                                    <span className="truncate">{team.entry_name}</span>
-                                    <RankMovement currentRank={team.rank} lastRank={team.last_rank} showDiff={false} compact={true} />
-                                </div>
-                                <div className="text-white/60 truncate text-[8.5px] sm:text-xs leading-tight">
-                                    {team.player_name}
-                                </div>
-                                {team.captain_name && (
-                                    <div className="text-yellow-400 text-[8.5px] sm:text-xs flex items-center leading-tight">
-                                        <Star className="h-2 w-2 sm:h-3 sm:w-3 mr-0.5 fill-yellow-400" />
-                                        <span className="truncate font-medium">{team.captain_name}</span>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            {/* H2H Rank */}
-                            <div className="w-10 sm:w-12 text-center flex items-center justify-center">
-                                {team.h2h_rank && (
-                                    <span className="text-[10px] sm:text-xs font-semibold text-blue-400">
-                                        {toAmharic(team.h2h_rank)}
-                                    </span>
-                                )}
-                            </div>
-                            
-                            {/* Chip badge */}
-                            <div className="w-10 sm:w-12 text-center flex items-center justify-center">
-                                {chipInfo && (
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger>
-                                                <span className={cn(
-                                                    "text-[7px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.5 rounded border",
-                                                    chipInfo.color
-                                                )}>
-                                                    {chipInfo.abbr}
-                                                </span>
-                                            </TooltipTrigger>
-                                            <TooltipContent><p>{chipInfo.label}</p></TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                )}
-                            </div>
-                            
-                            {/* To Start */}
-                            <div className="w-8 sm:w-10 text-center font-medium text-[10.5px] sm:text-sm text-white/80">
-                                {team.playersToStart}
-                            </div>
-                            
-                            {/* GW Points */}
-                            <div className="w-10 sm:w-12 text-right font-semibold text-[10.5px] sm:text-sm text-white">
-                                {team.net_points !== null ? formatPoints(team.net_points) : formatPoints(team.event_total)}
-                            </div>
-                            
-                            {/* Total Points */}
-                            <div className="w-12 sm:w-14 text-right font-bold text-[11.5px] sm:text-base text-white">
-                                {formatPoints(team.total_points)}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function FullView({ standings, onTeamClick }: { standings: Array<GameweekStanding & { gwRank: number }>; onTeamClick: (teamId: number) => void }) {
@@ -316,7 +316,7 @@ function FullView({ standings, onTeamClick }: { standings: Array<GameweekStandin
             <TableHead className="text-center text-gray-300 font-bold">H2H</TableHead>
             <TableHead className="text-right text-gray-300 font-bold">GW</TableHead>
             <TableHead className="text-right text-gray-300 font-bold">GW Net</TableHead>
-            <TableHead className="text-center text-gray-300 font-bold leading-tight"><div>In</div><div>Play</div></TableHead>
+
             <TableHead className="text-center text-gray-300 font-bold leading-tight"><div>To</div><div>Start</div></TableHead>
             <TableHead className="text-right text-gray-300 font-bold">Total</TableHead>
             <TableHead className="w-24 text-right text-gray-300 font-bold">Movement</TableHead>
@@ -326,10 +326,10 @@ function FullView({ standings, onTeamClick }: { standings: Array<GameweekStandin
           {standings.map((team, index) => {
             const chipInfo = getChipInfo(team.active_chip);
             const isFirst = team.gwRank === 1;
-            
+
             return (
-              <TableRow 
-                key={team.entry} 
+              <TableRow
+                key={team.entry}
                 className={cn(
                   "border-white/5 cursor-pointer transition-all",
                   index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50',
@@ -338,10 +338,10 @@ function FullView({ standings, onTeamClick }: { standings: Array<GameweekStandin
                 onClick={() => onTeamClick(team.entry)}
               >
                 <TableCell className="font-bold py-3">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     {isFirst && <Trophy className="h-4 w-4 text-yellow-400" />}
                     {getCustomRank(team.gwRank, standings.length)}
-                    </div>
+                  </div>
                 </TableCell>
                 <TableCell className="py-3">
                   <div>
@@ -394,9 +394,7 @@ function FullView({ standings, onTeamClick }: { standings: Array<GameweekStandin
                 )}>
                   {team.net_points !== null ? formatPoints(team.net_points) : formatPoints(team.event_total)}
                 </TableCell>
-                <TableCell className="text-center font-medium py-3 text-white/80">
-                  {team.playersInPlay}
-                </TableCell>
+
                 <TableCell className="text-center font-medium py-3 text-white/80">
                   {team.playersToStart}
                 </TableCell>
