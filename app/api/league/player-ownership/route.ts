@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fplApiRoutes } from "@/lib/routes";
+import { calculateRealTimePoints } from "@/services/real-time-points-calculator";
 
 
 export async function GET(request: NextRequest) {
@@ -57,7 +58,9 @@ export async function GET(request: NextRequest) {
                     );
 
                     if (isStarting) {
-                        const netPoints = entryHistory.points - entryHistory.event_transfers_cost;
+                        // Use real-time points calculator for accurate live points
+                        const { totalPoints } = await calculateRealTimePoints(team.entry.toString(), gw);
+                        const netPoints = totalPoints - entryHistory.event_transfers_cost;
                         return {
                             teamId: team.entry,
                             teamName: team.entry_name,

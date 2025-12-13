@@ -332,7 +332,13 @@ export async function getHistoricalStandings(
   }, 'getHistoricalStandings');
 }
 
-export async function getLeagueData(selectedGameweek?: number): Promise<LeagueData> {
+// Use the optimized version for better performance
+// The optimized version reduces API calls from ~100+ to ~25 for a 20-team league
+// by using request-scoped caching and deduplication
+export { getLeagueDataOptimized as getLeagueData } from "./league-service-optimized";
+
+// Legacy version kept for reference/fallback
+export async function getLeagueDataLegacy(selectedGameweek?: number): Promise<LeagueData> {
   return time(async () => {
     const retryFetch = async (url: string, options: RequestInit, retries = 3): Promise<Response> => {
       try {
@@ -441,5 +447,5 @@ export async function getLeagueData(selectedGameweek?: number): Promise<LeagueDa
         standings: []
       };
     }
-  }, 'getLeagueData');
+  }, 'getLeagueDataLegacy');
 } 
