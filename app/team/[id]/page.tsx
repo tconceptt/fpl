@@ -110,21 +110,22 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
     console.error("Failed to fetch team history:", error);
   }
   
-  const breakdown = await calculateRealTimePointsBreakdown(teamId, gw);
-  if (!breakdown) return notFound();
+  const breakdownResult = await calculateRealTimePointsBreakdown(teamId, gw);
+  if (!breakdownResult) return notFound();
   const players = await Promise.all(
-    breakdown.map(async (p) => ({ ...p, name: await getPlayerName(p.id, 'web_name') }))
+    breakdownResult.breakdown.map(async (p) => ({ ...p, name: await getPlayerName(p.id, 'web_name') }))
   );
+  const activeChip = breakdownResult.activeChip;
   const starters = players.filter((p: { position: number }) => p.position <= 11);
   const startersTotal = starters.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
 
   // If compare mode, fetch second team data
   let compareTeamData = null;
   if (compareTeamId) {
-    const compareBreakdown = await calculateRealTimePointsBreakdown(compareTeamId, gw);
-    if (compareBreakdown) {
+    const compareBreakdownResult = await calculateRealTimePointsBreakdown(compareTeamId, gw);
+    if (compareBreakdownResult) {
       const comparePlayers = await Promise.all(
-        compareBreakdown.map(async (p) => ({ ...p, name: await getPlayerName(p.id, 'web_name') }))
+        compareBreakdownResult.breakdown.map(async (p) => ({ ...p, name: await getPlayerName(p.id, 'web_name') }))
       );
       const compareStarters = comparePlayers.filter((p: { position: number }) => p.position <= 11);
       const compareStartersTotal = compareStarters.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
@@ -216,6 +217,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
         players: comparePlayers,
         seasonTotal: compareSeasonTotal,
         gamesPlayed: compareGamesPlayed,
+        activeChip: compareBreakdownResult.activeChip,
       };
     }
   }
@@ -304,11 +306,12 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
               players,
               seasonTotal,
               gamesPlayed,
+              activeChip,
             }}
             team2={compareTeamData}
           />
         ) : (
-          <TeamBreakdownClient players={players} teamId={teamId} />
+          <TeamBreakdownClient players={players} teamId={teamId} activeChip={activeChip} />
         )}
       </div>
       

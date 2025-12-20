@@ -26,9 +26,9 @@ export async function GET(request: Request) {
 
     for (const teamId of teamIds) {
       const live = await calculateLivePoints(teamId.toString(), (league.selectedGameweek).toString());
-      const breakdownPlayers = await calculateRealTimePointsBreakdown(teamId.toString(), (league.selectedGameweek).toString());
+      const breakdownResult = await calculateRealTimePointsBreakdown(teamId.toString(), (league.selectedGameweek).toString());
 
-      const starters = breakdownPlayers.filter((p) => p.position <= 11);
+      const starters = breakdownResult.breakdown.filter((p) => p.position <= 11);
       const startersTotal = starters.reduce((sum, p) => sum + (p.total || 0), 0);
 
       // Official points from FPL history (finalized values after GW end)

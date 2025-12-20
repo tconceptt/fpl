@@ -36,6 +36,7 @@ interface TeamData {
   players: Player[];
   seasonTotal: number;
   gamesPlayed: number;
+  activeChip: string | null;
 }
 
 interface TeamComparisonClientProps {
@@ -294,7 +295,7 @@ export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps
             </div>
           </div>
 
-          <BreakdownTable players={team1.players} compact />
+          <BreakdownTable players={team1.players} compact activeChip={team1.activeChip} />
         </div>
 
         {/* Team 2 */}
@@ -349,7 +350,7 @@ export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps
             </div>
           </div>
 
-          <BreakdownTable players={team2.players} compact />
+          <BreakdownTable players={team2.players} compact activeChip={team2.activeChip} />
         </div>
       </div>
 

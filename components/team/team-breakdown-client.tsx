@@ -22,7 +22,7 @@ type Player = {
   actualMinutes?: number;
 };
 
-export function TeamBreakdownClient({ players, teamId }: { players: Player[]; teamId: string }) {
+export function TeamBreakdownClient({ players, teamId, activeChip }: { players: Player[]; teamId: string; activeChip: string | null }) {
   const [showTeamSelector, setShowTeamSelector] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -50,7 +50,7 @@ export function TeamBreakdownClient({ players, teamId }: { players: Player[]; te
         </button>
       </div>
 
-      <BreakdownTable players={players} />
+      <BreakdownTable players={players} activeChip={activeChip} />
 
       <TeamSelector
         isOpen={showTeamSelector}

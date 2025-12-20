@@ -442,25 +442,28 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
   return { totalPoints, playerPoints };
 }
 
-export async function calculateRealTimePointsBreakdown(teamId: string, gameweekId: string): Promise<Array<{
-  id: number;
-  position: number;
-  isCaptain: boolean;
-  isViceCaptain: boolean;
-  multiplier: number;
-  total: number; // applied total (after multiplier)
-  metrics: Record<string, number>; // applied metrics
-  rawTotal: number; // raw total (before multiplier)
-  rawMetrics: Record<string, number>; // raw metrics
-  elementType: number; // 1 GK, 2 DEF, 3 MID, 4 FWD
-  clubName: string; // mapped for kit
-  teamId: number; // canonical FPL team id
-  actualMinutes: number; // actual minutes played
-  autoSubIn?: boolean;
-  autoSubOut?: boolean;
-  opponentShortName?: string;
-  fixtureStarted?: boolean;
-}>> {
+export async function calculateRealTimePointsBreakdown(teamId: string, gameweekId: string): Promise<{
+  breakdown: Array<{
+    id: number;
+    position: number;
+    isCaptain: boolean;
+    isViceCaptain: boolean;
+    multiplier: number;
+    total: number; // applied total (after multiplier)
+    metrics: Record<string, number>; // applied metrics
+    rawTotal: number; // raw total (before multiplier)
+    rawMetrics: Record<string, number>; // raw metrics
+    elementType: number; // 1 GK, 2 DEF, 3 MID, 4 FWD
+    clubName: string; // mapped for kit
+    teamId: number; // canonical FPL team id
+    actualMinutes: number; // actual minutes played
+    autoSubIn?: boolean;
+    autoSubOut?: boolean;
+    opponentShortName?: string;
+    fixtureStarted?: boolean;
+  }>;
+  activeChip: string | null;
+}> {
   const [fixtures, liveData, bootstrapData, teamDetailsResp] = await Promise.all([
     getFixtures(gameweekId),
     (async () => {
@@ -759,5 +762,12 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
 
   // Sort by position
   result.sort((a, b) => a.position - b.position);
-  return result;
+  
+  // Extract active_chip from team details
+  const activeChip = (teamDetailsResp as { active_chip?: string | null }).active_chip ?? null;
+  
+  return {
+    breakdown: result,
+    activeChip,
+  };
 }

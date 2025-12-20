@@ -12,10 +12,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Missing teamId or gw parameter" }, { status: 400 });
     }
 
-    const breakdown = await calculateRealTimePointsBreakdown(teamId, gw);
+    const breakdownResult = await calculateRealTimePointsBreakdown(teamId, gw);
 
     const withNames = await Promise.all(
-      breakdown.map(async (p) => ({
+      breakdownResult.breakdown.map(async (p) => ({
         ...p,
         name: await getPlayerName(p.id, 'web_name'),
       }))
