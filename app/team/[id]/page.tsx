@@ -6,6 +6,7 @@ import { BackButton } from "@/components/layout/back-button";
 import { GameweekNav } from "@/components/layout/gameweek-nav";
 import { TeamBreakdownClient } from "@/components/team/team-breakdown-client";
 import { TeamComparisonClient } from "@/components/team/team-comparison-client";
+import { TeamStatsClient } from "@/components/team/team-stats-client";
 import { fplApiRoutes } from "@/lib/routes";
 
 async function getCurrentGameweek(): Promise<number> {
@@ -13,7 +14,7 @@ async function getCurrentGameweek(): Promise<number> {
     const response = await fetch(fplApiRoutes.bootstrap, {
       cache: "no-store",
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch bootstrap data: ${response.status} ${response.statusText}`);
     }
@@ -40,17 +41,17 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
   const gw = resolvedSearchParams.gw || "";
   const compareTeamId = resolvedSearchParams.compare;
   if (!teamId || !gw) return notFound();
-  
+
   // Get current gameweek for navigation limits
   const currentGameweek = await getCurrentGameweek();
-  
+
   // Fetch league standings to get the team name (entry_name) and manager name (player_name)
   const leagueId = process.env.FPL_LEAGUE_ID;
   const h2hLeagueId = "2489497"; // Head to Head league ID
   let teamName = `Team ${teamId}`;
   let managerName = "";
   let h2hRank: number | null = null;
-  
+
   if (leagueId) {
     try {
       const standingsResponse = await fetch(fplApiRoutes.standings(leagueId), { cache: "no-store" });
@@ -66,7 +67,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
       console.error("Failed to fetch team name from standings:", error);
     }
   }
-  
+
   // Fetch H2H league standings
   try {
     const h2hResponse = await fetch(fplApiRoutes.h2hStandings(h2hLeagueId), { cache: "no-store" });
@@ -89,12 +90,12 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
   } catch (error) {
     console.error("Failed to fetch H2H rank:", error, h2hLeagueId);
   }
-  
+
   // Fetch team history for overall rank and transfer info
   let overallRank: number | null = null;
   let transfers = 0;
   let transferCost = 0;
-  
+
   try {
     const historyResponse = await fetch(fplApiRoutes.teamHistory(teamId), { cache: "no-store" });
     if (historyResponse.ok) {
@@ -109,7 +110,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
   } catch (error) {
     console.error("Failed to fetch team history:", error);
   }
-  
+
   const breakdownResult = await calculateRealTimePointsBreakdown(teamId, gw);
   if (!breakdownResult) return notFound();
   const players = await Promise.all(
@@ -259,37 +260,15 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
 
         {/* Team stats - only show in single team view */}
         {!compareTeamData && (
-          <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/20 rounded-lg p-2.5 mb-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                {overallRank && (
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-white/50 uppercase tracking-wide">Overall Rank</span>
-                    <span className="text-xs font-bold text-white">{overallRank.toLocaleString()}</span>
-                  </div>
-                )}
-                {h2hRank && (
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-white/50 uppercase tracking-wide">H2H Rank</span>
-                    <span className="text-xs font-bold text-white">#{h2hRank}</span>
-                  </div>
-                )}
-                <div className="flex flex-col">
-                  <span className="text-[9px] text-white/50 uppercase tracking-wide">Transfers</span>
-                  <span className="text-xs font-bold text-white">
-                    {transfers}
-                    {transferCost > 0 && (
-                      <span className="text-red-400 ml-0.5">(-{transferCost})</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[9px] text-white/50 uppercase tracking-wide">GW Total</span>
-                <span className="text-xl font-bold text-green-400">{startersTotal}</span>
-              </div>
-            </div>
-          </div>
+          <TeamStatsClient
+            overallRank={overallRank}
+            h2hRank={h2hRank}
+            transfers={transfers}
+            transferCost={transferCost}
+            startersTotal={startersTotal}
+            teamId={teamId}
+            gameweek={gw}
+          />
         )}
 
         {compareTeamData ? (
@@ -314,7 +293,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
           <TeamBreakdownClient players={players} teamId={teamId} activeChip={activeChip} />
         )}
       </div>
-      
+
       {/* Auto-hide bottom navigation */}
       <AutoHideBottomNav />
     </>

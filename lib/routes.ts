@@ -12,5 +12,6 @@ export const fplApiRoutes = {
     `https://fantasy.premierleague.com/api/fixtures/?event=${gameweekId}`,
   teamDetails: (teamId: string, gameweekId: string) =>
     `https://fantasy.premierleague.com/api/entry/${teamId}/event/${gameweekId}/picks/`,
-
+  teamTransfers: (teamId: string) =>
+    `https://fantasy.premierleague.com/api/entry/${teamId}/transfers/`,
 };
