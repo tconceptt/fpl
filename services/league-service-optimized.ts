@@ -157,6 +157,18 @@ async function calculateLivePointsWithCache(
                         playerPoints.set(p.element, (playerPoints.get(p.element) || 0) - 2 * p.value);
                     }
                     break;
+                case "defensive_contribution":
+                    for (const p of allPlayers) {
+                        const position = playersMap.get(p.element)?.element_type;
+                        let pts = 0;
+                        if (position === 2 && p.value >= 10) { // Defender
+                            pts = 2;
+                        } else if (position === 3 && p.value >= 12) { // Midfielder
+                            pts = 2;
+                        }
+                        playerPoints.set(p.element, (playerPoints.get(p.element) || 0) + pts);
+                    }
+                    break;
                 case "bps":
                     if (maxMinutes >= 60) {
                         const bpsPlayers = allPlayers.filter(p => p.value > 0);
