@@ -129,15 +129,24 @@ export async function getHistoricalStandings(
             });
 
             const picks = data.picks as TeamPick[];
-            const adjustedPicks = performAutoSubstitutions(
-              picks,
-              livePlayerStatsMap,
-              bootstrapPlayers,
-              fixtures
-            );
 
-            for (const pick of adjustedPicks) {
-              if (pick.position <= 11) { // Starters (including subs)
+            // Check if bench boost is active - if so, all 15 players count and auto-subs don't apply
+            const isBenchBoostActive = data.active_chip === "bboost";
+
+            // Only perform auto-subs if bench boost is NOT active
+            const picksToCheck = isBenchBoostActive
+              ? picks
+              : performAutoSubstitutions(
+                picks,
+                livePlayerStatsMap,
+                bootstrapPlayers,
+                fixtures
+              );
+
+            const maxPositionToCheck = isBenchBoostActive ? 15 : 11;
+
+            for (const pick of picksToCheck) {
+              if (pick.position <= maxPositionToCheck) { // Starters (or all 15 if bench boost)
                 const livePlayer = livePlayerMap.get(pick.element);
 
                 // Check if player is "to start"

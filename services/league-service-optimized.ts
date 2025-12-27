@@ -282,15 +282,23 @@ export async function getHistoricalStandingsOptimized(
 
                     let playersToStart = 0;
                     if (isCurrentGameweek) {
-                        const adjustedPicks = performAutoSubstitutions(
-                            teamDetails.picks,
-                            livePlayerStatsMap,
-                            playersMap as Map<number, { id: number; element_type: number; team: number }>,
-                            fixtures
-                        );
+                        // Check if bench boost is active - if so, all 15 players count and auto-subs don't apply
+                        const isBenchBoostActive = teamDetails.active_chip === "bboost";
 
-                        for (const pick of adjustedPicks) {
-                            if (pick.position <= 11) {
+                        // Only perform auto-subs if bench boost is NOT active
+                        const picksToCheck = isBenchBoostActive
+                            ? teamDetails.picks
+                            : performAutoSubstitutions(
+                                teamDetails.picks,
+                                livePlayerStatsMap,
+                                playersMap as Map<number, { id: number; element_type: number; team: number }>,
+                                fixtures
+                            );
+
+                        const maxPositionToCheck = isBenchBoostActive ? 15 : 11;
+
+                        for (const pick of picksToCheck) {
+                            if (pick.position <= maxPositionToCheck) {
                                 const livePlayer = livePlayerMap.get(pick.element);
                                 if (livePlayer) {
                                     if (livePlayer.stats.minutes === 0) {
