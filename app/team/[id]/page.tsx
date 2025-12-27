@@ -117,8 +117,15 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
     breakdownResult.breakdown.map(async (p) => ({ ...p, name: await getPlayerName(p.id, 'web_name') }))
   );
   const activeChip = breakdownResult.activeChip;
+  const isBenchBoostActive = activeChip === 'bboost';
+
   const starters = players.filter((p: { position: number }) => p.position <= 11);
   const startersTotal = starters.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
+
+  // For Bench Boost, include bench points in the total
+  const bench = players.filter((p: { position: number }) => p.position > 11);
+  const benchTotal = bench.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
+  const gwTotal = isBenchBoostActive ? startersTotal + benchTotal : startersTotal;
 
   // If compare mode, fetch second team data
   let compareTeamData = null;
@@ -265,9 +272,10 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
             h2hRank={h2hRank}
             transfers={transfers}
             transferCost={transferCost}
-            startersTotal={startersTotal}
+            startersTotal={gwTotal}
             teamId={teamId}
             gameweek={gw}
+            activeChip={activeChip}
           />
         )}
 

@@ -424,17 +424,29 @@ export async function calculateRealTimePoints(teamId: string, gameweekId: string
   }
   const teamDetails = await teamDetailsResponse.json();
 
+  // Check if Bench Boost chip is active
+  const activeChip = (teamDetails as { active_chip?: string | null }).active_chip ?? null;
+  const isBenchBoostActive = activeChip === 'bboost';
+
   // Perform automatic substitutions for players with 0 minutes whose fixtures have finished
-  const adjustedPicks = performAutoSubstitutions(
-    teamDetails.picks,
-    livePlayerStatsMap,
-    bootstrapPlayers,
-    fixtures
-  );
+  // Note: Auto-subs don't apply when Bench Boost is active since all players count
+  const adjustedPicks = isBenchBoostActive
+    ? teamDetails.picks
+    : performAutoSubstitutions(
+      teamDetails.picks,
+      livePlayerStatsMap,
+      bootstrapPlayers,
+      fixtures
+    );
 
   let totalPoints = 0;
   for (const pick of adjustedPicks) {
-    if (pick.position <= 11) { // Only count starters (including auto-subs)
+    if (isBenchBoostActive) {
+      // Bench Boost: All 15 players count with multiplier 1 (except captain with 2, TC with 3)
+      const multiplier = pick.position <= 11 ? pick.multiplier : 1;
+      totalPoints += (playerPoints.get(pick.element) || 0) * multiplier;
+    } else if (pick.position <= 11) {
+      // Normal: Only count starters (including auto-subs)
       totalPoints += (playerPoints.get(pick.element) || 0) * pick.multiplier;
     }
   }
@@ -679,13 +691,20 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
   const rawPicks: unknown = (teamDetailsResp as { picks?: unknown }).picks ?? [];
   const originalPicks = (rawPicks as TeamPick[]).filter((p) => p.position <= 15);
 
+  // Check if Bench Boost chip is active
+  const activeChip = (teamDetailsResp as { active_chip?: string | null }).active_chip ?? null;
+  const isBenchBoostActive = activeChip === 'bboost';
+
   // Perform automatic substitutions for players with 0 minutes whose fixtures have finished
-  const picks = performAutoSubstitutions(
-    originalPicks,
-    livePlayerStatsMap,
-    bootstrapPlayers,
-    fixtures
-  );
+  // Note: Auto-subs don't apply when Bench Boost is active since all players count
+  const picks = isBenchBoostActive
+    ? originalPicks
+    : performAutoSubstitutions(
+      originalPicks,
+      livePlayerStatsMap,
+      bootstrapPlayers,
+      fixtures
+    );
 
   const result: Array<{
     id: number;
@@ -716,9 +735,12 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
     }
     const rawTotal = Object.values(rawMetrics).reduce((a, b) => a + b, 0);
 
+    // For Bench Boost, bench players get multiplier 1 (they normally have 0)
+    const effectiveMultiplier = isBenchBoostActive && pick.position > 11 ? 1 : pick.multiplier;
+
     const metricsApplied: Record<string, number> = {};
     for (const [k, v] of Object.entries(rawMetrics)) {
-      const val = v * pick.multiplier;
+      const val = v * effectiveMultiplier;
       if (val !== 0) metricsApplied[k] = val;
     }
     const total = Object.values(metricsApplied).reduce((a, b) => a + b, 0);
@@ -734,7 +756,7 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
       position: pick.position,
       isCaptain: Boolean(pick.is_captain),
       isViceCaptain: Boolean(pick.is_vice_captain),
-      multiplier: pick.multiplier,
+      multiplier: effectiveMultiplier,
       total,
       metrics: metricsApplied,
       rawTotal,
@@ -762,10 +784,7 @@ export async function calculateRealTimePointsBreakdown(teamId: string, gameweekI
 
   // Sort by position
   result.sort((a, b) => a.position - b.position);
-  
-  // Extract active_chip from team details
-  const activeChip = (teamDetailsResp as { active_chip?: string | null }).active_chip ?? null;
-  
+
   return {
     breakdown: result,
     activeChip,

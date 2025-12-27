@@ -11,6 +11,7 @@ interface TeamStatsProps {
     startersTotal: number;
     teamId: string;
     gameweek: string;
+    activeChip?: string | null;
 }
 
 export function TeamStatsClient({
@@ -21,8 +22,10 @@ export function TeamStatsClient({
     startersTotal,
     teamId,
     gameweek,
+    activeChip,
 }: TeamStatsProps) {
     const [showTransfers, setShowTransfers] = useState(false);
+    const isBenchBoostActive = activeChip === 'bboost';
 
     return (
         <>
@@ -46,8 +49,8 @@ export function TeamStatsClient({
                             <button
                                 onClick={() => transfers > 0 && setShowTransfers(true)}
                                 className={`text-xs font-bold text-left ${transfers > 0
-                                        ? "text-white hover:text-purple-300 cursor-pointer transition-colors"
-                                        : "text-white cursor-default"
+                                    ? "text-white hover:text-purple-300 cursor-pointer transition-colors"
+                                    : "text-white cursor-default"
                                     }`}
                                 disabled={transfers === 0}
                             >
@@ -61,7 +64,14 @@ export function TeamStatsClient({
                         </div>
                     </div>
                     <div className="flex flex-col items-end">
-                        <span className="text-[9px] text-white/50 uppercase tracking-wide">GW Total</span>
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-white/50 uppercase tracking-wide">GW Total</span>
+                            {isBenchBoostActive && (
+                                <span className="text-[9px] text-cyan-300 font-bold bg-cyan-500/30 px-1.5 py-0.5 rounded border border-cyan-400/50">
+                                    BB
+                                </span>
+                            )}
+                        </div>
                         <span className="text-xl font-bold text-green-400">{startersTotal}</span>
                     </div>
                 </div>
@@ -76,3 +86,4 @@ export function TeamStatsClient({
         </>
     );
 }
+

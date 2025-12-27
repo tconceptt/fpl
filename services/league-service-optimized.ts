@@ -200,17 +200,28 @@ async function calculateLivePointsWithCache(
         }
     }
 
+    // Check if Bench Boost chip is active
+    const isBenchBoostActive = teamDetails.active_chip === 'bboost';
+
     // Perform auto-subs and calculate total
-    const adjustedPicks = performAutoSubstitutions(
-        teamDetails.picks,
-        livePlayerStatsMap,
-        playersMap as Map<number, { id: number; element_type: number; team: number }>,
-        fixtures
-    );
+    // Note: Auto-subs don't apply when Bench Boost is active since all players count
+    const adjustedPicks = isBenchBoostActive
+        ? teamDetails.picks
+        : performAutoSubstitutions(
+            teamDetails.picks,
+            livePlayerStatsMap,
+            playersMap as Map<number, { id: number; element_type: number; team: number }>,
+            fixtures
+        );
 
     let totalPoints = 0;
     for (const pick of adjustedPicks) {
-        if (pick.position <= 11) {
+        if (isBenchBoostActive) {
+            // Bench Boost: All 15 players count with multiplier 1 (except captain with 2, TC with 3)
+            const multiplier = pick.position <= 11 ? pick.multiplier : 1;
+            totalPoints += (playerPoints.get(pick.element) || 0) * multiplier;
+        } else if (pick.position <= 11) {
+            // Normal: Only count starters (including auto-subs)
             totalPoints += (playerPoints.get(pick.element) || 0) * pick.multiplier;
         }
     }
