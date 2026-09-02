@@ -107,7 +107,7 @@ export function TemplateLeaderboardClient({ data: initialData, currentGameweek, 
         {/* Mobile: Compact Table */}
         <div className="sm:hidden text-white text-xs rounded-lg overflow-hidden border border-white/10">
           {/* Header */}
-          <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10.5px]">
+          <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-xs">
             <div className="w-8 text-center">#</div>
             <div className="flex-1">Team</div>
             <div className="w-16 text-right">Avg %</div>
@@ -135,13 +135,13 @@ export function TemplateLeaderboardClient({ data: initialData, currentGameweek, 
                   }}
                 >
                   <div className="w-8 flex items-center justify-center">
-                    <span className="font-bold text-[10.5px]">{index + 1}</span>
+                    <span className="font-bold text-xs">{index + 1}</span>
                   </div>
                   <div className="flex-1 min-w-0 ml-2">
-                    <div className="font-semibold text-[10.5px] truncate text-white leading-tight">{team.name}</div>
-                    <div className="text-white/60 truncate text-[8.5px] leading-tight">{team.managerName}</div>
+                    <div className="font-semibold text-xs truncate text-white leading-tight">{team.name}</div>
+                    <div className="text-white/60 truncate text-xs leading-tight">{team.managerName}</div>
                   </div>
-                  <div className="w-16 text-right font-bold text-[11.5px] text-white">{team.averageOwnership.toFixed(2)}%</div>
+                  <div className="w-16 text-right font-bold text-xs text-white">{team.averageOwnership.toFixed(2)}%</div>
                 </div>
               ))}
             </div>
@@ -153,8 +153,8 @@ export function TemplateLeaderboardClient({ data: initialData, currentGameweek, 
             <div className="flex items-center justify-between px-2 py-2 border-b border-gray-700">
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-white truncate">{modalTeam?.name}</div>
-                <div className="text-[10px] text-white/60 truncate">{modalTeam?.managerName}</div>
-                <div className="text-[10px] text-white/50 mt-0.5">GW {selectedGw}</div>
+                <div className="text-xs text-white/60 truncate">{modalTeam?.managerName}</div>
+                <div className="text-xs text-white/50 mt-0.5">GW {selectedGw}</div>
               </div>
               <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white h-7 px-2 text-xs" onClick={() => setModalOpen(false)}>Close</Button>
             </div>
@@ -165,10 +165,10 @@ export function TemplateLeaderboardClient({ data: initialData, currentGameweek, 
                 <div className="space-y-1.5">
                   {modalPlayers.map((p) => (
                     <div key={p.id} className="flex items-center justify-between bg-gray-800 rounded px-2 py-1">
-                      <div className="text-[11px] text-white font-medium truncate">
+                      <div className="text-xs text-white font-medium truncate">
                         {p.position <= 11 ? `#${p.position}` : `B${p.position - 11}`} · {p.name}
                       </div>
-                      <div className="text-right font-bold text-[11px]">{p.ownership.toFixed(2)}%</div>
+                      <div className="text-right font-bold text-xs">{p.ownership.toFixed(2)}%</div>
                     </div>
                   ))}
                   {modalPlayers.length === 0 && (

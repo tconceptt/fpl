@@ -87,7 +87,7 @@ export default async function ChipsUsagePage({
           {/* Mobile View - Compact Table */}
           <div className="sm:hidden text-white text-xs rounded-lg overflow-hidden border border-white/10">
             {/* Header */}
-            <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10.5px]">
+            <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-xs">
               <div className="w-8 text-center">#</div>
               <div className="flex-1">Team</div>
               <div className="w-12 text-right">Used</div>
@@ -100,33 +100,33 @@ export default async function ChipsUsagePage({
                   className={`flex items-center px-2 py-1.5 border-b border-white/5 ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'}`}
                 >
                   <div className="w-8 flex items-center justify-center">
-                    <span className="font-bold text-[10.5px]">
+                    <span className="font-bold text-xs">
                       {index + 1}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0 ml-2">
-                    <div className="font-semibold text-[10.5px] truncate text-white leading-tight">
+                    <div className="font-semibold text-xs truncate text-white leading-tight">
                       {team.name}
                     </div>
-                    <div className="text-white/60 truncate text-[8.5px] leading-tight">
+                    <div className="text-white/60 truncate text-xs leading-tight">
                       {team.managerName}
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {team.chips.map((chip, chipIndex) => (
                         <span
                           key={chipIndex}
-                          className="inline-flex items-center rounded bg-white/10 px-1 py-0.5 text-[8px]"
+                          className="inline-flex items-center rounded bg-white/10 px-1 py-0.5 text-xs"
                         >
                           <span className="font-semibold text-white/90">{chip.name}</span>
                           <span className="ml-0.5 text-white/60">(GW{chip.gameweek})</span>
                         </span>
                       ))}
                     </div>
-                    <div className="text-purple-300/80 text-[11px] mt-1">
+                    <div className="text-purple-300/80 text-xs mt-1">
                       {remainingChipsLine(team.chipStatuses, data.currentGameweek)}
                     </div>
                   </div>
-                  <div className="w-12 text-right font-bold text-[11.5px] text-white">
+                  <div className="w-12 text-right font-bold text-xs text-white">
                     {team.totalChipsUsed}
                   </div>
                 </div>

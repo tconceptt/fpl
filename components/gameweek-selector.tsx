@@ -18,12 +18,19 @@ interface GameweekSelectorProps {
   currentGameweek: number
   selectedGameweek?: number
   className?: string
+  /**
+   * When provided, gameweek changes call this instead of navigating —
+   * used by the league table's client-side gameweek switching (useLeague)
+   * so picking a gameweek never triggers a server round trip.
+   */
+  onChange?: (gw: number) => void
 }
 
 export function GameweekSelector({
   currentGameweek,
   selectedGameweek,
-  className
+  className,
+  onChange,
 }: GameweekSelectorProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -34,6 +41,10 @@ export function GameweekSelector({
   const currentValue = selected.toString()
 
   const handleGameweekChange = (value: string) => {
+    if (onChange) {
+      onChange(parseInt(value, 10))
+      return
+    }
     const params = new URLSearchParams(searchParams)
     params.set('gw', value)
     router.push(`?${params.toString()}`, { scroll: false })
@@ -57,6 +68,7 @@ export function GameweekSelector({
       <button
         onClick={handlePrev}
         disabled={selected <= 1}
+        aria-label="Previous gameweek"
         className={cn(
           "p-1 rounded-md transition-all",
           selected <= 1
@@ -72,7 +84,7 @@ export function GameweekSelector({
       
       {/* Dropdown with subtle background */}
       <Select value={currentValue} onValueChange={handleGameweekChange}>
-        <SelectTrigger className="h-auto border-0 bg-purple-900/20 hover:bg-purple-900/30 shadow-none focus:ring-0 px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold min-w-[55px] sm:min-w-[70px] rounded-md transition-colors">
+        <SelectTrigger aria-label="Select gameweek" className="h-auto border-0 bg-purple-900/20 hover:bg-purple-900/30 shadow-none focus:ring-0 px-2 sm:px-3 py-1 text-xs sm:text-xs font-semibold min-w-[55px] sm:min-w-[70px] rounded-md transition-colors">
           <SelectValue placeholder="Select gameweek" />
         </SelectTrigger>
         <SelectContent className="bg-gray-900 border border-purple-500/30 rounded-lg shadow-2xl">
@@ -100,6 +112,7 @@ export function GameweekSelector({
       <button
         onClick={handleNext}
         disabled={selected >= currentGameweek}
+        aria-label="Next gameweek"
         className={cn(
           "p-1 rounded-md transition-all",
           selected >= currentGameweek

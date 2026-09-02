@@ -21,11 +21,16 @@ export const metadata: Metadata = {
   icons: {
     icon: "/Images/fav.png",
     shortcut: "/Images/fav.png",
-    apple: "/Images/fav.png",
+    apple: "/icons/apple-touch-icon.png",
     other: {
       rel: "icon",
       url: "/Images/fav.png",
     },
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Qitawrari FPL",
   },
 };
 

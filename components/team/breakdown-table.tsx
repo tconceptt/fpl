@@ -134,7 +134,7 @@ export function BreakdownTable({ players, compact = false, activeChip }: { playe
               )}
             >
               <div className="w-7 flex items-center justify-center">
-                <KitImage player={p} className={cn("h-5 w-5 object-contain", isTripleCaptain && "ring-2 ring-purple-400/50 rounded")} />
+                <KitImage player={p} className={cn("h-6 w-6 sm:h-5 sm:w-5 object-contain", isTripleCaptain && "ring-2 ring-purple-400/50 rounded")} />
               </div>
               <div className="flex-1 min-w-0 ml-2">
                 <div className="font-semibold truncate text-white text-[13px] flex items-center gap-1">
@@ -149,19 +149,19 @@ export function BreakdownTable({ players, compact = false, activeChip }: { playe
                         className="object-contain"
                       />
                       {isTripleCaptain && (
-                        <span className="text-[10px] text-purple-300 font-bold bg-purple-500/30 px-1.5 py-0.5 rounded border border-purple-400/50">
+                        <span className="text-xs text-purple-300 font-bold bg-purple-500/30 px-1.5 py-0.5 rounded border border-purple-400/50">
                           3×
                         </span>
                       )}
                     </div>
                   )}
-                  {!p.isCaptain && p.multiplier > 1 && <span className="text-[11px] text-purple-400 font-bold">×{p.multiplier}</span>}
+                  {!p.isCaptain && p.multiplier > 1 && <span className="text-xs text-purple-400 font-bold">×{p.multiplier}</span>}
                   {p.autoSubIn && <ChevronUp className="h-3 w-3 text-green-400" />}
                 </div>
               </div>
               {!compact && (
                 <div className={cn(
-                  "w-12 text-center text-[11px] font-medium",
+                  "w-12 text-center text-xs font-medium",
                   minutes >= 60 ? "text-green-400" : minutes > 0 ? "text-yellow-400" : "text-red-400"
                 )}>
                   {p.fixtureStarted === false && p.opponentShortName ? (
@@ -179,7 +179,7 @@ export function BreakdownTable({ players, compact = false, activeChip }: { playe
         {bench.length > 0 && (
           <div className={isBenchBoostActive ? "bg-gradient-to-b from-cyan-900/20 to-black/30" : "bg-black/30"}>
             <div className={cn(
-              "px-3 py-1 text-[11px] uppercase tracking-wider font-bold border-t-2 bg-gradient-to-r",
+              "px-3 py-1 text-xs uppercase tracking-wider font-bold border-t-2 bg-gradient-to-r",
               isBenchBoostActive
                 ? "text-cyan-300 border-cyan-500/50 from-cyan-900/40 to-cyan-800/30"
                 : "text-white/60 border-gray-700 from-gray-800 to-gray-900"
@@ -187,7 +187,7 @@ export function BreakdownTable({ players, compact = false, activeChip }: { playe
               <div className="flex items-center gap-2">
                 Bench
                 {isBenchBoostActive && (
-                  <span className="text-[9px] text-cyan-200 font-bold bg-cyan-500/40 px-1.5 py-0.5 rounded border border-cyan-400/50">
+                  <span className="text-xs text-cyan-200 font-bold bg-cyan-500/40 px-1.5 py-0.5 rounded border border-cyan-400/50">
                     ACTIVE
                   </span>
                 )}
@@ -198,12 +198,11 @@ export function BreakdownTable({ players, compact = false, activeChip }: { playe
               return (
                 <button
                   key={p.id}
-                  onClick={() => isBenchBoostActive && setSelectedPlayer(p)}
+                  onClick={() => setSelectedPlayer(p)}
                   className={cn(
-                    "w-full flex items-center px-3 py-1.5 border-b transition-all",
+                    "w-full flex items-center px-3 py-1.5 border-b transition-all cursor-pointer active:scale-[0.99]",
                     isBenchBoostActive
                       ? cn(
-                        "cursor-pointer active:scale-[0.99]",
                         index % 2 === 0
                           ? "bg-cyan-900/20 hover:bg-cyan-800/30"
                           : "bg-cyan-950/20 hover:bg-cyan-800/30",
@@ -211,12 +210,12 @@ export function BreakdownTable({ players, compact = false, activeChip }: { playe
                       )
                       : cn(
                         index % 2 === 0 ? "bg-gray-800/30" : "bg-gray-900/30",
-                        "border-white/5 cursor-default"
+                        "border-white/5 hover:bg-white/5"
                       )
                   )}
                 >
                   <div className="w-7 flex items-center justify-center">
-                    <KitImage player={p} className={cn("h-5 w-5 object-contain", !isBenchBoostActive && "opacity-70")} />
+                    <KitImage player={p} className={cn("h-6 w-6 sm:h-5 sm:w-5 object-contain", !isBenchBoostActive && "opacity-70")} />
                   </div>
                   <div className="flex-1 min-w-0 ml-2">
                     <div className={cn(
@@ -229,7 +228,7 @@ export function BreakdownTable({ players, compact = false, activeChip }: { playe
                   </div>
                   {!compact && (
                     <div className={cn(
-                      "w-12 text-center text-[11px] font-medium",
+                      "w-12 text-center text-xs font-medium",
                       isBenchBoostActive
                         ? (minutes >= 60 ? "text-green-400" : minutes > 0 ? "text-yellow-400" : "text-red-400")
                         : (minutes >= 60 ? "text-green-400/70" : minutes > 0 ? "text-yellow-400/70" : "text-red-400/70")
@@ -275,7 +274,7 @@ export function BreakdownTable({ players, compact = false, activeChip }: { playe
                 <div className="flex items-center gap-2">
                   <div className={cn("font-semibold text-sm", selectedPlayerIsTripleCaptain ? "text-purple-200" : "text-white")}>{selectedPlayer.name}</div>
                   {selectedPlayerIsTripleCaptain && (
-                    <span className="text-[10px] text-purple-200 font-bold bg-purple-500/40 px-2 py-0.5 rounded border border-purple-400/50">
+                    <span className="text-xs text-purple-200 font-bold bg-purple-500/40 px-2 py-0.5 rounded border border-purple-400/50">
                       TRIPLE CAPTAIN
                     </span>
                   )}
@@ -349,7 +348,7 @@ export function BreakdownTable({ players, compact = false, activeChip }: { playe
                       >
                         <div className="flex flex-col min-w-0">
                           <span className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition-colors">{team.teamName}</span>
-                          <span className="text-[10px] text-white/50 truncate">{team.managerName}</span>
+                          <span className="text-xs text-white/50 truncate">{team.managerName}</span>
                         </div>
                         <div className="ml-3 flex flex-col items-end shrink-0">
                           <span className="text-xs font-bold text-white">{team.netPoints} pts</span>

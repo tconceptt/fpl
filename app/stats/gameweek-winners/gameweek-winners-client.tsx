@@ -59,14 +59,14 @@ export function GameweekWinnersClient({
                   {tie.tiedTeams.map((team) => (
                     <div key={team.id} className="flex items-center justify-between px-3 py-2 border-t border-amber-500/10">
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-[10.5px] truncate text-white leading-tight">
+                        <div className="font-semibold text-xs truncate text-white leading-tight">
                           {team.name}
                         </div>
-                        <div className="text-white/60 truncate text-[8.5px] leading-tight">
+                        <div className="text-white/60 truncate text-xs leading-tight">
                           {team.managerName}
                         </div>
                       </div>
-                      <div className="text-right font-bold text-[11.5px] text-amber-300 ml-2">
+                      <div className="text-right font-bold text-xs text-amber-300 ml-2">
                         {formatPoints(team.netPoints)}
                       </div>
                     </div>
@@ -138,7 +138,7 @@ export function GameweekWinnersClient({
           {/* Mobile View - Compact Table */}
           <div className="sm:hidden text-white text-xs rounded-lg overflow-hidden border border-white/10">
             {/* Header */}
-            <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-[10.5px]">
+            <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-xs">
               <div className="w-8 text-center">#</div>
               <div className="flex-1">Team</div>
               <div className="w-12 text-right">Wins</div>
@@ -151,22 +151,22 @@ export function GameweekWinnersClient({
                   className={`flex items-center px-2 py-1.5 border-b border-white/5 ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'}`}
                 >
                   <div className="w-8 flex items-center justify-center">
-                    <span className={`font-bold text-[10.5px] ${index === 0 ? 'text-yellow-400' : ''}`}>
+                    <span className={`font-bold text-xs ${index === 0 ? 'text-yellow-400' : ''}`}>
                       {index + 1}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0 ml-2">
-                    <div className="font-semibold text-[10.5px] truncate text-white leading-tight">
+                    <div className="font-semibold text-xs truncate text-white leading-tight">
                       {team.name}
                     </div>
-                    <div className="text-white/60 truncate text-[8.5px] leading-tight">
+                    <div className="text-white/60 truncate text-xs leading-tight">
                       {team.managerName}
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {team.gameweekWins.map((win) => (
                         <span
                           key={win.gameweek}
-                          className="inline-flex items-center rounded bg-white/10 px-1 py-0.5 text-[8px]"
+                          className="inline-flex items-center rounded bg-white/10 px-1 py-0.5 text-xs"
                           title={`${formatPoints(win.points)} points (${formatPoints(win.net_points)} net)`}
                         >
                           {win.gameweek}
@@ -174,7 +174,7 @@ export function GameweekWinnersClient({
                       ))}
                     </div>
                   </div>
-                  <div className="w-12 text-right font-bold text-[11.5px] text-white">
+                  <div className="w-12 text-right font-bold text-xs text-white">
                     {team.wins}
                   </div>
                 </div>

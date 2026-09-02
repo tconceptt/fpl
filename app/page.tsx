@@ -54,9 +54,13 @@ export default async function LeaguePage({
   return (
     <DashboardLayout>
       <LeagueTable
-        standings={standings}
-        currentGameweek={snapshot.currentGameweek}
-        selectedGameweek={snapshot.selectedGameweek}
+        initial={{
+          leagueName: snapshot.leagueName,
+          currentGameweek: snapshot.currentGameweek,
+          selectedGameweek: snapshot.selectedGameweek,
+          liveState: snapshot.liveState,
+          standings,
+        }}
       />
     </DashboardLayout>
   );

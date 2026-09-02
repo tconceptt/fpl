@@ -37,7 +37,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
             {!compareTeam ? (
               <>
                 <div className="text-sm font-bold truncate">{mainTeam.teamName}</div>
-                <div className="text-[10px] text-white/60">{mainTeam.managerName}</div>
+                <div className="text-xs text-white/60">{mainTeam.managerName}</div>
               </>
             ) : (
               <div className="text-sm font-bold">Team Comparison</div>

@@ -44,8 +44,8 @@ export default async function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="-mt-14">
-        <FootballHero 
+      <div>
+        <FootballHero
           badge="Qitawrari League" 
           title1="Qitawrari League" 
           title2="Track Your FPL Standings" 

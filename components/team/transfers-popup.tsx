@@ -120,7 +120,7 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
                             <div className="md:grid md:grid-cols-[1fr,auto,1fr] md:gap-0">
                                 {/* Headers - Desktop Only */}
                                 <div className="hidden md:block text-center pb-4 border-b border-white/10">
-                                    <div className="text-[11px] text-red-400 uppercase tracking-widest font-bold">
+                                    <div className="text-xs text-red-400 uppercase tracking-widest font-bold">
                                         Transferred Out
                                     </div>
                                 </div>
@@ -129,7 +129,7 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
                                 <div className="hidden md:block w-px bg-gradient-to-b from-transparent via-white/10 to-transparent mx-6 mb-4" />
 
                                 <div className="hidden md:block text-center pb-4 border-b border-white/10">
-                                    <div className="text-[11px] text-green-400 uppercase tracking-widest font-bold">
+                                    <div className="text-xs text-green-400 uppercase tracking-widest font-bold">
                                         Transferred In
                                     </div>
                                 </div>
@@ -141,7 +141,7 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
 
                                             {/* Mobile Label: Out */}
                                             <div className="md:hidden w-full text-center py-1">
-                                                <span className="text-[9px] text-red-400 uppercase tracking-widest font-bold">Out</span>
+                                                <span className="text-xs text-red-400 uppercase tracking-widest font-bold">Out</span>
                                             </div>
 
                                             {/* Player Out */}
@@ -157,7 +157,7 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
                                                             {transfer.playerOut?.name || "Unknown"}
                                                         </div>
                                                         <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-[10px] text-white/40 uppercase tracking-wide">Points</span>
+                                                            <span className="text-xs text-white/40 uppercase tracking-wide">Points</span>
                                                             <span className="text-sm font-bold text-red-400">
                                                                 {transfer.playerOutPoints}
                                                             </span>
@@ -177,7 +177,7 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
 
                                             {/* Mobile Label: In */}
                                             <div className="md:hidden w-full text-center py-1">
-                                                <span className="text-[9px] text-green-400 uppercase tracking-widest font-bold">In</span>
+                                                <span className="text-xs text-green-400 uppercase tracking-widest font-bold">In</span>
                                             </div>
 
                                             {/* Player In */}
@@ -189,11 +189,11 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
                                                             {transfer.playerIn?.name || "Unknown"}
                                                         </div>
                                                         <div className="flex items-center md:justify-end gap-2 mt-0.5">
-                                                            <span className="hidden md:inline text-[10px] text-white/40 uppercase tracking-wide">Points</span>
+                                                            <span className="hidden md:inline text-xs text-white/40 uppercase tracking-wide">Points</span>
                                                             <span className="text-sm font-bold text-green-400">
                                                                 {transfer.playerInPoints}
                                                             </span>
-                                                            <span className="md:hidden text-[10px] text-white/40 uppercase tracking-wide">Points</span>
+                                                            <span className="md:hidden text-xs text-white/40 uppercase tracking-wide">Points</span>
                                                         </div>
                                                     </div>
                                                     {/* Mobile: Kit Left. Desktop: Kit Right */}
@@ -216,17 +216,17 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
                 <div className="px-6 py-4 bg-gradient-to-r from-gray-800/50 to-gray-900/50 border-t border-white/10">
                     <div className="flex items-center justify-around gap-4 text-center">
                         <div>
-                            <div className="text-[9px] text-white/50 uppercase tracking-wide mb-1">Out Total</div>
+                            <div className="text-xs text-white/50 uppercase tracking-wide mb-1">Out Total</div>
                             <div className="text-xl font-bold text-red-400">{totalOut}</div>
                         </div>
                         <div className="w-px h-8 bg-white/5" />
                         <div>
-                            <div className="text-[9px] text-white/50 uppercase tracking-wide mb-1">In Total</div>
+                            <div className="text-xs text-white/50 uppercase tracking-wide mb-1">In Total</div>
                             <div className="text-xl font-bold text-green-400">{totalIn}</div>
                         </div>
                         <div className="w-px h-8 bg-white/5" />
                         <div>
-                            <div className="text-[9px] text-white/50 uppercase tracking-wide mb-1">Net Gain</div>
+                            <div className="text-xs text-white/50 uppercase tracking-wide mb-1">Net Gain</div>
                             <div className={`text-xl font-bold flex items-center justify-center gap-1.5 ${netPoints > 0 ? "text-green-400" : netPoints < 0 ? "text-red-400" : "text-white/60"
                                 }`}>
                                 {netPoints > 0 ? (

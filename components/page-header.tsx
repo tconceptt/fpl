@@ -55,7 +55,7 @@ export function PageHeader({
           {showGameweekSelector && simpleSelector && (
             <div className="w-fit">
               <Select value={currentValue} onValueChange={handleGameweekChange}>
-                <SelectTrigger className="h-auto border-0 bg-purple-900/20 hover:bg-purple-900/30 shadow-none focus:ring-0 px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold min-w-[55px] sm:min-w-[70px] rounded-md transition-colors">
+                <SelectTrigger className="h-auto border-0 bg-purple-900/20 hover:bg-purple-900/30 shadow-none focus:ring-0 px-2 sm:px-3 py-1 text-xs sm:text-xs font-semibold min-w-[55px] sm:min-w-[70px] rounded-md transition-colors">
                   <SelectValue placeholder="Select gameweek" />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-900 border border-purple-500/30 rounded-lg shadow-2xl">

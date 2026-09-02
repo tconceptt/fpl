@@ -37,6 +37,7 @@ export function GameweekNav({ currentGameweek }: GameweekNavProps) {
         size="icon"
         onClick={handlePrevGw}
         disabled={selectedGw <= 1}
+        aria-label="Previous gameweek"
         className="h-8 w-8 text-white/70 hover:text-white disabled:opacity-30"
       >
         <ChevronLeft className="h-5 w-5" />
@@ -49,6 +50,7 @@ export function GameweekNav({ currentGameweek }: GameweekNavProps) {
         size="icon"
         onClick={handleNextGw}
         disabled={selectedGw >= currentGameweek}
+        aria-label="Next gameweek"
         className="h-8 w-8 text-white/70 hover:text-white disabled:opacity-30"
       >
         <ChevronRight className="h-5 w-5" />

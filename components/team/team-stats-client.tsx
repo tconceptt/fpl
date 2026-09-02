@@ -34,18 +34,18 @@ export function TeamStatsClient({
                     <div className="flex items-center gap-2.5 flex-wrap">
                         {overallRank && (
                             <div className="flex flex-col">
-                                <span className="text-[9px] text-white/50 uppercase tracking-wide">Overall Rank</span>
+                                <span className="text-xs text-white/50 uppercase tracking-wide">Overall Rank</span>
                                 <span className="text-xs font-bold text-white">{overallRank.toLocaleString()}</span>
                             </div>
                         )}
                         {h2hRank && (
                             <div className="flex flex-col">
-                                <span className="text-[9px] text-white/50 uppercase tracking-wide">H2H Rank</span>
+                                <span className="text-xs text-white/50 uppercase tracking-wide">H2H Rank</span>
                                 <span className="text-xs font-bold text-white">#{h2hRank}</span>
                             </div>
                         )}
                         <div className="flex flex-col">
-                            <span className="text-[9px] text-white/50 uppercase tracking-wide">Transfers</span>
+                            <span className="text-xs text-white/50 uppercase tracking-wide">Transfers</span>
                             <button
                                 onClick={() => transfers > 0 && setShowTransfers(true)}
                                 className={`text-xs font-bold text-left ${transfers > 0
@@ -65,9 +65,9 @@ export function TeamStatsClient({
                     </div>
                     <div className="flex flex-col items-end">
                         <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] text-white/50 uppercase tracking-wide">GW Total</span>
+                            <span className="text-xs text-white/50 uppercase tracking-wide">GW Total</span>
                             {isBenchBoostActive && (
-                                <span className="text-[9px] text-cyan-300 font-bold bg-cyan-500/30 px-1.5 py-0.5 rounded border border-cyan-400/50">
+                                <span className="text-xs text-cyan-300 font-bold bg-cyan-500/30 px-1.5 py-0.5 rounded border border-cyan-400/50">
                                     BB
                                 </span>
                             )}
