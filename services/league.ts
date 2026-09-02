@@ -76,6 +76,21 @@ export interface GetLeagueSnapshotOptions {
   includePicks?: boolean;
 }
 
+/**
+ * Thrown by `getLeagueSnapshot` when `gw` is out of range — before any
+ * per-manager fetching. Pages that call `getLeagueSnapshot` directly with
+ * an unvalidated gw (app/page.tsx, app/gameweek/page.tsx) should catch
+ * this and call `notFound()`; the API routes already validate `gw` against
+ * the current gameweek before calling the snapshot, so they never trigger
+ * it.
+ */
+export class InvalidGameweekError extends Error {
+  constructor(gw: number, currentGameweek: number) {
+    super(`Invalid gameweek ${gw}: current gameweek is ${currentGameweek}`);
+    this.name = "InvalidGameweekError";
+  }
+}
+
 async function getH2HRanksSnapshot(): Promise<Map<number, number>> {
   const leagueId = process.env.FPL_H2H_LEAGUE_ID;
   const ranks = new Map<number, number>();
@@ -172,6 +187,15 @@ async function computeLeagueSnapshot(gw: number | undefined, includePicks: boole
 
   const currentEvent = findCurrentEvent(bootstrap.events);
   const currentGameweek = currentEvent ? currentEvent.id : 1;
+
+  // Validated here, before any per-manager fan-out (history/picks/fixtures)
+  // — an out-of-range gw would otherwise still trigger 14 history calls
+  // and (with includePicks) 14 more picks calls, all for data the caller
+  // is about to discard via notFound().
+  if (gw !== undefined && (gw < 1 || gw > currentGameweek)) {
+    throw new InvalidGameweekError(gw, currentGameweek);
+  }
+
   const selectedGameweek = gw ?? currentGameweek;
   const isCurrentGameweek = selectedGameweek === currentGameweek;
 

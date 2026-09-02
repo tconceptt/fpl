@@ -239,20 +239,28 @@ export async function cachedMany<T>(
           batchResult.set(key, value);
         }
 
-        if (redis) {
-          try {
-            const pipeline = redis.pipeline();
-            for (const [key, value] of fresh) {
-              pipeline.set(KEY_PREFIX + key, { v: value } satisfies Envelope<T>, { ex: ttlSeconds });
+        // A `fetchMissing` that resolves everything to nothing to write —
+        // e.g. every entry in the batch 404s, as happens for an
+        // out-of-range gameweek — must not touch Redis at all: an empty
+        // pipeline throws on `.exec()`, which would otherwise be
+        // misreported as a Redis failure and (once) suppress the real
+        // warning for the rest of the process.
+        if (fresh.size > 0) {
+          if (redis) {
+            try {
+              const pipeline = redis.pipeline();
+              for (const [key, value] of fresh) {
+                pipeline.set(KEY_PREFIX + key, { v: value } satisfies Envelope<T>, { ex: ttlSeconds });
+              }
+              await pipeline.exec();
+            } catch (err) {
+              if (isDynamicServerUsageError(err)) throw err;
+              warnRedisFailure(err);
             }
-            await pipeline.exec();
-          } catch (err) {
-            if (isDynamicServerUsageError(err)) throw err;
-            warnRedisFailure(err);
-          }
-        } else {
-          for (const [key, value] of fresh) {
-            memSet(KEY_PREFIX + key, { v: value }, ttlSeconds);
+          } else {
+            for (const [key, value] of fresh) {
+              memSet(KEY_PREFIX + key, { v: value }, ttlSeconds);
+            }
           }
         }
       }

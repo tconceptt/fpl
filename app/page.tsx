@@ -1,6 +1,6 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { LeagueTable } from "@/components/league-table/league-table";
-import { getLeagueSnapshot, toStandings } from "@/services/league";
+import { getLeagueSnapshot, InvalidGameweekError, toStandings, type LeagueSnapshot } from "@/services/league";
 import { notFound } from "next/navigation";
 import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
@@ -19,16 +19,28 @@ export default async function LeaguePage({
   const requestedGameweek = Number.isNaN(parsedGameweek) ? undefined : parsedGameweek;
 
   // getLeagueSnapshot throws on failure — app/error.tsx renders the real error
-  // rather than a silent, misleading empty league. The gameweek check below
-  // only runs once that fetch has actually succeeded.
-  const snapshot = await withUpstreamCounter(async () => {
-    const result = await getLeagueSnapshot(requestedGameweek);
-    logTelemetry("/");
-    return result;
-  });
+  // rather than a silent, misleading empty league — except InvalidGameweekError
+  // (an out-of-range gw, rejected before any per-manager fetching), which is a
+  // 404, not a failure. Telemetry is still logged either way.
+  let snapshot: LeagueSnapshot;
+  try {
+    snapshot = await withUpstreamCounter(async () => {
+      try {
+        return await getLeagueSnapshot(requestedGameweek);
+      } finally {
+        logTelemetry("/");
+      }
+    });
+  } catch (error) {
+    if (error instanceof InvalidGameweekError) {
+      notFound();
+    }
+    throw error;
+  }
 
   // parsedGameweek is undefined only when gameweekParam was an empty string,
-  // which is itself invalid input — treat that the same as NaN.
+  // which is itself invalid input — treat that the same as NaN. (The numeric,
+  // out-of-range case is now caught above via InvalidGameweekError.)
   const gwValue = parsedGameweek ?? NaN;
   if (
     gameweekParam !== null &&

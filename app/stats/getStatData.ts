@@ -626,10 +626,28 @@ export const getStatsData = cache(async (selectedGameweek?: number) => {
 export type StatsData = Awaited<ReturnType<typeof getStatsData>>;
 
 /**
+ * The current gameweek from the cached bootstrap alone — no per-manager
+ * fan-out, unlike getStatsData/getLeagueSnapshot. Used by loadStatsData to
+ * clamp the requested gameweek before ever calling getStatsData with it:
+ * getLeagueSnapshot now rejects an out-of-range gw with
+ * InvalidGameweekError before fetching anything per-manager, so an
+ * unclamped call here would trigger (and then discard) that fan-out for
+ * nothing.
+ */
+async function getCurrentGameweekFromBootstrap(): Promise<number> {
+  const bootstrap = await cachedKind("bootstrap", "bootstrap", () => client.bootstrap());
+  const currentEvent =
+    bootstrap.events.find((e) => e.is_current) ??
+    bootstrap.events.find((e) => e.is_next) ??
+    [...bootstrap.events].reverse().find((e) => e.finished);
+  return currentEvent ? currentEvent.id : 1;
+}
+
+/**
  * Resolve the `?gameweek=` URL param into stats data with exactly one call
- * to getStatsData in the common case (no param, or a param that's already
- * within range). Out-of-range input still self-corrects, at the cost of a
- * second call — better than silently rendering an empty page.
+ * to getStatsData, always for a gameweek already known to be in range.
+ * Out-of-range input clamps to the current gameweek up front rather than
+ * being tried against the snapshot first.
  */
 export async function loadStatsData(
   gameweekParam: string | null
@@ -640,15 +658,13 @@ export async function loadStatsData(
       ? parsedGameweek
       : undefined;
 
-  let data = await getStatsData(requestedGameweek);
-  if (requestedGameweek !== undefined && requestedGameweek > data.currentGameweek) {
-    data = await getStatsData(data.currentGameweek);
-  }
-
+  const currentGameweek = await getCurrentGameweekFromBootstrap();
   const validSelectedGameweek =
-    requestedGameweek !== undefined && requestedGameweek <= data.currentGameweek
+    requestedGameweek !== undefined && requestedGameweek <= currentGameweek
       ? requestedGameweek
-      : data.currentGameweek;
+      : currentGameweek;
+
+  const data = await getStatsData(validSelectedGameweek);
 
   return { data, validSelectedGameweek };
 }

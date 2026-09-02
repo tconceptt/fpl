@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatPoints } from "@/lib/fpl";
 import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { chipLabel } from "@/lib/chips";
-import { getLeagueSnapshot, type ManagerSnapshot } from "@/services/league";
+import { getLeagueSnapshot, InvalidGameweekError, type LeagueSnapshot, type ManagerSnapshot } from "@/services/league";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import { ArrowDown, ArrowUp, Flame, Star, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -197,14 +197,31 @@ export default async function GameweekPage({
   const gameweekParam = resolveGwParam("/gameweek", resolvedSearchParams);
   const parsedGameweek = gameweekParam ? parseInt(gameweekParam, 10) : undefined;
 
-  const { snapshot, stats } = await withUpstreamCounter(async () => {
-    const snapshot = await getLeagueSnapshot(parsedGameweek);
-    logTelemetry("/gameweek");
-    const stats = buildGameweekStats(snapshot.managers, snapshot.currentGameweek, snapshot.selectedGameweek);
-    return { snapshot, stats };
-  });
+  // getLeagueSnapshot rejects an out-of-range (but numeric) gw with
+  // InvalidGameweekError before any per-manager fetching — a 404, not a
+  // failure. Telemetry is still logged either way.
+  let snapshot: LeagueSnapshot;
+  let stats: GameweekStats;
+  try {
+    ({ snapshot, stats } = await withUpstreamCounter(async () => {
+      try {
+        const snapshot = await getLeagueSnapshot(parsedGameweek);
+        const stats = buildGameweekStats(snapshot.managers, snapshot.currentGameweek, snapshot.selectedGameweek);
+        return { snapshot, stats };
+      } finally {
+        logTelemetry("/gameweek");
+      }
+    }));
+  } catch (error) {
+    if (error instanceof InvalidGameweekError) {
+      notFound();
+    }
+    throw error;
+  }
 
-  // Validate the requested gameweek only against a successfully fetched current gameweek.
+  // Validate the requested gameweek only against a successfully fetched current
+  // gameweek. (The numeric, out-of-range case is now caught above via
+  // InvalidGameweekError; this still catches NaN, e.g. `?gw=abc`.)
   if (
     gameweekParam !== null &&
     (parsedGameweek === undefined ||
