@@ -17,6 +17,10 @@ Runs on Vercel Hobby, GitHub Actions on the public repo, the Upstash Redis free 
 | Tests | Vitest with real GW2 payloads as fixtures. | Scoring logic is pure and was only ever verified by hand. |
 | Gameweek param | `gw` everywhere, read from `searchParams`. The `x-url` middleware header goes. | Two names for one thing today, and one of them needs a middleware hack. |
 
+## Status
+
+Phases 0 to 3 were implemented and reviewed on 2 September 2026 (commits 95bab33 through 83611a5 on main). Phase 4 is next. Nothing is pushed yet.
+
 ## Phase summary
 
 | Phase | Scope | Effort | Target |
