@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { calculateRealTimePointsBreakdown } from "@/services/real-time-points-calculator";
+import { createRequestCache, getH2HRanks } from "@/services/fpl-data-cache";
+import { getTeamGameweekBreakdown } from "@/services/fpl-live";
 import { getPlayerName } from "@/services/get-player-name";
 import { AutoHideBottomNav } from "@/components/layout/auto-hide-bottom-nav";
 import { BackButton } from "@/components/layout/back-button";
@@ -47,10 +48,10 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
 
   // Fetch league standings to get the team name (entry_name) and manager name (player_name)
   const leagueId = process.env.FPL_LEAGUE_ID;
-  const h2hLeagueId = "2489497"; // Head to Head league ID
+  const h2hRanks = await getH2HRanks(createRequestCache());
   let teamName = `Team ${teamId}`;
   let managerName = "";
-  let h2hRank: number | null = null;
+  const h2hRank: number | null = h2hRanks.get(Number(teamId)) ?? null;
 
   if (leagueId) {
     try {
@@ -66,29 +67,6 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
     } catch (error) {
       console.error("Failed to fetch team name from standings:", error);
     }
-  }
-
-  // Fetch H2H league standings
-  try {
-    const h2hResponse = await fetch(fplApiRoutes.h2hStandings(h2hLeagueId), { cache: "no-store" });
-    if (h2hResponse.ok) {
-      const h2hData = await h2hResponse.json();
-      // H2H API structure: check if standings exists and has results
-      if (h2hData.standings?.results) {
-        const teamStanding = h2hData.standings.results.find((t: { entry: number; rank: number }) => t.entry === Number(teamId));
-        if (teamStanding) {
-          h2hRank = teamStanding.rank;
-        }
-      } else if (Array.isArray(h2hData.standings)) {
-        // Sometimes standings is directly an array
-        const teamStanding = h2hData.standings.find((t: { entry: number; rank: number }) => t.entry === Number(teamId));
-        if (teamStanding) {
-          h2hRank = teamStanding.rank;
-        }
-      }
-    }
-  } catch (error) {
-    console.error("Failed to fetch H2H rank:", error, h2hLeagueId);
   }
 
   // Fetch team history for overall rank and transfer info
@@ -111,26 +89,24 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
     console.error("Failed to fetch team history:", error);
   }
 
-  const breakdownResult = await calculateRealTimePointsBreakdown(teamId, gw);
+  const breakdownResult = await getTeamGameweekBreakdown(teamId, gw);
   if (!breakdownResult) return notFound();
   const players = await Promise.all(
     breakdownResult.breakdown.map(async (p) => ({ ...p, name: await getPlayerName(p.id, 'web_name') }))
   );
   const activeChip = breakdownResult.activeChip;
-  const isBenchBoostActive = activeChip === 'bboost';
 
   const starters = players.filter((p: { position: number }) => p.position <= 11);
   const startersTotal = starters.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
 
-  // For Bench Boost, include bench points in the total
-  const bench = players.filter((p: { position: number }) => p.position > 11);
-  const benchTotal = bench.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
-  const gwTotal = isBenchBoostActive ? startersTotal + benchTotal : startersTotal;
+  // Multipliers already encode the chip, so bench players score 0 unless Bench
+  // Boost is active. Summing every pick is correct either way.
+  const gwTotal = players.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
 
   // If compare mode, fetch second team data
   let compareTeamData = null;
   if (compareTeamId) {
-    const compareBreakdownResult = await calculateRealTimePointsBreakdown(compareTeamId, gw);
+    const compareBreakdownResult = await getTeamGameweekBreakdown(compareTeamId, gw);
     if (compareBreakdownResult) {
       const comparePlayers = await Promise.all(
         compareBreakdownResult.breakdown.map(async (p) => ({ ...p, name: await getPlayerName(p.id, 'web_name') }))
@@ -162,26 +138,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
         }
       }
 
-      // Fetch compare team H2H rank
-      try {
-        const h2hResponse = await fetch(fplApiRoutes.h2hStandings(h2hLeagueId), { cache: "no-store" });
-        if (h2hResponse.ok) {
-          const h2hData = await h2hResponse.json();
-          if (h2hData.standings?.results) {
-            const teamStanding = h2hData.standings.results.find((t: { entry: number; rank: number }) => t.entry === Number(compareTeamId));
-            if (teamStanding) {
-              compareH2hRank = teamStanding.rank;
-            }
-          } else if (Array.isArray(h2hData.standings)) {
-            const teamStanding = h2hData.standings.find((t: { entry: number; rank: number }) => t.entry === Number(compareTeamId));
-            if (teamStanding) {
-              compareH2hRank = teamStanding.rank;
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch compare team H2H rank:", error);
-      }
+      compareH2hRank = h2hRanks.get(Number(compareTeamId)) ?? null;
 
       // Fetch compare team history
       try {

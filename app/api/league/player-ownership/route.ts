@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fplApiRoutes } from "@/lib/routes";
-import { calculateRealTimePoints } from "@/services/real-time-points-calculator";
+import { createRequestCache } from "@/services/fpl-data-cache";
+import { buildLivePointsMap, sumPicks } from "@/services/fpl-live";
 
 
 export async function GET(request: NextRequest) {
@@ -24,10 +25,12 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        // 1. Fetch league standings to get all teams
-        const standingsResponse = await fetch(fplApiRoutes.standings(leagueId), {
-            cache: "no-store",
-        });
+        // 1. Fetch league standings and the gameweek's live points once
+        const cache = createRequestCache();
+        const [standingsResponse, liveData] = await Promise.all([
+            fetch(fplApiRoutes.standings(leagueId), { cache: "no-store" }),
+            cache.getLiveData(gw),
+        ]);
 
         if (!standingsResponse.ok) {
             throw new Error("Failed to fetch standings");
@@ -35,6 +38,7 @@ export async function GET(request: NextRequest) {
 
         const standingsData = await standingsResponse.json();
         const teams = standingsData.standings.results;
+        const livePoints = buildLivePointsMap(liveData);
 
         // 2. Fetch picks for each team and check if they started the player
         const teamsStartingPlayer = await Promise.all(
@@ -58,9 +62,7 @@ export async function GET(request: NextRequest) {
                     );
 
                     if (isStarting) {
-                        // Use real-time points calculator for accurate live points
-                        const { totalPoints } = await calculateRealTimePoints(team.entry.toString(), gw);
-                        const netPoints = totalPoints - entryHistory.event_transfers_cost;
+                        const netPoints = sumPicks(picks, livePoints) - entryHistory.event_transfers_cost;
                         return {
                             teamId: team.entry,
                             teamName: team.entry_name,

@@ -55,16 +55,25 @@ export interface FixtureStat {
 
 export interface LivePlayerStats {
     minutes: number;
-    clean_sheets: number;
-    goals_conceded: number;
-    saves: number;
+    bonus: number;
+    bps: number;
+    /** Gameweek points as scored by FPL, with provisional bonus included. */
     total_points: number;
+}
+
+export interface LiveExplainStat {
+    identifier: string;
+    points: number;
+    value: number;
+    /** Retroactive correction applied by FPL, if any. */
+    points_modification?: number;
 }
 
 export interface LivePlayer {
     id: number;
     stats: LivePlayerStats;
-    explain: Array<{ fixture: number }>;
+    /** One entry per fixture the player featured in this gameweek. */
+    explain: Array<{ fixture: number; stats: LiveExplainStat[] }>;
 }
 
 export interface LiveGameweekData {
@@ -74,11 +83,10 @@ export interface LiveGameweekData {
 export interface TeamPick {
     element: number;
     position: number;
+    /** Auto-subs and chips are already applied by the API. */
     multiplier: number;
     is_captain: boolean;
     is_vice_captain: boolean;
-    autoSubIn?: boolean;
-    autoSubOut?: boolean;
 }
 
 export interface TeamDetails {
@@ -128,9 +136,54 @@ export interface LeagueStandings {
             entry_name: string;
             player_name: string;
             rank: number;
+            last_rank: number;
+            /** Gameweek points, gross — transfer hits are not deducted here. */
+            event_total: number;
+            /** Season total, net of transfer hits. */
             total: number;
         }>;
     };
+    /** When FPL last recalculated this league's table. */
+    last_updated_data: string | null;
+}
+
+/**
+ * H2H standings come back with `standings` as either an object with `results`
+ * or, occasionally, a bare array.
+ *
+ * Leagues with an odd number of teams include an "AVERAGE" row — the bye
+ * opponent — which has a null `entry`.
+ */
+export interface H2HStandingsRow {
+    entry: number | null;
+    entry_name: string;
+    rank: number;
+}
+
+export interface H2HStandings {
+    standings: { results: H2HStandingsRow[] } | H2HStandingsRow[];
+}
+
+/**
+ * The head-to-head league to show ranks from, if any.
+ *
+ * H2H leagues do not carry over between seasons, so this has to be configured
+ * per season rather than hardcoded. Leave it unset and H2H ranks are simply
+ * omitted.
+ */
+export const h2hLeagueId = process.env.FPL_H2H_LEAGUE_ID;
+
+// Warn once per process rather than on every request.
+const warnedMissingH2HLeagues = new Set<string>();
+
+function warnMissingH2HLeague(leagueId: string): void {
+    if (warnedMissingH2HLeagues.has(leagueId)) return;
+    warnedMissingH2HLeagues.add(leagueId);
+    console.warn(
+        `H2H league ${leagueId} does not exist (404). H2H leagues are recreated each ` +
+        `season, so this is likely a stale id — update FPL_H2H_LEAGUE_ID or unset it. ` +
+        `H2H ranks will be omitted.`
+    );
 }
 
 // Module-level cache for bootstrap data (survives across requests in the same process)
@@ -155,7 +208,7 @@ export class RequestScopedCache {
     private teamDetailsCache = new Map<string, Promise<TeamDetails>>();
     private teamHistoryCache = new Map<string, Promise<TeamHistory>>();
     private leagueStandingsCache = new Map<string, Promise<LeagueStandings>>();
-    private h2hStandingsCache = new Map<string, Promise<unknown>>();
+    private h2hStandingsCache = new Map<string, Promise<H2HStandings | null>>();
 
     // Precomputed maps from bootstrap data
     private playersMap: Map<number, BootstrapPlayer> | null = null;
@@ -255,8 +308,12 @@ export class RequestScopedCache {
     }
 
     private async fetchLiveData(gameweekId: string): Promise<LiveGameweekData> {
+        // Never cached: this is the source of truth for points now, and a stale
+        // payload here silently produces wrong totals. Deduplication within a
+        // request is handled by liveDataCache above, so this is one fetch per
+        // request no matter how many teams we score.
         const response = await fetch(fplApiRoutes.liveStandings(gameweekId), {
-            next: { revalidate: 30 },
+            cache: 'no-store',
         });
         if (!response.ok) {
             throw new Error(`Failed to fetch live data: ${response.status}`);
@@ -274,8 +331,10 @@ export class RequestScopedCache {
     }
 
     private async fetchFixtures(gameweekId: string): Promise<Fixture[]> {
+        // Kept in step with the live data above: `started`/`finished` decide
+        // whether we show live totals at all.
         const response = await fetch(fplApiRoutes.fixtures(gameweekId), {
-            next: { revalidate: 30 },
+            cache: 'no-store',
         });
         if (!response.ok) {
             throw new Error(`Failed to fetch fixtures: ${response.status}`);
@@ -348,7 +407,15 @@ export class RequestScopedCache {
         return response.json();
     }
 
-    async getH2HStandings(leagueId: string): Promise<unknown> {
+    /**
+     * H2H standings, or null when there is no H2H league to read.
+     *
+     * A missing or expired league is a normal state — H2H ranks are optional
+     * everywhere they are shown — so this resolves to null rather than throwing.
+     */
+    async getH2HStandings(leagueId: string | undefined = h2hLeagueId): Promise<H2HStandings | null> {
+        if (!leagueId) return null;
+
         const cached = this.h2hStandingsCache.get(leagueId);
         if (cached) return cached;
 
@@ -357,7 +424,7 @@ export class RequestScopedCache {
         return promise;
     }
 
-    private async fetchH2HStandings(leagueId: string): Promise<unknown> {
+    private async fetchH2HStandings(leagueId: string): Promise<H2HStandings | null> {
         const headers = {
             'User-Agent': 'Mozilla/5.0',
             'Origin': 'https://fantasy.premierleague.com',
@@ -368,6 +435,11 @@ export class RequestScopedCache {
             cache: 'no-store',
             headers,
         });
+
+        if (response.status === 404) {
+            warnMissingH2HLeague(leagueId);
+            return null;
+        }
         if (!response.ok) {
             throw new Error(`Failed to fetch H2H standings: ${response.status}`);
         }
@@ -428,6 +500,36 @@ export class RequestScopedCache {
 // Factory function to create a new cache instance per request
 export function createRequestCache(): RequestScopedCache {
     return new RequestScopedCache();
+}
+
+/**
+ * entry id -> H2H rank. Empty when no H2H league is configured or it no longer
+ * exists, which callers render as "no H2H rank" rather than an error.
+ */
+export async function getH2HRanks(
+    cache: RequestScopedCache,
+    leagueId: string | undefined = h2hLeagueId
+): Promise<Map<number, number>> {
+    const ranks = new Map<number, number>();
+
+    let data: H2HStandings | null = null;
+    try {
+        data = await cache.getH2HStandings(leagueId);
+    } catch (error) {
+        console.error("Failed to fetch H2H standings:", error);
+        return ranks;
+    }
+
+    if (!data?.standings) return ranks;
+
+    const results = Array.isArray(data.standings) ? data.standings : data.standings.results ?? [];
+    for (const team of results) {
+        // Skip the "AVERAGE" bye row, which has no entry.
+        if (typeof team.entry !== "number") continue;
+        ranks.set(team.entry, team.rank);
+    }
+
+    return ranks;
 }
 
 // Singleton for simpler use cases (when you just need one cache per module execution)

@@ -1,16 +1,9 @@
 import { fplApiRoutes } from "@/lib/routes";
-import { calculateLivePoints } from "@/services/live-points-calculator";
+import { createRequestCache, getH2HRanks, BootstrapPlayer, Fixture, LiveGameweekData } from "@/services/fpl-data-cache";
+import { countPlayersToStart, getTeamGameweekPoints } from "@/services/fpl-live";
 import { getPlayerName } from "@/services/get-player-name";
 import { getTeamHistory } from "@/services/net-gameweek-points";
 import { GameweekStanding, LeagueData, LeagueStanding } from "@/types/league";
-import {
-  performAutoSubstitutions,
-  getBootstrapPlayers,
-  TeamPick,
-  LivePlayerStats,
-  Player,
-  Fixture
-} from "@/services/real-time-points-calculator";
 
 function time<T>(fn: () => Promise<T>, name: string): Promise<T> {
   const start = Date.now();
@@ -21,16 +14,6 @@ function time<T>(fn: () => Promise<T>, name: string): Promise<T> {
     console.log(`${name} took ${duration}ms`);
   }
 }
-
-interface LivePlayer {
-  id: number;
-  stats: {
-    minutes: number;
-  };
-  explain: Array<{ fixture: number }>;
-}
-
-
 
 export async function getCurrentGameweek(): Promise<number> {
   return time(async () => {
@@ -74,28 +57,21 @@ export async function getHistoricalStandings(
       )
     );
 
-    let liveData: { elements: LivePlayer[] } = { elements: [] };
+    const cache = createRequestCache();
+
+    let liveData: LiveGameweekData = { elements: [] };
     let fixtures: Fixture[] = [];
     let finishedAllFixtures = false;
-    let bootstrapPlayers = new Map<number, Player>();
+    let bootstrapPlayers = new Map<number, BootstrapPlayer>();
 
     if (isCurrentGameweek) {
-      const [liveResponse, fixturesResponse, bootstrapPlayersMap] = await Promise.all([
-        fetch(fplApiRoutes.liveStandings(selectedGameweek.toString())),
-        fetch(fplApiRoutes.fixtures(selectedGameweek.toString())),
-        getBootstrapPlayers()
+      [liveData, fixtures, bootstrapPlayers] = await Promise.all([
+        cache.getLiveData(selectedGameweek.toString()),
+        cache.getFixtures(selectedGameweek.toString()),
+        cache.getPlayersMap()
       ]);
-
-      if (liveResponse.ok) liveData = await liveResponse.json();
-      if (fixturesResponse.ok) {
-        fixtures = await fixturesResponse.json();
-        finishedAllFixtures = fixtures.length > 0 && fixtures.every(f => f.finished);
-      }
-      bootstrapPlayers = bootstrapPlayersMap;
+      finishedAllFixtures = fixtures.length > 0 && fixtures.every(f => f.finished);
     }
-
-    const livePlayerMap = new Map(liveData.elements.map(p => [p.id, p]));
-    const fixtureStatusMap = new Map(fixtures.map(f => [f.id, { started: f.started, finished: f.finished }]));
 
     // If it's the current gameweek, fetch live points and team details for all teams
     const livePointsMap = new Map<number, number>();
@@ -115,87 +91,11 @@ export async function getHistoricalStandings(
           const captain = data.picks.find((pick: { is_captain: boolean }) => pick.is_captain);
           const captainName = captain ? await getPlayerName(captain.element) : null;
 
-          let playersToStart = 0;
-          if (isCurrentGameweek) {
-            // Create livePlayerStatsMap for performAutoSubstitutions
-            const livePlayerStatsMap = new Map<number, LivePlayerStats>();
-            liveData.elements.forEach(p => {
-              livePlayerStatsMap.set(p.id, {
-                minutes: p.stats.minutes,
-                clean_sheets: 0,
-                goals_conceded: 0,
-                saves: 0
-              });
-            });
-
-            const picks = data.picks as TeamPick[];
-
-            // Check if bench boost is active - if so, all 15 players count and auto-subs don't apply
-            const isBenchBoostActive = data.active_chip === "bboost";
-
-            // Only perform auto-subs if bench boost is NOT active
-            const picksToCheck = isBenchBoostActive
-              ? picks
-              : performAutoSubstitutions(
-                picks,
-                livePlayerStatsMap,
-                bootstrapPlayers,
-                fixtures
-              );
-
-            const maxPositionToCheck = isBenchBoostActive ? 15 : 11;
-
-            for (const pick of picksToCheck) {
-              if (pick.position <= maxPositionToCheck) { // Starters (or all 15 if bench boost)
-                const livePlayer = livePlayerMap.get(pick.element);
-
-                // Check if player is "to start"
-                if (livePlayer) {
-                  if (livePlayer.stats.minutes === 0) {
-                    // Player has 0 minutes - check their fixture status
-                    // If we are here, performAutoSubstitutions has already handled the logic of 
-                    // swapping out players who have 0 mins AND finished fixture.
-                    // So if a player is in the XI and has 0 mins, they are either:
-                    // 1. A starter whose fixture hasn't started yet.
-                    // 2. A starter whose fixture has started but not finished (and they haven't played yet).
-
-                    // We need to check fixture status to be sure.
-                    // If fixture started (even if not finished) and 0 mins, they are NOT "to start" (they just didn't play).
-
-                    let fixtureId = -1;
-                    if (livePlayer.explain.length > 0) {
-                      fixtureId = livePlayer.explain[0].fixture;
-                    } else {
-                      // Fallback: find fixture by team
-                      // This is tricky without player team info easily available here, 
-                      // but livePlayer.explain usually has it.
-                      // If no explain, maybe they have no fixture?
-                    }
-
-                    if (fixtureId !== -1) {
-                      const fixtureStatus = fixtureStatusMap.get(fixtureId);
-                      // Only count as "to start" if fixture hasn't started
-                      if (fixtureStatus && !fixtureStatus.started) {
-                        playersToStart++;
-                      }
-                    } else {
-                      // Try to find fixture via bootstrap players if available
-                      const player = bootstrapPlayers.get(pick.element);
-                      if (player) {
-                        const fixture = fixtures.find(f => f.team_h === player.team || f.team_a === player.team);
-                        if (fixture && !fixture.started) {
-                          playersToStart++;
-                        }
-                      }
-                    }
-                  }
-                } else {
-                  // No live data for player - count as "to start"
-                  playersToStart++;
-                }
-              }
-            }
-          }
+          // Multipliers already reflect auto-subs and chips, so the counted
+          // squad is whatever the API says it is.
+          const playersToStart = isCurrentGameweek
+            ? countPlayersToStart(data.picks, liveData, fixtures, bootstrapPlayers)
+            : 0;
 
           return {
             teamId,
@@ -215,7 +115,7 @@ export async function getHistoricalStandings(
       // Fetch live points
       const livePointsResults = await Promise.all(
         teamIds.map(teamId =>
-          calculateLivePoints(teamId.toString(), selectedGameweek.toString())
+          getTeamGameweekPoints(teamId.toString(), selectedGameweek.toString(), cache)
             .catch(error => {
               console.error(`Failed to fetch live points for team ${teamId}:`, error);
               return null;
@@ -349,6 +249,8 @@ export { getLeagueDataOptimized as getLeagueData } from "./league-service-optimi
 // Legacy version kept for reference/fallback
 export async function getLeagueDataLegacy(selectedGameweek?: number): Promise<LeagueData> {
   return time(async () => {
+    class NotFoundError extends Error { }
+
     const retryFetch = async (url: string, options: RequestInit, retries = 3): Promise<Response> => {
       try {
         // Add authentication headers
@@ -368,12 +270,14 @@ export async function getLeagueDataLegacy(selectedGameweek?: number): Promise<Le
 
         if (!response.ok) {
           if (response.status === 404) {
-            throw new Error(`Resource not found. Please check if FPL_LEAGUE_ID is set correctly in your environment variables.`);
+            // Definitive answer - retrying will not change it.
+            throw new NotFoundError(`Resource not found: ${url}. Check FPL_LEAGUE_ID is set correctly.`);
           }
           throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
         }
         return response;
       } catch (error) {
+        if (error instanceof NotFoundError) throw error;
         if (retries > 0) {
           console.log(`Retrying... ${retries} attempts left`);
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -385,7 +289,6 @@ export async function getLeagueDataLegacy(selectedGameweek?: number): Promise<Le
 
     try {
       const leagueId = process.env.FPL_LEAGUE_ID;
-      const h2hLeagueId = "2489497"; // Head to Head league ID
       if (!leagueId) {
         throw new Error('FPL_LEAGUE_ID environment variable is not set. Please set it in your .env.local file.');
       }
@@ -403,28 +306,7 @@ export async function getLeagueDataLegacy(selectedGameweek?: number): Promise<Le
       // Get team IDs from current standings
       const teamIds = data.standings.results.map((team: LeagueStanding) => team.entry);
 
-      // Fetch H2H standings
-      const h2hRanks = new Map<number, number>();
-      try {
-        const h2hResponse = await retryFetch(fplApiRoutes.h2hStandings(h2hLeagueId), {
-          cache: "no-store",
-        });
-        const h2hData = await h2hResponse.json();
-
-        // H2H API structure: check if standings exists and has results
-        if (h2hData.standings?.results) {
-          h2hData.standings.results.forEach((team: { entry: number; rank: number }) => {
-            h2hRanks.set(team.entry, team.rank);
-          });
-        } else if (Array.isArray(h2hData.standings)) {
-          // Sometimes standings is directly an array
-          h2hData.standings.forEach((team: { entry: number; rank: number }) => {
-            h2hRanks.set(team.entry, team.rank);
-          });
-        }
-      } catch (error) {
-        console.error("Failed to fetch H2H standings:", error);
-      }
+      const h2hRanks = await getH2HRanks(createRequestCache());
 
       // Get historical standings for selected gameweek
       const historicalStandings = await getHistoricalStandings(

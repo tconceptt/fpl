@@ -6,7 +6,7 @@ import { formatPoints } from "@/lib/fpl";
 import { getUrlParam } from "@/lib/helpers";
 import { fplApiRoutes } from "@/lib/routes";
 import { getPlayerName } from "@/services/get-player-name";
-import { calculateLivePoints } from "@/services/live-points-calculator";
+import { getTeamGameweekPoints } from "@/services/fpl-live";
 import { ArrowDown, ArrowUp, Flame, Star, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ReactNode } from "react";
@@ -212,7 +212,7 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
     
     if (isCurrentGameweek) {
       const livePointsPromises = standings.map((team: LeagueTeam) =>
-        calculateLivePoints(team.entry.toString(), selectedGameweek.toString())
+        getTeamGameweekPoints(team.entry.toString(), selectedGameweek.toString())
           .catch((error) => {
             console.error(error);
             return null;

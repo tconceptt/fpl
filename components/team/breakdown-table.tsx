@@ -62,7 +62,7 @@ function KitImage({ player, className }: { player: Pick<Player, "elementType" | 
 
 const metricsLabel: Record<string, string> = {
   minutes: "Minutes",
-  clean_sheet: "Clean sheet",
+  clean_sheets: "Clean sheet",
   goals_scored: "Goals scored",
   assists: "Assists",
   bonus: "Bonus",
@@ -74,6 +74,7 @@ const metricsLabel: Record<string, string> = {
   own_goals: "Own goals",
   goals_conceded: "Goals conceded",
   defensive_contribution: "Defensive contribution",
+  points_modification: "Points adjustment",
 };
 
 export function BreakdownTable({ players, compact = false, activeChip }: { players: Player[]; compact?: boolean; activeChip?: string | null }) {

@@ -14,4 +14,7 @@ export const fplApiRoutes = {
     `https://fantasy.premierleague.com/api/entry/${teamId}/event/${gameweekId}/picks/`,
   teamTransfers: (teamId: string) =>
     `https://fantasy.premierleague.com/api/entry/${teamId}/transfers/`,
+  // Per-day scoring state for the current gameweek, plus whether FPL is
+  // mid-recalculation of league tables ("Updating" vs "Updated").
+  eventStatus: "https://fantasy.premierleague.com/api/event-status/",
 };

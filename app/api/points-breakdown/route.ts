@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { calculateRealTimePointsBreakdown } from "@/services/real-time-points-calculator";
+import { getTeamGameweekBreakdown } from "@/services/fpl-live";
 import { getPlayerName } from "@/services/get-player-name";
 
 export async function GET(request: Request) {
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Missing teamId or gw parameter" }, { status: 400 });
     }
 
-    const breakdownResult = await calculateRealTimePointsBreakdown(teamId, gw);
+    const breakdownResult = await getTeamGameweekBreakdown(teamId, gw);
 
     const withNames = await Promise.all(
       breakdownResult.breakdown.map(async (p) => ({
