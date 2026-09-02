@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Sora } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react"
@@ -18,14 +18,21 @@ export const metadata: Metadata = {
   title: "FPL Companion for the Qitawrari League",
   description: "Fantasy Premier League mini-league statistics and insights",
   icons: {
-    icon: "/images/fav.png",
-    shortcut: "/images/fav.png",
-    apple: "/images/fav.png",
+    icon: "/Images/fav.png",
+    shortcut: "/Images/fav.png",
+    apple: "/Images/fav.png",
     other: {
       rel: "icon",
-      url: "/images/fav.png",
+      url: "/Images/fav.png",
     },
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#131928",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

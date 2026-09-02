@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createRequestCache, getH2HRanks } from "@/services/fpl-data-cache";
 import { getTeamGameweekBreakdown } from "@/services/fpl-live";
 import { getPlayerName } from "@/services/get-player-name";
-import { AutoHideBottomNav } from "@/components/layout/auto-hide-bottom-nav";
+import { BottomNav } from "@/components/layout/bottom-nav";
 import { BackButton } from "@/components/layout/back-button";
 import { GameweekNav } from "@/components/layout/gameweek-nav";
 import { TeamBreakdownClient } from "@/components/team/team-breakdown-client";
@@ -259,8 +259,8 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
         )}
       </div>
 
-      {/* Auto-hide bottom navigation */}
-      <AutoHideBottomNav />
+      {/* Bottom navigation */}
+      <BottomNav />
     </>
   );
 }

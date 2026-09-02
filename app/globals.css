@@ -66,15 +66,6 @@
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
 @keyframes spin-slow {
   from {
     transform: rotate(0deg);
@@ -86,6 +77,71 @@
 
 .animate-spin-slow {
   animation: spin-slow 3s linear infinite;
+}
+
+/* Hero orbs and fade-in (components/ui/shape-landing-hero.tsx).
+   Elements sit visible/static by default; the animated states only kick in
+   when the visitor has not asked for reduced motion. */
+.hero-fade-up {
+  opacity: 1;
+  transform: none;
+}
+
+.hero-fade-up-0 {
+  animation-delay: 0.3s;
+}
+
+.hero-fade-up-1 {
+  animation-delay: 0.45s;
+}
+
+.hero-fade-up-2 {
+  animation-delay: 0.6s;
+}
+
+.hero-fade-up-3 {
+  animation-delay: 0.75s;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-fade-up {
+    opacity: 0;
+    transform: translateY(30px);
+    animation: hero-fade-up 0.8s cubic-bezier(0.25, 0.4, 0.25, 1) forwards;
+  }
+
+  .hero-orb-1 {
+    animation: hero-orb-1 20s ease-in-out infinite;
+  }
+
+  .hero-orb-2 {
+    animation: hero-orb-2 18s ease-in-out infinite;
+  }
+}
+
+@keyframes hero-fade-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-orb-1 {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(100px, -50px);
+  }
+}
+
+@keyframes hero-orb-2 {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-80px, 60px);
+  }
 }
 
 @layer base {
