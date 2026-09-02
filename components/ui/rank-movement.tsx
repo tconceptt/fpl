@@ -19,13 +19,17 @@ export function RankMovement({ currentRank, lastRank, className, showDiff = true
     return null;
   }
   
-  // Compact mode: small chevron arrows
+  // Compact mode: small chevron, with the size of the move alongside it
+  // (e.g. ▲2) unless the caller opts out with showDiff={false}.
   if (compact) {
     const isUp = currentRank < lastRank;
-    return isUp ? (
-      <ChevronUp className={cn("h-3 w-3 text-green-400", className)} />
-    ) : (
-      <ChevronDown className={cn("h-3 w-3 text-red-400", className)} />
+    const color = isUp ? "text-green-400" : "text-red-400";
+    const Icon = isUp ? ChevronUp : ChevronDown;
+    return (
+      <span className={cn("inline-flex items-center gap-0.5", className)}>
+        <Icon className={cn("h-3 w-3", color)} />
+        {showDiff && <span className={cn("text-xs font-semibold leading-none", color)}>{movement.diff}</span>}
+      </span>
     );
   }
   
@@ -35,4 +39,4 @@ export function RankMovement({ currentRank, lastRank, className, showDiff = true
       <MovementIcon className={cn("h-4 w-4", movement.color)} />
     </div>
   );
-} 
+}

@@ -148,4 +148,14 @@ describe("getLeagueSnapshot", () => {
     expect(bboostManager.history).toEqual(bboostHistory.current);
     expect(bboostManager.chips).toEqual(bboostHistory.chips);
   });
+
+  it("reads gw 1 as no movement — last_rank mirrors rank for every manager", async () => {
+    // There is no gameweek 0, so last_rank must not fall back to the
+    // placeholder 0 (which would read as every manager having fallen from
+    // rank 0 to their real rank).
+    const snapshot = await getLeagueSnapshot(1);
+    for (const manager of snapshot.managers) {
+      expect(manager.last_rank).toBe(manager.rank);
+    }
+  });
 });

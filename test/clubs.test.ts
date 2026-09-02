@@ -31,12 +31,16 @@ describe("kitSources", () => {
     );
   });
 
-  it("uses the goalkeeper shirt variant for a club with no local kit", () => {
+  it("skips straight to the official shirt for a club with no local kit file", () => {
     expect(hull).toBeDefined();
     const sources = kitSources(hull, true);
-    expect(sources).toContain(
+    // Hull has no public/Images/kits/HUL-*.png, so the local candidate must
+    // not appear at all (it would 404 through the image optimizer) — the
+    // official goalkeeper shirt is first.
+    expect(sources[0]).toBe(
       "https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_88_1-66.png"
     );
+    expect(sources.some((s) => s.includes("/Images/kits/HUL-"))).toBe(false);
   });
 
   it("falls back to only the placeholder when no club is known", () => {

@@ -282,7 +282,19 @@ async function computeLeagueSnapshot(gw: number | undefined, includePicks: boole
     });
   }
 
-  // Previous ranks, from each manager's total_points at gw - 1.
+  // Final ranks, before last_rank so its fallback below can use the real
+  // current rank rather than the placeholder 0 every manager was pushed
+  // with.
+  managers.sort((a, b) => b.total_points - a.total_points);
+  managers.forEach((m, i) => {
+    m.rank = i + 1;
+  });
+
+  // Previous ranks, from each manager's total_points at gw - 1. At gw 1
+  // there is no previous gameweek, and a manager can be missing gw - 1
+  // history entirely — both cases mean "no movement", so last_rank mirrors
+  // the current rank rather than reading as a false full-field fall
+  // against the placeholder 0.
   if (selectedGameweek > 1) {
     const previousStandings = teamIds
       .map((teamId) => {
@@ -299,12 +311,11 @@ async function computeLeagueSnapshot(gw: number | undefined, includePicks: boole
     managers.forEach((m) => {
       m.last_rank = previousRanks.get(m.entry) ?? m.rank;
     });
+  } else {
+    managers.forEach((m) => {
+      m.last_rank = m.rank;
+    });
   }
-
-  managers.sort((a, b) => b.total_points - a.total_points);
-  managers.forEach((m, i) => {
-    m.rank = i + 1;
-  });
 
   return {
     leagueName: standings.league.name,
