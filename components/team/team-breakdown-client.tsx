@@ -17,7 +17,8 @@ type Player = {
   rawTotal: number;
   rawMetrics: Record<string, number>;
   elementType?: number;
-  clubName?: string;
+  clubShortName?: string;
+  clubCode?: number;
   teamId?: number;
   actualMinutes?: number;
 };

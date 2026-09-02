@@ -22,6 +22,7 @@ export interface BootstrapTeam {
     id: number;
     short_name: string;
     name: string;
+    code: number;
 }
 
 export interface BootstrapEvent {
@@ -29,12 +30,22 @@ export interface BootstrapEvent {
     is_current: boolean;
     is_next: boolean;
     finished: boolean;
+    data_checked?: boolean;
+    deadline_time?: string;
+}
+
+export interface BootstrapChip {
+    name: string;
+    start_event: number;
+    stop_event: number;
 }
 
 export interface BootstrapData {
     elements: BootstrapPlayer[];
     teams: BootstrapTeam[];
     events: BootstrapEvent[];
+    chips?: BootstrapChip[];
+    game_settings?: { cup_start_event_id: number | null };
 }
 
 export interface Fixture {

@@ -3,6 +3,7 @@ import { Inter, Sora } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react"
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { leagueConfig } from "@/config/league";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -15,7 +16,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "FPL Companion for the Qitawrari League",
+  title: leagueConfig.appTitle,
   description: "Fantasy Premier League mini-league statistics and insights",
   icons: {
     icon: "/Images/fav.png",

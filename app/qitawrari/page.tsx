@@ -3,17 +3,47 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Crown, Timer } from "lucide-react"
 
 import { ImageSlideshow } from "./image-slideshow"
+import { leagueConfig } from "@/config/league"
+import { createRequestCache } from "@/services/fpl-data-cache"
 
-function calculateDaysToEvent(targetDate: string) {
+const HALL_OF_QITAWRARI_ICONS = ["🏆", "👑", "❓"]
+const HALL_OF_QITAWRARI_STYLES = [
+  "bg-gradient-to-r from-amber-500/20 to-orange-500/20",
+  "bg-white/5",
+  "bg-white/5",
+]
+const HALL_OF_QITAWRARI_VALUE_STYLES = ["text-amber-500", "text-orange-500", "text-white/40"]
+
+function daysUntil(targetDate: Date): number {
   const today = new Date()
-  const eventDate = new Date(targetDate)
-  const diffTime = Math.abs(eventDate.getTime() - today.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  return diffDays
+  const diffTime = targetDate.getTime() - today.getTime()
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 }
 
-export default function QitawrariPage() {
-  const daysToFPLCup = calculateDaysToEvent("2025-05-10")
+async function getCupCountdown(): Promise<{ days: number | null; underway: boolean; announced: boolean }> {
+  const cache = createRequestCache()
+  const bootstrap = await cache.getBootstrapData()
+
+  const cupEventId = bootstrap.game_settings?.cup_start_event_id
+  if (!cupEventId) {
+    return { days: null, underway: false, announced: false }
+  }
+
+  const cupEvent = bootstrap.events.find((e) => e.id === cupEventId)
+  if (!cupEvent?.deadline_time) {
+    return { days: null, underway: false, announced: false }
+  }
+
+  const days = daysUntil(new Date(cupEvent.deadline_time))
+  if (days < 0) {
+    return { days: null, underway: true, announced: true }
+  }
+
+  return { days, underway: false, announced: true }
+}
+
+export default async function QitawrariPage() {
+  const cupCountdown = await getCupCountdown()
 
   return (
     <DashboardLayout>
@@ -41,13 +71,13 @@ export default function QitawrariPage() {
                   </div>
                   <div className="space-y-2">
                     <div className="text-2xl font-bold bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
-                      Eyosyas Kebede
+                      {leagueConfig.qitawrariHub.name}
                     </div>
                     <div className="text-lg text-white/60">
-                      The one who defied all odds... by finishing last
+                      {leagueConfig.qitawrariHub.tagline}
                     </div>
                     <div className="text-sm text-white/40 italic">
-                      &ldquo;With great power comes great responsibility to do better next season&rdquo;
+                      &ldquo;{leagueConfig.qitawrariHub.quote}&rdquo;
                     </div>
                   </div>
                 </div>
@@ -66,15 +96,36 @@ export default function QitawrariPage() {
                     ⚔️
                   </div>
                   <div className="space-y-2">
-                    <div className="text-3xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
-                      {daysToFPLCup} Days
-                    </div>
-                    <div className="text-lg text-white/60">
-                      Until the FPL Cup begins!
-                    </div>
-                    <div className="text-sm text-white/40">
-                      Starting May 10, 2025 - May the odds be ever in your favor
-                    </div>
+                    {cupCountdown.announced ? (
+                      cupCountdown.underway ? (
+                        <>
+                          <div className="text-3xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
+                            Cup underway
+                          </div>
+                          <div className="text-lg text-white/60">
+                            The FPL Cup has begun!
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-3xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
+                            {cupCountdown.days} Days
+                          </div>
+                          <div className="text-lg text-white/60">
+                            Until the FPL Cup begins!
+                          </div>
+                        </>
+                      )
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
+                          Cup dates not announced yet
+                        </div>
+                        <div className="text-lg text-white/60">
+                          Check back once FPL schedules the cup.
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -88,30 +139,21 @@ export default function QitawrariPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center gap-4 p-4 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20">
-                  <div className="text-2xl">🏆</div>
-                  <div>
-                    <div className="font-medium">Season 2022/23</div>
-                    <div className="text-white/60">The Original Qitawrari</div>
+                {leagueConfig.records.map((record, index) => (
+                  <div
+                    key={record.season}
+                    className={`flex items-center gap-4 p-4 rounded-lg ${HALL_OF_QITAWRARI_STYLES[index] ?? "bg-white/5"}`}
+                  >
+                    <div className="text-2xl">{HALL_OF_QITAWRARI_ICONS[index] ?? "❓"}</div>
+                    <div>
+                      <div className="font-medium">Season {record.season}</div>
+                      <div className="text-white/60">{record.note}</div>
+                    </div>
+                    <div className={`ml-auto font-bold ${HALL_OF_QITAWRARI_VALUE_STYLES[index] ?? "text-white/40"}`}>
+                      {record.qitawrari}
+                    </div>
                   </div>
-                  <div className="ml-auto font-bold text-amber-500"> T</div>
-                </div>
-                <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5">
-                  <div className="text-2xl">👑</div>
-                  <div>
-                    <div className="font-medium">Season 2023/24</div>
-                    <div className="text-white/60">The Current Holder</div>
-                  </div>
-                  <div className="ml-auto font-bold text-orange-500">Eyosyas Kebede</div>
-                </div>
-                <div className="flex items-center gap-4 p-4 rounded-lg bg-white/5">
-                  <div className="text-2xl">❓</div>
-                  <div>
-                    <div className="font-medium">Season 2024/25</div>
-                    <div className="text-white/60">The Next Legend</div>
-                  </div>
-                  <div className="ml-auto font-bold text-white/40">To be determined...</div>
-                </div>
+                ))}
               </div>
             </CardContent>
             <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
@@ -120,4 +162,4 @@ export default function QitawrariPage() {
       </div>
     </DashboardLayout>
   )
-} 
+}

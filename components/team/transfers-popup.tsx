@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowRightLeft, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import Image from "next/image";
-import { buildKitFilenames, normalizeTeamBasename } from "@/lib/kits-map";
-import { TEAM_IDS } from "@/lib/team-ids";
+import { kitSources } from "@/lib/clubs";
 
 interface PlayerKitInfo {
     id: number;
     name: string;
     team: number;
+    teamShortName?: string;
+    teamCode?: number;
     elementType: number;
 }
 
@@ -28,15 +29,14 @@ interface TransfersPopupProps {
     gameweek: string;
 }
 
-function kitCandidatePaths(p: { elementType: number; team: number }): string[] {
-    const base = "/Images/kits";
-    const found = TEAM_IDS.find((t) => t.id === p.team);
-    const basename = found?.kitBasename || normalizeTeamBasename(String(p.team));
-    const files = buildKitFilenames(basename, p.elementType === 1);
-    return files.map((f) => `${base}/${f}`);
+function kitCandidatePaths(p: { elementType: number; team: number; teamShortName?: string; teamCode?: number }): string[] {
+    const club = p.teamShortName && p.teamCode
+        ? { id: p.team, name: "", shortName: p.teamShortName, code: p.teamCode }
+        : undefined;
+    return kitSources(club, p.elementType === 1);
 }
 
-function KitImage({ player, className }: { player: { elementType: number; team: number }; className?: string }) {
+function KitImage({ player, className }: { player: { elementType: number; team: number; teamShortName?: string; teamCode?: number }; className?: string }) {
     const paths = kitCandidatePaths(player);
     const [idx, setIdx] = useState(0);
     const src = paths[Math.min(idx, paths.length - 1)];
@@ -59,13 +59,7 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
     const [totalIn, setTotalIn] = useState(0);
     const [totalOut, setTotalOut] = useState(0);
 
-    useEffect(() => {
-        if (isOpen) {
-            fetchTransfers();
-        }
-    }, [isOpen, teamId, gameweek]);
-
-    const fetchTransfers = async () => {
+    const fetchTransfers = useCallback(async () => {
         setLoading(true);
         try {
             const response = await fetch(`/api/transfers?teamId=${teamId}&gw=${gameweek}`);
@@ -80,7 +74,13 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
         } finally {
             setLoading(false);
         }
-    };
+    }, [teamId, gameweek]);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchTransfers();
+        }
+    }, [isOpen, fetchTransfers]);
 
     if (!isOpen) return null;
 

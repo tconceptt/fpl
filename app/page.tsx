@@ -8,12 +8,20 @@ export const revalidate = 0;
 
 export default async function LeaguePage() {
   const gameweekParam = await getUrlParam("gameweek");
-  const requestedGameweek = gameweekParam ? parseInt(gameweekParam) : undefined;
+  const parsedGameweek = gameweekParam ? parseInt(gameweekParam, 10) : undefined;
+  const requestedGameweek = Number.isNaN(parsedGameweek) ? undefined : parsedGameweek;
+
+  // getLeagueData throws on failure — app/error.tsx renders the real error
+  // rather than a silent, misleading empty league. The gameweek check below
+  // only runs once that fetch has actually succeeded.
   const data = await getLeagueData(requestedGameweek);
 
   if (
-    requestedGameweek &&
-    (requestedGameweek < 1 || requestedGameweek > data.currentGameweek)
+    gameweekParam !== null &&
+    (parsedGameweek === undefined ||
+      Number.isNaN(parsedGameweek) ||
+      parsedGameweek < 1 ||
+      parsedGameweek > data.currentGameweek)
   ) {
     notFound();
   }

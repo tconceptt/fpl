@@ -19,9 +19,24 @@ interface PlayerInfo {
     element_type: number;
 }
 
+interface TeamInfo {
+    id: number;
+    short_name: string;
+    code: number;
+}
+
+interface TransferPlayer {
+    id: number;
+    name: string;
+    team: number;
+    teamShortName: string;
+    teamCode: number;
+    elementType: number;
+}
+
 interface TransferDetails {
-    playerIn: { id: number; name: string; team: number; elementType: number } | null;
-    playerOut: { id: number; name: string; team: number; elementType: number } | null;
+    playerIn: TransferPlayer | null;
+    playerOut: TransferPlayer | null;
     playerInPoints: number;
     playerOutPoints: number;
     event: number;
@@ -65,9 +80,11 @@ export async function GET(request: NextRequest) {
             (t) => t.event === Number(gameweek)
         );
 
-        // Create player maps
+        // Create player and team maps
         const players: PlayerInfo[] = bootstrapData.elements;
         const playersMap = new Map(players.map((p) => [p.id, p]));
+        const teams: TeamInfo[] = bootstrapData.teams;
+        const teamsMap = new Map(teams.map((t) => [t.id, t]));
 
         // Create live points map
         const liveElements = new Map<number, number>(
@@ -81,17 +98,23 @@ export async function GET(request: NextRequest) {
         const transfers: TransferDetails[] = gwTransfers.map((t) => {
             const playerIn = playersMap.get(t.element_in);
             const playerOut = playersMap.get(t.element_out);
+            const teamIn = playerIn ? teamsMap.get(playerIn.team) : undefined;
+            const teamOut = playerOut ? teamsMap.get(playerOut.team) : undefined;
             return {
                 playerIn: playerIn ? {
                     id: playerIn.id,
                     name: playerIn.web_name,
                     team: playerIn.team,
+                    teamShortName: teamIn?.short_name ?? "",
+                    teamCode: teamIn?.code ?? 0,
                     elementType: playerIn.element_type
                 } : null,
                 playerOut: playerOut ? {
                     id: playerOut.id,
                     name: playerOut.web_name,
                     team: playerOut.team,
+                    teamShortName: teamOut?.short_name ?? "",
+                    teamCode: teamOut?.code ?? 0,
                     elementType: playerOut.element_type
                 } : null,
                 playerInPoints: liveElements.get(t.element_in) || 0,

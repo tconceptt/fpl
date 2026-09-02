@@ -5,8 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { buildKitFilenames, normalizeTeamBasename } from "@/lib/kits-map";
-import { TEAM_IDS } from "@/lib/team-ids";
+import { kitSources } from "@/lib/clubs";
 import { ChevronUp, ChevronDown } from "lucide-react";
 
 type Player = {
@@ -21,7 +20,8 @@ type Player = {
   rawTotal: number;
   rawMetrics: Record<string, number>;
   elementType?: number;
-  clubName?: string;
+  clubShortName?: string;
+  clubCode?: number;
   teamId?: number;
   actualMinutes?: number;
   autoSubIn?: boolean;
@@ -30,20 +30,14 @@ type Player = {
   fixtureStarted?: boolean;
 };
 
-function kitCandidatePaths(p: Pick<Player, "elementType" | "clubName" | "id" | "teamId">): string[] {
-  const base = "/Images/kits";
-  let basename = "";
-  if (typeof p.teamId === "number") {
-    const found = TEAM_IDS.find((t) => t.id === p.teamId);
-    basename = found?.kitBasename || normalizeTeamBasename(String(p.teamId));
-  } else {
-    basename = normalizeTeamBasename(p.clubName || "");
-  }
-  const files = buildKitFilenames(basename, (p.elementType || 0) === 1);
-  return files.map((f) => `${base}/${f}`);
+function kitCandidatePaths(p: Pick<Player, "elementType" | "clubShortName" | "clubCode" | "id" | "teamId">): string[] {
+  const club = p.clubShortName && p.clubCode
+    ? { id: p.teamId ?? 0, name: "", shortName: p.clubShortName, code: p.clubCode }
+    : undefined;
+  return kitSources(club, (p.elementType || 0) === 1);
 }
 
-function KitImage({ player, className }: { player: Pick<Player, "elementType" | "clubName" | "id" | "teamId">; className?: string }) {
+function KitImage({ player, className }: { player: Pick<Player, "elementType" | "clubShortName" | "clubCode" | "id" | "teamId">; className?: string }) {
   const paths = kitCandidatePaths(player);
   const [idx, setIdx] = useState(0);
   const src = paths[Math.min(idx, paths.length - 1)];

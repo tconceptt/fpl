@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatPoints } from "@/lib/fpl";
+import { chipLabel } from "@/lib/chips";
 import { cn } from "@/lib/utils";
 import { Trophy, Star, ArrowDownUp } from "lucide-react";
 import { GameweekStanding } from "@/types/league";
@@ -28,13 +29,13 @@ function getChipInfo(chipName: string | null | undefined) {
 
   switch (chipName) {
     case "wildcard":
-      return { abbr: "WC", color: "bg-green-500/20 text-green-400 border-green-500/30", label: "Wildcard" };
+      return { abbr: "WC", color: "bg-green-500/20 text-green-400 border-green-500/30", label: chipLabel(chipName) };
     case "3xc":
-      return { abbr: "TC", color: "bg-purple-500/20 text-purple-400 border-purple-500/30", label: "Triple Captain" };
+      return { abbr: "TC", color: "bg-purple-500/20 text-purple-400 border-purple-500/30", label: chipLabel(chipName) };
     case "bboost":
-      return { abbr: "BB", color: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Bench Boost" };
+      return { abbr: "BB", color: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: chipLabel(chipName) };
     case "freehit":
-      return { abbr: "FH", color: "bg-amber-500/20 text-amber-400 border-amber-500/30", label: "Free Hit" };
+      return { abbr: "FH", color: "bg-amber-500/20 text-amber-400 border-amber-500/30", label: chipLabel(chipName) };
     default:
       return null;
   }

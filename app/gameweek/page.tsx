@@ -7,6 +7,7 @@ import { getUrlParam } from "@/lib/helpers";
 import { fplApiRoutes } from "@/lib/routes";
 import { getPlayerName } from "@/services/get-player-name";
 import { getTeamGameweekPoints } from "@/services/fpl-live";
+import { chipLabel } from "@/lib/chips";
 import { ArrowDown, ArrowUp, Flame, Star, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ReactNode } from "react";
@@ -410,22 +411,22 @@ async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats
 
     const chipsSummary = [
       {
-        type: "Wildcard",
+        type: chipLabel("wildcard"),
         count: chipCounts.wildcard,
         users: chipUsers.wildcard.join(", "),
       },
       {
-        type: "Triple Captain",
+        type: chipLabel("3xc"),
         count: chipCounts["3xc"],
         users: chipUsers["3xc"].join(", "),
       },
       {
-        type: "Bench Boost",
+        type: chipLabel("bboost"),
         count: chipCounts.bboost,
         users: chipUsers.bboost.join(", "),
       },
       {
-        type: "Free Hit",
+        type: chipLabel("freehit"),
         count: chipCounts.freehit,
         users: chipUsers.freehit.join(", "),
       },
@@ -481,10 +482,11 @@ export default async function GameweekPage() {
   const currentGameweek = await getCurrentGameweek();
 
   // Then, determine the selected gameweek
-  const requestedGameweek = gameweek ? parseInt(gameweek as string) : currentGameweek;
-  
+  const parsedGameweek = gameweek ? parseInt(gameweek as string, 10) : currentGameweek;
+  const requestedGameweek = Number.isNaN(parsedGameweek) ? currentGameweek : parsedGameweek;
+
   // Validate the requested gameweek
-  if (requestedGameweek < 1 || requestedGameweek > currentGameweek) {
+  if (Number.isNaN(parsedGameweek) || requestedGameweek < 1 || requestedGameweek > currentGameweek) {
     notFound();
   }
 

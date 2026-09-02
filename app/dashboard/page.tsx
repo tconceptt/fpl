@@ -6,6 +6,7 @@ import Link from "next/link"
 import { getStatsData } from "@/app/stats/getStatData"
 import { getLeagueData } from "@/services/league-service"
 import { GameweekStanding } from "@/types/league"
+import { leagueConfig } from "@/config/league"
 
 export const dynamic = 'force-dynamic';
 
@@ -198,7 +199,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent className="pt-4 sm:pt-6">
               <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 sm:p-6">
-                <p className="text-3xl sm:text-4xl font-bold text-green-300 mb-2">T</p>
+                <p className="text-3xl sm:text-4xl font-bold text-green-300 mb-2">{leagueConfig.reigning.champion}</p>
                 <p className="text-xs sm:text-sm text-white/60">Last Season Winner</p>
               </div>
             </CardContent>
@@ -213,9 +214,9 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent className="pt-4 sm:pt-6">
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 sm:p-6">
-                <p className="text-3xl sm:text-4xl font-bold text-red-300 mb-2">ቤቢ ነው</p>
+                <p className="text-3xl sm:text-4xl font-bold text-red-300 mb-2">{leagueConfig.reigning.qitawrari}</p>
                 <p className="text-xs sm:text-sm text-white/60 italic">
-                  Yes, he did actually finish below Eyosyas 🤯
+                  {leagueConfig.reigning.qitawrariNote}
                 </p>
               </div>
             </CardContent>

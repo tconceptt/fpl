@@ -6,6 +6,7 @@ import { Wand2 } from "lucide-react";
 import { getStatsData } from "../getStatData";
 import { getUrlParam } from "@/lib/helpers";
 import Link from "next/link";
+import type { ChipStatusResult } from "@/lib/chips";
 
 interface ChipInfo {
   name: string;
@@ -18,6 +19,28 @@ interface ChipStats {
   managerName: string;
   totalChipsUsed: number;
   chips: ChipInfo[];
+  chipStatuses?: ChipStatusResult[];
+}
+
+const CHIP_ABBR: Record<string, string> = {
+  wildcard: "WC",
+  freehit: "FH",
+  bboost: "BB",
+  "3xc": "TC",
+};
+
+/** "WC, FH left" for the chips still available in the current half. */
+function remainingChipsLine(chipStatuses: ChipStatusResult[] | undefined, currentGameweek: number): string {
+  if (!chipStatuses) return "";
+  const currentHalfAvailable = chipStatuses.filter(
+    (s) =>
+      s.status === "available" &&
+      s.window.startEvent <= currentGameweek &&
+      currentGameweek <= s.window.stopEvent
+  );
+  if (currentHalfAvailable.length === 0) return "None left this half";
+  const abbrs = currentHalfAvailable.map((s) => CHIP_ABBR[s.window.name] ?? s.window.name);
+  return `${abbrs.join(", ")} left (${currentHalfAvailable.length})`;
 }
 
 export default async function ChipsUsagePage() {
@@ -100,6 +123,9 @@ export default async function ChipsUsagePage() {
                         </span>
                       ))}
                     </div>
+                    <div className="text-purple-300/80 text-[8.5px] mt-1">
+                      {remainingChipsLine(team.chipStatuses, data.currentGameweek)}
+                    </div>
                   </div>
                   <div className="w-12 text-right font-bold text-[11.5px] text-white">
                     {team.totalChipsUsed}
@@ -142,6 +168,9 @@ export default async function ChipsUsagePage() {
                             <span className="ml-1 text-white/60">(GW{chip.gameweek})</span>
                           </span>
                         ))}
+                      </div>
+                      <div className="text-right text-purple-300/80 text-xs mt-1">
+                        {remainingChipsLine(team.chipStatuses, data.currentGameweek)}
                       </div>
                     </TableCell>
                   </TableRow>

@@ -246,48 +246,39 @@ export async function getLeagueDataOptimized(selectedGameweek?: number): Promise
             throw new Error('FPL_LEAGUE_ID environment variable is not set.');
         }
 
-        try {
-            // Fetch league standings and current gameweek in parallel
-            const [leagueStandings, currentGameweek] = await Promise.all([
-                cache.getLeagueStandings(leagueId),
-                cache.getCurrentGameweek()
-            ]);
+        // Let failures propagate — callers render the real error (app/error.tsx)
+        // instead of a silent, misleading GW1/empty league.
+        const [leagueStandings, currentGameweek] = await Promise.all([
+            cache.getLeagueStandings(leagueId),
+            cache.getCurrentGameweek()
+        ]);
 
-            const gameweek = selectedGameweek || currentGameweek;
-            const teamIds = leagueStandings.standings.results.map(t => t.entry);
+        const gameweek = selectedGameweek || currentGameweek;
+        const teamIds = leagueStandings.standings.results.map(t => t.entry);
 
-            const h2hRanks = await getH2HRanks(cache);
+        const h2hRanks = await getH2HRanks(cache);
 
-            // Get historical standings
-            const historicalStandings = await getHistoricalStandingsOptimized(
-                cache,
-                teamIds,
-                gameweek,
-                leagueStandings.standings.results as LeagueStanding[],
-                gameweek === currentGameweek
-            );
+        // Get historical standings
+        const historicalStandings = await getHistoricalStandingsOptimized(
+            cache,
+            teamIds,
+            gameweek,
+            leagueStandings.standings.results as LeagueStanding[],
+            gameweek === currentGameweek
+        );
 
-            // Add H2H ranks
-            const standingsWithH2H = historicalStandings.map(s => ({
-                ...s,
-                h2h_rank: h2hRanks.get(s.entry),
-            }));
+        // Add H2H ranks
+        const standingsWithH2H = historicalStandings.map(s => ({
+            ...s,
+            h2h_rank: h2hRanks.get(s.entry),
+        }));
 
-            return {
-                leagueName: leagueStandings.league.name,
-                currentGameweek,
-                selectedGameweek: gameweek,
-                standings: standingsWithH2H
-            };
-        } catch (error) {
-            console.error("Error fetching league data:", error);
-            return {
-                leagueName: "FPL League",
-                currentGameweek: 1,
-                selectedGameweek: 1,
-                standings: []
-            };
-        }
+        return {
+            leagueName: leagueStandings.league.name,
+            currentGameweek,
+            selectedGameweek: gameweek,
+            standings: standingsWithH2H
+        };
     }, 'getLeagueDataOptimized');
 }
 

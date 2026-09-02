@@ -54,7 +54,8 @@ export interface PlayerBreakdown {
     /** Per-stat points before the pick multiplier. */
     rawMetrics: Record<string, number>;
     elementType: number;
-    clubName: string;
+    clubShortName: string;
+    clubCode: number;
     teamId: number;
     actualMinutes: number;
     autoSubIn?: boolean;
@@ -153,6 +154,7 @@ export function buildTeamBreakdown(
 
         const element = playersMap.get(pick.element);
         const elementTeamId = element?.team ?? -1;
+        const club = teamsMap.get(elementTeamId);
 
         const item: PlayerBreakdown = {
             id: pick.element,
@@ -165,8 +167,8 @@ export function buildTeamBreakdown(
             rawTotal,
             rawMetrics,
             elementType: element?.element_type ?? 0,
-            // Temporary label; the UI normalises to a kit by teamId.
-            clubName: String(elementTeamId),
+            clubShortName: club?.short_name ?? "",
+            clubCode: club?.code ?? 0,
             teamId: elementTeamId,
             actualMinutes: liveMinutes.get(pick.element) ?? 0,
             autoSubIn: subs.in.has(pick.element) || undefined,
