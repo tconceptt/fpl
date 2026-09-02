@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as client from '@/lib/fpl/client';
-import { cached } from '@/lib/fpl/cache';
-import { ttlFor } from '@/lib/fpl/ttl';
+import { cachedKind } from '@/lib/fpl/cache';
 
 interface TransferPlayer {
     id: number;
@@ -34,9 +33,9 @@ export async function GET(request: NextRequest) {
 
     try {
         const [transfersData, bootstrapData, liveData] = await Promise.all([
-            cached(`transfers:${entry}`, ttlFor("transfers", "quiet"), () => client.entryTransfers(entry)),
-            cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
-            cached(`live:${gwNumber}`, ttlFor("live", "quiet"), () => client.live(gwNumber)),
+            cachedKind("transfers", `transfers:${entry}`, () => client.entryTransfers(entry)),
+            cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
+            cachedKind("live", `live:${gwNumber}`, () => client.live(gwNumber)),
         ]);
 
         // Filter transfers for this gameweek

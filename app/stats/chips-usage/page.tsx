@@ -9,6 +9,7 @@ import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 import { chipDisplayOrder, type ChipStatusResult } from "@/lib/chips";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 interface ChipInfo {

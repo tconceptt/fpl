@@ -1,6 +1,5 @@
 import { chipLabel, chipStatus, chipWindowsFromBootstrap, type ChipStatusResult, type ChipWindow } from "@/lib/chips";
-import { cached } from "@/lib/fpl/cache";
-import { ttlFor } from "@/lib/fpl/ttl";
+import { cachedKind } from "@/lib/fpl/cache";
 import * as client from "@/lib/fpl/client";
 import { getLeagueSnapshot } from "@/services/league";
 import { cache } from 'react';
@@ -209,8 +208,8 @@ export const getStatsData = cache(async (selectedGameweek?: number) => {
   // Fetching bootstrap here too is cheap: it hits the same request-scoped
   // cache memo as the snapshot's own bootstrap read.
   const [snapshot, bootstrap] = await Promise.all([
-    getLeagueSnapshot(selectedGameweek),
-    cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
+    getLeagueSnapshot(selectedGameweek, { includePicks: false }),
+    cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
   ]);
 
   const currentGameweek = snapshot.currentGameweek;

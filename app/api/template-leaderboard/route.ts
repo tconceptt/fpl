@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import * as client from "@/lib/fpl/client";
-import { cached } from "@/lib/fpl/cache";
-import { ttlFor } from "@/lib/fpl/ttl";
+import { cachedKind } from "@/lib/fpl/cache";
 
 export async function GET(request: Request) {
   try {
@@ -21,8 +20,8 @@ export async function GET(request: Request) {
     }
 
     const [bootstrap, standings] = await Promise.all([
-      cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
-      cached(`standings:${leagueId}`, ttlFor("standings", "quiet"), () =>
+      cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
+      cachedKind("standings", `standings:${leagueId}`, () =>
         client.classicStandings(leagueId)
       ),
     ]);
@@ -36,9 +35,9 @@ export async function GET(request: Request) {
     const data = await Promise.all(
       teams.map(async (team) => {
         try {
-          const teamDetails = await cached(
+          const teamDetails = await cachedKind(
+            "picks",
             `picks:${team.entry}:${gameweek}`,
-            ttlFor("picks", "quiet"),
             () => client.picks(team.entry, gameweek)
           );
           const squad = teamDetails.picks.filter((p) => p.position <= 15).map((p) => p.element);

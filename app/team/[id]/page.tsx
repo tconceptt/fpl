@@ -8,6 +8,7 @@ import { TeamBreakdownClient } from "@/components/team/team-breakdown-client";
 import { TeamComparisonClient } from "@/components/team/team-comparison-client";
 import { TeamStatsClient } from "@/components/team/team-stats-client";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function TeamPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ gw?: string; compare?: string }> }) {

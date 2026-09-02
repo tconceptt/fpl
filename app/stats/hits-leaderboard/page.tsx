@@ -6,6 +6,7 @@ import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 import { HitsLeaderboardClient } from "./hits-leaderboard-client";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function HitsLeaderboardPage() {

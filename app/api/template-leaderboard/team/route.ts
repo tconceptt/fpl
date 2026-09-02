@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import * as client from "@/lib/fpl/client";
-import { cached } from "@/lib/fpl/cache";
-import { ttlFor } from "@/lib/fpl/ttl";
+import { cachedKind } from "@/lib/fpl/cache";
 
 export async function GET(request: Request) {
   try {
@@ -19,8 +18,8 @@ export async function GET(request: Request) {
     }
 
     const [bootstrap, teamDetails] = await Promise.all([
-      cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
-      cached(`picks:${teamId}:${gameweek}`, ttlFor("picks", "quiet"), () =>
+      cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
+      cachedKind("picks", `picks:${teamId}:${gameweek}`, () =>
         client.picks(teamId, gameweek)
       ),
     ]);

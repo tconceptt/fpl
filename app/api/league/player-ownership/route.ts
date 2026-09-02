@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as client from "@/lib/fpl/client";
-import { cached } from "@/lib/fpl/cache";
-import { ttlFor } from "@/lib/fpl/ttl";
+import { cachedKind } from "@/lib/fpl/cache";
 import { buildLivePointsMap, sumPicks } from "@/services/fpl-live";
 
 export async function GET(request: NextRequest) {
@@ -29,10 +28,10 @@ export async function GET(request: NextRequest) {
     try {
         // 1. Fetch league standings and the gameweek's live points once
         const [standings, liveData] = await Promise.all([
-            cached(`standings:${leagueId}`, ttlFor("standings", "quiet"), () =>
+            cachedKind("standings", `standings:${leagueId}`, () =>
                 client.classicStandings(leagueId)
             ),
-            cached(`live:${gwNumber}`, ttlFor("live", "quiet"), () => client.live(gwNumber)),
+            cachedKind("live", `live:${gwNumber}`, () => client.live(gwNumber)),
         ]);
 
         const teams = standings.standings.results;
@@ -42,9 +41,9 @@ export async function GET(request: NextRequest) {
         const teamsStartingPlayer = await Promise.all(
             teams.map(async (team) => {
                 try {
-                    const picksData = await cached(
+                    const picksData = await cachedKind(
+                        "picks",
                         `picks:${team.entry}:${gwNumber}`,
-                        ttlFor("picks", "quiet"),
                         () => client.picks(team.entry, gwNumber)
                     );
                     const picks = picksData.picks;

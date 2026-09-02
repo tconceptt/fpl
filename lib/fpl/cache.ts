@@ -6,13 +6,17 @@
  * dev without Redis and the test suite both work without it. A Redis
  * failure degrades to fetching upstream (logged once), never to a 500, and
  * a rejected `fn()` is never cached.
+ *
+ * TTL selection is centralized here via `cachedKind`/`cachedManyKind` so no
+ * call site picks its own TTL (and no two call sites can write the same key
+ * with two different TTLs depending on who got there first).
  */
 
 import { Redis } from "@upstash/redis";
 import { cache as reactCache } from "react";
 import { countCacheHit, countCacheMiss } from "@/lib/fpl/telemetry";
-import type { EventStatusRow, Fixture, BootstrapEvent } from "@/lib/fpl/types";
-import type { LiveState } from "@/lib/fpl/ttl";
+import type { EventStatusRow } from "@/lib/fpl/types";
+import { ttlFor, type LiveState, type TtlKind, type TransfersTtlOptions } from "@/lib/fpl/ttl";
 import * as client from "@/lib/fpl/client";
 
 const KEY_PREFIX = "fpl:v1:";
@@ -22,11 +26,15 @@ interface Envelope<T> {
   v: T;
 }
 
+let redisSingleton: Redis | null | undefined;
+
 function getRedis(): Redis | null {
+  if (redisSingleton !== undefined) return redisSingleton;
+
   const url = process.env.KV_REST_API_URL;
   const token = process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return null;
-  return new Redis({ url, token });
+  redisSingleton = url && token ? new Redis({ url, token }) : null;
+  return redisSingleton;
 }
 
 let warnedRedisFailure = false;
@@ -34,6 +42,18 @@ function warnRedisFailure(err: unknown): void {
   if (warnedRedisFailure) return;
   warnedRedisFailure = true;
   console.warn("[fpl cache] Redis failed, falling back to fetching upstream directly:", err);
+}
+
+/**
+ * Next throws a special control-flow error (digest `DYNAMIC_SERVER_USAGE`)
+ * when a `no-store` fetch happens during static generation, so the route
+ * gets marked dynamic instead of prerendered. That is not a Redis failure —
+ * rethrow it so Next can act on it, rather than swallowing it as one.
+ */
+function isDynamicServerUsageError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if ((err as { digest?: string }).digest === "DYNAMIC_SERVER_USAGE") return true;
+  return err.message.startsWith("Dynamic server usage");
 }
 
 // --- In-process fallback store (no Redis configured) ---
@@ -74,6 +94,7 @@ async function fetchAndStore<T>(fullKey: string, ttlSeconds: number, fn: () => P
         return cachedValue.v;
       }
     } catch (err) {
+      if (isDynamicServerUsageError(err)) throw err;
       warnRedisFailure(err);
     }
   } else {
@@ -92,6 +113,7 @@ async function fetchAndStore<T>(fullKey: string, ttlSeconds: number, fn: () => P
     try {
       await redis.set(fullKey, { v: fresh } satisfies Envelope<T>, { ex: ttlSeconds });
     } catch (err) {
+      if (isDynamicServerUsageError(err)) throw err;
       warnRedisFailure(err);
     }
   } else {
@@ -140,6 +162,10 @@ export async function cached<T>(key: string, ttlSeconds: number, fn: () => Promi
  * for the batch, then one pipelined write for whatever was missing. This is
  * what picks/history for a 14-manager league use, to stay well inside the
  * Upstash free tier's monthly command budget.
+ *
+ * Shares the same request-scoped memo as `cached`: a key already read this
+ * request (individually, or as part of an earlier batch) is never read from
+ * Redis twice, and concurrent batches with overlapping keys dedupe too.
  */
 export async function cachedMany<T>(
   keys: string[],
@@ -148,63 +174,103 @@ export async function cachedMany<T>(
 ): Promise<Map<string, T>> {
   if (keys.length === 0) return new Map();
 
-  const result = new Map<string, T>();
-  const redis = getRedis();
-  let missingKeys: string[] = [];
+  const memo = getRequestMemo();
+  const toFetch = keys.filter((key) => !memo.has(KEY_PREFIX + key));
 
-  if (redis) {
-    const fullKeys = keys.map((k) => KEY_PREFIX + k);
+  if (toFetch.length > 0) {
+    // Register a placeholder promise for every key in this batch right away,
+    // so a concurrent `cached`/`cachedMany` call for the same key in this
+    // request dedupes against this batch instead of starting its own.
+    let resolveBatch!: () => void;
+    let rejectBatch!: (err: unknown) => void;
+    const batchSettled = new Promise<void>((resolve, reject) => {
+      resolveBatch = resolve;
+      rejectBatch = reject;
+    });
+    const batchResult = new Map<string, T>();
+
+    for (const key of toFetch) {
+      memo.set(
+        KEY_PREFIX + key,
+        batchSettled.then(() => batchResult.get(key) as T)
+      );
+    }
+
     try {
-      const values = await redis.mget<Array<Envelope<T> | null>>(...fullKeys);
-      values.forEach((value, i) => {
-        if (value !== null && value !== undefined) {
-          result.set(keys[i], value.v);
-          countCacheHit();
-        } else {
-          missingKeys.push(keys[i]);
+      const redis = getRedis();
+      let missingKeys: string[] = [];
+
+      if (redis) {
+        const fullKeys = toFetch.map((k) => KEY_PREFIX + k);
+        try {
+          const values = await redis.mget<Array<Envelope<T> | null>>(...fullKeys);
+          values.forEach((value, i) => {
+            if (value !== null && value !== undefined) {
+              batchResult.set(toFetch[i], value.v);
+              countCacheHit();
+            } else {
+              missingKeys.push(toFetch[i]);
+            }
+          });
+        } catch (err) {
+          if (isDynamicServerUsageError(err)) throw err;
+          warnRedisFailure(err);
+          missingKeys = [...toFetch];
         }
-      });
-    } catch (err) {
-      warnRedisFailure(err);
-      missingKeys = [...keys];
-    }
-  } else {
-    for (const key of keys) {
-      const cachedValue = memGet<T>(KEY_PREFIX + key);
-      if (cachedValue !== undefined) {
-        result.set(key, cachedValue.v);
-        countCacheHit();
       } else {
-        missingKeys.push(key);
-      }
-    }
-  }
-
-  if (missingKeys.length > 0) {
-    countCacheMiss(missingKeys.length);
-    const fresh = await fetchMissing(missingKeys);
-
-    for (const [key, value] of fresh) {
-      result.set(key, value);
-    }
-
-    if (redis) {
-      try {
-        const pipeline = redis.pipeline();
-        for (const [key, value] of fresh) {
-          pipeline.set(KEY_PREFIX + key, { v: value } satisfies Envelope<T>, { ex: ttlSeconds });
+        for (const key of toFetch) {
+          const cachedValue = memGet<T>(KEY_PREFIX + key);
+          if (cachedValue !== undefined) {
+            batchResult.set(key, cachedValue.v);
+            countCacheHit();
+          } else {
+            missingKeys.push(key);
+          }
         }
-        await pipeline.exec();
-      } catch (err) {
-        warnRedisFailure(err);
       }
-    } else {
-      for (const [key, value] of fresh) {
-        memSet(KEY_PREFIX + key, { v: value }, ttlSeconds);
+
+      if (missingKeys.length > 0) {
+        countCacheMiss(missingKeys.length);
+        const fresh = await fetchMissing(missingKeys);
+
+        for (const [key, value] of fresh) {
+          batchResult.set(key, value);
+        }
+
+        if (redis) {
+          try {
+            const pipeline = redis.pipeline();
+            for (const [key, value] of fresh) {
+              pipeline.set(KEY_PREFIX + key, { v: value } satisfies Envelope<T>, { ex: ttlSeconds });
+            }
+            await pipeline.exec();
+          } catch (err) {
+            if (isDynamicServerUsageError(err)) throw err;
+            warnRedisFailure(err);
+          }
+        } else {
+          for (const [key, value] of fresh) {
+            memSet(KEY_PREFIX + key, { v: value }, ttlSeconds);
+          }
+        }
       }
+
+      resolveBatch();
+    } catch (err) {
+      // Never cache a rejection, and don't leave dangling memo promises for
+      // keys this batch failed to resolve.
+      for (const key of toFetch) memo.delete(KEY_PREFIX + key);
+      rejectBatch(err);
+      throw err;
     }
   }
 
+  const result = new Map<string, T>();
+  await Promise.all(
+    keys.map(async (key) => {
+      result.set(key, (await memo.get(KEY_PREFIX + key)) as T);
+    })
+  );
   return result;
 }
 
@@ -216,22 +282,101 @@ export async function getEventStatus(): Promise<EventStatusRow[]> {
 }
 
 /**
- * "live" when today's event-status row hasn't finished adding bonus, or any
- * fixture in the current gameweek has kicked off and not finished.
- * "checked" when FPL has finalised the current event's data.
- * "quiet" otherwise.
+ * The event-status-only half of live state: "live" if any row hasn't
+ * finished adding bonus yet, "quiet" otherwise. Bootstrap's own TTL uses
+ * this — not the full 3-state `getLiveState` — because bootstrap's TTL
+ * table gives "quiet" and "checked" the same value (5 minutes), so this
+ * loses no information while avoiding "bootstrap's TTL depends on
+ * bootstrap" circularity.
  */
-export function computeLiveState(
-  eventStatus: EventStatusRow[],
-  currentEvent: Pick<BootstrapEvent, "data_checked"> | undefined,
-  fixtures: Fixture[]
-): LiveState {
-  const today = new Date().toISOString().slice(0, 10);
-  const todaysRow = eventStatus.find((row) => row.date === today);
-  const liveByStatus = todaysRow ? todaysRow.bonus_added === false : false;
-  const liveByFixture = fixtures.some((f) => f.started && !f.finished);
+async function getEventStatusLiveState(): Promise<"live" | "quiet"> {
+  const eventStatus = await getEventStatus();
+  return eventStatus.some((row) => row.bonus_added === false) ? "live" : "quiet";
+}
 
-  if (liveByStatus || liveByFixture) return "live";
-  if (currentEvent?.data_checked) return "checked";
-  return "quiet";
+/**
+ * "live" when any event-status row hasn't finished adding bonus. "checked"
+ * when FPL has finalised the current bootstrap event's data. "quiet"
+ * otherwise. Deliberately fixture-free — fixtures are still read directly
+ * by services/league.ts to decide `useLiveForCurrent`, which is a separate
+ * concern from cache TTLs.
+ *
+ * Memoised per request: every `cachedKind`/`cachedManyKind` call in one
+ * request resolves state once.
+ */
+export const getLiveState = reactCache(async (): Promise<LiveState> => {
+  const [state, bootstrap] = await Promise.all([
+    getEventStatusLiveState(),
+    cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
+  ]);
+  if (state === "live") return "live";
+
+  const currentEvent =
+    bootstrap.events.find((e) => e.is_current) ??
+    bootstrap.events.find((e) => e.is_next) ??
+    [...bootstrap.events].reverse().find((e) => e.finished);
+
+  return currentEvent?.data_checked ? "checked" : "quiet";
+});
+
+async function getNextDeadline(): Promise<Date | null> {
+  const bootstrap = await cachedKind("bootstrap", "bootstrap", () => client.bootstrap());
+  const next = bootstrap.events.find((e) => e.is_next);
+  if (next?.deadline_time) return new Date(next.deadline_time);
+
+  const current = bootstrap.events.find((e) => e.is_current);
+  if (current?.deadline_time && !current.finished) return new Date(current.deadline_time);
+
+  return null;
+}
+
+/**
+ * `cached`, but the TTL is resolved internally from `kind` and the league's
+ * current live state — no call site picks its own TTL, so the same key is
+ * never written with two different TTLs depending on who got there first.
+ */
+export async function cachedKind<T>(
+  kind: TtlKind,
+  key: string,
+  fn: () => Promise<T>,
+  opts: TransfersTtlOptions = {}
+): Promise<T> {
+  const ttl = await resolveTtl(kind, opts);
+  return cached(key, ttl, fn);
+}
+
+/** `cachedMany`, with the TTL resolved the same way as `cachedKind`. */
+export async function cachedManyKind<T>(
+  kind: TtlKind,
+  keys: string[],
+  fetchMissing: (missingKeys: string[]) => Promise<Map<string, T>>
+): Promise<Map<string, T>> {
+  const ttl = await resolveTtl(kind);
+  return cachedMany(keys, ttl, fetchMissing);
+}
+
+async function resolveTtl(kind: TtlKind, opts: TransfersTtlOptions = {}): Promise<number> {
+  if (kind === "eventStatus") {
+    // ttlFor("eventStatus", *) is 60s regardless of state, and resolving
+    // state here would call back into getEventStatus — skip the round trip.
+    return ttlFor("eventStatus", "quiet");
+  }
+
+  if (kind === "bootstrap") {
+    // See getEventStatusLiveState's doc comment for why this avoids the
+    // circular "bootstrap's TTL needs bootstrap" dependency.
+    const state = await getEventStatusLiveState();
+    return ttlFor("bootstrap", state);
+  }
+
+  if (kind === "transfers") {
+    const [state, nextDeadline] = await Promise.all([
+      getLiveState(),
+      opts.nextDeadline !== undefined ? Promise.resolve(opts.nextDeadline) : getNextDeadline(),
+    ]);
+    return ttlFor("transfers", state, { nextDeadline, now: opts.now });
+  }
+
+  const state = await getLiveState();
+  return ttlFor(kind, state);
 }

@@ -10,6 +10,7 @@ import { ArrowDown, ArrowUp, Flame, Star, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ReactNode } from "react";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 interface GameweekStats {

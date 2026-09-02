@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import * as client from "@/lib/fpl/client";
-import { cached } from "@/lib/fpl/cache";
-import { ttlFor } from "@/lib/fpl/ttl";
+import { cachedKind } from "@/lib/fpl/cache";
 
 export async function GET() {
   try {
@@ -10,7 +9,7 @@ export async function GET() {
       return NextResponse.json({ error: "League ID not configured" }, { status: 500 });
     }
 
-    const data = await cached(`standings:${leagueId}`, ttlFor("standings", "quiet"), () =>
+    const data = await cachedKind("standings", `standings:${leagueId}`, () =>
       client.classicStandings(leagueId)
     );
 

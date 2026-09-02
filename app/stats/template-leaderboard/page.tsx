@@ -2,12 +2,12 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 import * as client from "@/lib/fpl/client";
-import { cached } from "@/lib/fpl/cache";
-import { ttlFor } from "@/lib/fpl/ttl";
+import { cachedKind } from "@/lib/fpl/cache";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import { getUrlParam } from "@/lib/helpers";
 import { TemplateLeaderboardClient } from "./template-leaderboard-client";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export interface TemplateTeamStat {
@@ -27,7 +27,7 @@ export default async function TemplateLeaderboardPage() {
       throw new Error("FPL_LEAGUE_ID environment variable is not set.");
     }
 
-    const bootstrap = await cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap());
+    const bootstrap = await cachedKind("bootstrap", "bootstrap", () => client.bootstrap());
     const currentEvent =
       bootstrap.events.find((e) => e.is_current) ??
       bootstrap.events.find((e) => e.is_next) ??
@@ -44,7 +44,7 @@ export default async function TemplateLeaderboardPage() {
       bootstrap.elements.map((el) => [el.id, Number.parseFloat(el.selected_by_percent || "0") || 0])
     );
 
-    const standings = await cached(`standings:${leagueId}`, ttlFor("standings", "quiet"), () =>
+    const standings = await cachedKind("standings", `standings:${leagueId}`, () =>
       client.classicStandings(leagueId)
     );
     const teams = standings.standings.results;
@@ -52,9 +52,9 @@ export default async function TemplateLeaderboardPage() {
     const teamStats: TemplateTeamStat[] = await Promise.all(
       teams.map(async (team) => {
         try {
-          const teamDetails = await cached(
+          const teamDetails = await cachedKind(
+            "picks",
             `picks:${team.entry}:${validSelectedGameweek}`,
-            ttlFor("picks", "quiet"),
             () => client.picks(team.entry, validSelectedGameweek)
           );
           const squad = teamDetails.picks.filter((p) => p.position <= 15);

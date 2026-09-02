@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import * as client from "@/lib/fpl/client";
-import { cached } from "@/lib/fpl/cache";
-import { ttlFor } from "@/lib/fpl/ttl";
+import { cachedKind } from "@/lib/fpl/cache";
 import { buildTeamBreakdown } from "@/services/fpl-live";
 
 export async function GET(request: Request) {
@@ -18,10 +17,10 @@ export async function GET(request: Request) {
     const entry = Number(teamId);
 
     const [bootstrap, live, fixtures, teamDetails] = await Promise.all([
-      cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
-      cached(`live:${gwNumber}`, ttlFor("live", "quiet"), () => client.live(gwNumber)),
-      cached(`fixtures:${gwNumber}`, ttlFor("fixtures", "quiet"), () => client.fixtures(gwNumber)),
-      cached(`picks:${entry}:${gwNumber}`, ttlFor("picks", "quiet"), () => client.picks(entry, gwNumber)),
+      cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
+      cachedKind("live", `live:${gwNumber}`, () => client.live(gwNumber)),
+      cachedKind("fixtures", `fixtures:${gwNumber}`, () => client.fixtures(gwNumber)),
+      cachedKind("picks", `picks:${entry}:${gwNumber}`, () => client.picks(entry, gwNumber)),
     ]);
 
     const playersMap = new Map(bootstrap.elements.map((p) => [p.id, p]));

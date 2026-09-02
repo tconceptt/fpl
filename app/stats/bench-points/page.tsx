@@ -9,6 +9,7 @@ import { getUrlParam } from "@/lib/helpers";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 interface BenchStats {

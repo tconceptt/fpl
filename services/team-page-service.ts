@@ -4,8 +4,7 @@
  */
 
 import * as client from "@/lib/fpl/client";
-import { cached } from "@/lib/fpl/cache";
-import { ttlFor } from "@/lib/fpl/ttl";
+import { cachedKind } from "@/lib/fpl/cache";
 import { buildTeamBreakdown, PlayerBreakdown as LivePlayerBreakdown } from "@/services/fpl-live";
 import type { BootstrapPlayer, BootstrapTeam } from "@/lib/fpl/types";
 
@@ -34,7 +33,7 @@ async function getH2HRanks(): Promise<Map<number, number>> {
 
   let data;
   try {
-    data = await cached(`h2h:${leagueId}`, ttlFor("h2h", "quiet"), () =>
+    data = await cachedKind("h2h", `h2h:${leagueId}`, () =>
       client.h2hStandings(leagueId)
     );
   } catch (error) {
@@ -67,17 +66,12 @@ export async function getTeamPageDataOptimized(
   const leagueId = process.env.FPL_LEAGUE_ID;
   const gw = Number(gameweekId);
 
-  // TTLs here use "quiet" rather than the precise live state — the team page
-  // is a single-team, low-traffic view, so the small amount of extra
-  // staleness during a live match is an acceptable trade for not having to
-  // fetch event-status + fixtures twice (services/league.ts already does the
-  // precise version for the league-wide snapshot).
   const [bootstrap, liveData, fixtures, leagueStandings, h2hRanks] = await Promise.all([
-    cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
-    cached(`live:${gw}`, ttlFor("live", "quiet"), () => client.live(gw)),
-    cached(`fixtures:${gw}`, ttlFor("fixtures", "quiet"), () => client.fixtures(gw)),
+    cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
+    cachedKind("live", `live:${gw}`, () => client.live(gw)),
+    cachedKind("fixtures", `fixtures:${gw}`, () => client.fixtures(gw)),
     leagueId
-      ? cached(`standings:${leagueId}`, ttlFor("standings", "quiet"), () =>
+      ? cachedKind("standings", `standings:${leagueId}`, () =>
           client.classicStandings(leagueId)
         ).catch(() => null)
       : Promise.resolve(null),
@@ -103,10 +97,10 @@ export async function getTeamPageDataOptimized(
 
   const fetchTeamData = async (id: string): Promise<TeamPageData> => {
     const [teamHistory, teamDetails] = await Promise.all([
-      cached(`history:${id}`, ttlFor("history", "quiet"), () => client.history(Number(id))).catch(
+      cachedKind("history", `history:${id}`, () => client.history(Number(id))).catch(
         () => null
       ),
-      cached(`picks:${id}:${gw}`, ttlFor("picks", "quiet"), () => client.picks(Number(id), gw)),
+      cachedKind("picks", `picks:${id}:${gw}`, () => client.picks(Number(id), gw)),
     ]);
 
     const breakdown = buildTeamBreakdown(teamDetails, liveData, fixtures, playersMap, teamsMap);

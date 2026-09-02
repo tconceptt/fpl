@@ -8,14 +8,23 @@
  * history totals otherwise, and ranks/`last_rank` derived from each
  * manager's `total_points` at the selected and previous gameweek.
  *
- * Fetch order: bootstrap + standings + H2H + event-status in parallel, then
- * history and picks for every manager via `cachedMany`, then live +
- * fixtures only when the selected gameweek is the current, unfinished one.
+ * Fetch order: bootstrap + standings + H2H in parallel, then history for
+ * every manager via `cachedManyKind`, then — unless the caller opted out
+ * with `includePicks: false` — fixtures + picks (+ live, when the
+ * gameweek is live) too. Stats pages only ever read a manager's history and
+ * chips, so they pass `includePicks: false` to skip fetching 14 managers'
+ * picks (and fixtures/live) for fields they never look at.
+ *
+ * `getLeagueSnapshot` itself is memoised per request (React `cache()`,
+ * keyed on the two plain arguments below) so calling it more than once in
+ * the same request — e.g. the dashboard calling it directly and via
+ * `getStatsData` — does the work exactly once.
  */
 
+import { cache as reactCache } from "react";
 import * as client from "@/lib/fpl/client";
-import { cached, cachedMany, computeLiveState, getEventStatus } from "@/lib/fpl/cache";
-import { ttlFor, type LiveState } from "@/lib/fpl/ttl";
+import { cachedKind, cachedManyKind, getLiveState } from "@/lib/fpl/cache";
+import type { LiveState } from "@/lib/fpl/ttl";
 import { buildLivePointsMap, countPlayersToStart, sumPicks } from "@/services/fpl-live";
 import type {
   BootstrapEvent,
@@ -56,6 +65,16 @@ export interface LeagueSnapshot {
   managers: ManagerSnapshot[];
 }
 
+export interface GetLeagueSnapshotOptions {
+  /**
+   * Fetch picks (and therefore fixtures/live, captain, active_chip,
+   * players_to_start, and live gameweek totals) for every manager.
+   * Defaults to true. Stats pages, which only read `history`/`chips`,
+   * should pass `false` — it skips 14 picks calls plus fixtures and live.
+   */
+  includePicks?: boolean;
+}
+
 async function getH2HRanksSnapshot(): Promise<Map<number, number>> {
   const leagueId = process.env.FPL_H2H_LEAGUE_ID;
   const ranks = new Map<number, number>();
@@ -63,9 +82,7 @@ async function getH2HRanksSnapshot(): Promise<Map<number, number>> {
 
   let data: H2HStandings | null;
   try {
-    data = await cached(`h2h:${leagueId}`, ttlFor("h2h", "quiet"), () =>
-      client.h2hStandings(leagueId)
-    );
+    data = await cachedKind("h2h", `h2h:${leagueId}`, () => client.h2hStandings(leagueId));
   } catch (error) {
     console.error("Failed to fetch H2H standings:", error);
     return ranks;
@@ -84,8 +101,7 @@ async function getH2HRanksSnapshot(): Promise<Map<number, number>> {
 /** History for every manager, batched through one MGET / pipeline. */
 async function fetchHistories(entries: number[]): Promise<Map<number, TeamHistory>> {
   const keys = entries.map((entry) => `history:${entry}`);
-  const ttl = ttlFor("history", "quiet"); // constant across live states
-  const byKey = await cachedMany<TeamHistory>(keys, ttl, async (missingKeys) => {
+  const byKey = await cachedManyKind<TeamHistory>("history", keys, async (missingKeys) => {
     const fetched = new Map<string, TeamHistory>();
     await Promise.all(
       missingKeys.map(async (key) => {
@@ -108,14 +124,9 @@ async function fetchHistories(entries: number[]): Promise<Map<number, TeamHistor
 }
 
 /** Picks for every manager at one gameweek, batched through one MGET / pipeline. */
-async function fetchPicks(
-  entries: number[],
-  gw: number,
-  liveState: LiveState
-): Promise<Map<number, TeamDetails>> {
+async function fetchPicks(entries: number[], gw: number): Promise<Map<number, TeamDetails>> {
   const keys = entries.map((entry) => `picks:${entry}:${gw}`);
-  const ttl = ttlFor("picks", liveState);
-  const byKey = await cachedMany<TeamDetails>(keys, ttl, async (missingKeys) => {
+  const byKey = await cachedManyKind<TeamDetails>("picks", keys, async (missingKeys) => {
     const fetched = new Map<string, TeamDetails>();
     await Promise.all(
       missingKeys.map(async (key) => {
@@ -145,25 +156,17 @@ function findCurrentEvent(events: BootstrapEvent[]): BootstrapEvent | undefined 
   );
 }
 
-export async function getLeagueSnapshot(gw?: number): Promise<LeagueSnapshot> {
+async function computeLeagueSnapshot(gw: number | undefined, includePicks: boolean): Promise<LeagueSnapshot> {
   const leagueId = process.env.FPL_LEAGUE_ID;
   if (!leagueId) {
     throw new Error("FPL_LEAGUE_ID environment variable is not set.");
   }
 
-  // Bootstrap, standings, H2H and event-status all in parallel. Bootstrap's
-  // TTL genuinely depends on live state (60s live vs 5min otherwise), but
-  // that state can only be known once bootstrap itself has told us the
-  // current gameweek — so the very first read of a cold cache uses the
-  // "quiet" TTL for bootstrap. Once warm, subsequent requests within that
-  // window keep reading the same cached copy regardless.
-  const [bootstrap, standings, h2hRanks, eventStatus] = await Promise.all([
-    cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
-    cached(`standings:${leagueId}`, ttlFor("standings", "quiet"), () =>
-      client.classicStandings(leagueId)
-    ),
+  const [bootstrap, standings, h2hRanks, liveState] = await Promise.all([
+    cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
+    cachedKind("standings", `standings:${leagueId}`, () => client.classicStandings(leagueId)),
     getH2HRanksSnapshot(),
-    getEventStatus(),
+    getLiveState(),
   ]);
 
   const currentEvent = findCurrentEvent(bootstrap.events);
@@ -174,32 +177,26 @@ export async function getLeagueSnapshot(gw?: number): Promise<LeagueSnapshot> {
   const teamIds = standings.standings.results.map((t) => t.entry);
   const playersMap = new Map(bootstrap.elements.map((el) => [el.id, el]));
 
-  // Fixtures (and therefore precise live state) only matter for the current
-  // gameweek — a historical gameweek is always "checked" or "quiet".
+  // Fixtures only matter for deciding `useLiveForCurrent` for the current
+  // gameweek, and only when the caller actually wants picks/live totals.
   let fixtures: Fixture[] = [];
-  let liveState: LiveState;
-  if (isCurrentGameweek) {
-    fixtures = await cached(`fixtures:${selectedGameweek}`, ttlFor("fixtures", "quiet"), () =>
+  if (includePicks && isCurrentGameweek) {
+    fixtures = await cachedKind("fixtures", `fixtures:${selectedGameweek}`, () =>
       client.fixtures(selectedGameweek)
     );
-    liveState = computeLiveState(eventStatus, currentEvent, fixtures);
-  } else {
-    liveState = currentEvent?.data_checked ? "checked" : "quiet";
   }
 
   const finishedAllFixtures = fixtures.length > 0 && fixtures.every((f) => f.finished);
-  const useLiveForCurrent = isCurrentGameweek && !finishedAllFixtures;
+  const useLiveForCurrent = includePicks && isCurrentGameweek && !finishedAllFixtures;
 
   const [histories, picks] = await Promise.all([
     fetchHistories(teamIds),
-    fetchPicks(teamIds, selectedGameweek, liveState),
+    includePicks ? fetchPicks(teamIds, selectedGameweek) : Promise.resolve(new Map<number, TeamDetails>()),
   ]);
 
   let liveData: LiveGameweekData = { elements: [] };
   if (useLiveForCurrent) {
-    liveData = await cached(`live:${selectedGameweek}`, ttlFor("live", liveState), () =>
-      client.live(selectedGameweek)
-    );
+    liveData = await cachedKind("live", `live:${selectedGameweek}`, () => client.live(selectedGameweek));
   }
   const livePointsMap = buildLivePointsMap(liveData);
 
@@ -237,7 +234,7 @@ export async function getLeagueSnapshot(gw?: number): Promise<LeagueSnapshot> {
     const captainPlayer = captainPick ? playersMap.get(captainPick.element) : undefined;
 
     const playersToStart =
-      isCurrentGameweek && teamPicks
+      includePicks && isCurrentGameweek && teamPicks
         ? countPlayersToStart(teamPicks.picks, liveData, fixtures, playersMap)
         : 0;
 
@@ -291,4 +288,16 @@ export async function getLeagueSnapshot(gw?: number): Promise<LeagueSnapshot> {
     liveState,
     managers,
   };
+}
+
+// Memoised per request on plain primitive arguments — an object argument
+// (e.g. `{ includePicks: false }`) would be a fresh reference on every call
+// and defeat React's per-argument memoization.
+const getLeagueSnapshotMemoized = reactCache(computeLeagueSnapshot);
+
+export function getLeagueSnapshot(
+  gw?: number,
+  opts: GetLeagueSnapshotOptions = {}
+): Promise<LeagueSnapshot> {
+  return getLeagueSnapshotMemoized(gw, opts.includePicks ?? true);
 }
