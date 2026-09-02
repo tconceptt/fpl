@@ -12,7 +12,7 @@ import type {
     LiveGameweekData,
     TeamDetails,
     TeamPick,
-} from "@/services/fpl-data-cache";
+} from "@/lib/fpl/types";
 
 import bootstrapSlim from "./fixtures/bootstrap-slim.json";
 import liveGw2 from "./fixtures/live-gw2.json";
@@ -196,6 +196,11 @@ describe("countPlayersToStart", () => {
                     first_name: "Test",
                     second_name: "Player",
                     element_type: 4,
+                    code: 999999,
+                    now_cost: 45,
+                    selected_by_percent: "0.1",
+                    status: "a",
+                    news: "",
                     team: 500,
                 },
             ],

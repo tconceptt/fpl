@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fplApiRoutes } from "@/lib/routes";
-import { createRequestCache } from "@/services/fpl-data-cache";
+import * as client from "@/lib/fpl/client";
+import { cached } from "@/lib/fpl/cache";
+import { ttlFor } from "@/lib/fpl/ttl";
 import { buildLivePointsMap, sumPicks } from "@/services/fpl-live";
-
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
@@ -24,41 +24,35 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    const gwNumber = Number(gw);
+
     try {
         // 1. Fetch league standings and the gameweek's live points once
-        const cache = createRequestCache();
-        const [standingsResponse, liveData] = await Promise.all([
-            fetch(fplApiRoutes.standings(leagueId), { cache: "no-store" }),
-            cache.getLiveData(gw),
+        const [standings, liveData] = await Promise.all([
+            cached(`standings:${leagueId}`, ttlFor("standings", "quiet"), () =>
+                client.classicStandings(leagueId)
+            ),
+            cached(`live:${gwNumber}`, ttlFor("live", "quiet"), () => client.live(gwNumber)),
         ]);
 
-        if (!standingsResponse.ok) {
-            throw new Error("Failed to fetch standings");
-        }
-
-        const standingsData = await standingsResponse.json();
-        const teams = standingsData.standings.results;
+        const teams = standings.standings.results;
         const livePoints = buildLivePointsMap(liveData);
 
         // 2. Fetch picks for each team and check if they started the player
         const teamsStartingPlayer = await Promise.all(
-            teams.map(async (team: { entry: number; entry_name: string; player_name: string }) => {
+            teams.map(async (team) => {
                 try {
-                    const picksResponse = await fetch(
-                        fplApiRoutes.teamDetails(team.entry.toString(), gw),
-                        { cache: "no-store" }
+                    const picksData = await cached(
+                        `picks:${team.entry}:${gwNumber}`,
+                        ttlFor("picks", "quiet"),
+                        () => client.picks(team.entry, gwNumber)
                     );
-
-                    if (!picksResponse.ok) return null;
-
-                    const picksData = await picksResponse.json();
                     const picks = picksData.picks;
                     const entryHistory = picksData.entry_history;
 
                     // Check if player is in starting XI (position 1-11)
                     const isStarting = picks.some(
-                        (pick: { element: number; position: number }) =>
-                            pick.element === Number(playerId) && pick.position <= 11
+                        (pick) => pick.element === Number(playerId) && pick.position <= 11
                     );
 
                     if (isStarting) {
@@ -69,7 +63,7 @@ export async function GET(request: NextRequest) {
                             managerName: team.player_name,
                             netPoints,
                         };
-                    };
+                    }
                 } catch (error) {
                     console.error(`Error checking team ${team.entry}:`, error);
                 }

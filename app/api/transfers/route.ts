@@ -1,29 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fplApiRoutes } from '@/lib/routes';
-
-interface FPLTransfer {
-    element_in: number;
-    element_in_cost: number;
-    element_out: number;
-    element_out_cost: number;
-    entry: number;
-    event: number;
-    time: string;
-}
-
-interface PlayerInfo {
-    id: number;
-    web_name: string;
-    now_cost: number;
-    team: number;
-    element_type: number;
-}
-
-interface TeamInfo {
-    id: number;
-    short_name: string;
-    code: number;
-}
+import * as client from '@/lib/fpl/client';
+import { cached } from '@/lib/fpl/cache';
+import { ttlFor } from '@/lib/fpl/ttl';
 
 interface TransferPlayer {
     id: number;
@@ -51,47 +29,26 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Missing teamId or gw parameter' }, { status: 400 });
     }
 
+    const entry = Number(teamId);
+    const gwNumber = Number(gameweek);
+
     try {
-        // Fetch all required data in parallel
-        const [transfersRes, bootstrapRes, liveRes] = await Promise.all([
-            fetch(fplApiRoutes.teamTransfers(teamId), { cache: 'no-store' }),
-            fetch(fplApiRoutes.bootstrap, { cache: 'no-store' }),
-            fetch(fplApiRoutes.liveStandings(gameweek), { cache: 'no-store' }),
-        ]);
-
-        if (!transfersRes.ok) {
-            throw new Error(`Failed to fetch transfers: ${transfersRes.status}`);
-        }
-        if (!bootstrapRes.ok) {
-            throw new Error(`Failed to fetch bootstrap: ${bootstrapRes.status}`);
-        }
-        if (!liveRes.ok) {
-            throw new Error(`Failed to fetch live data: ${liveRes.status}`);
-        }
-
         const [transfersData, bootstrapData, liveData] = await Promise.all([
-            transfersRes.json(),
-            bootstrapRes.json(),
-            liveRes.json(),
+            cached(`transfers:${entry}`, ttlFor("transfers", "quiet"), () => client.entryTransfers(entry)),
+            cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
+            cached(`live:${gwNumber}`, ttlFor("live", "quiet"), () => client.live(gwNumber)),
         ]);
 
         // Filter transfers for this gameweek
-        const gwTransfers: FPLTransfer[] = (transfersData as FPLTransfer[]).filter(
-            (t) => t.event === Number(gameweek)
-        );
+        const gwTransfers = transfersData.filter((t) => t.event === gwNumber);
 
         // Create player and team maps
-        const players: PlayerInfo[] = bootstrapData.elements;
-        const playersMap = new Map(players.map((p) => [p.id, p]));
-        const teams: TeamInfo[] = bootstrapData.teams;
-        const teamsMap = new Map(teams.map((t) => [t.id, t]));
+        const playersMap = new Map(bootstrapData.elements.map((p) => [p.id, p]));
+        const teamsMap = new Map(bootstrapData.teams.map((t) => [t.id, t]));
 
         // Create live points map
         const liveElements = new Map<number, number>(
-            liveData.elements.map((e: { id: number; stats: { total_points: number } }) => [
-                e.id,
-                e.stats.total_points,
-            ])
+            liveData.elements.map((e) => [e.id, e.stats.total_points])
         );
 
         // Build transfer details with points

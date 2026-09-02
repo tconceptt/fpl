@@ -4,7 +4,12 @@ import { Crown, Timer } from "lucide-react"
 
 import { ImageSlideshow } from "./image-slideshow"
 import { leagueConfig } from "@/config/league"
-import { createRequestCache } from "@/services/fpl-data-cache"
+import * as client from "@/lib/fpl/client"
+import { cached } from "@/lib/fpl/cache"
+import { ttlFor } from "@/lib/fpl/ttl"
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry"
+
+export const maxDuration = 60;
 
 const HALL_OF_QITAWRARI_ICONS = ["🏆", "👑", "❓"]
 const HALL_OF_QITAWRARI_STYLES = [
@@ -21,8 +26,7 @@ function daysUntil(targetDate: Date): number {
 }
 
 async function getCupCountdown(): Promise<{ days: number | null; underway: boolean; announced: boolean }> {
-  const cache = createRequestCache()
-  const bootstrap = await cache.getBootstrapData()
+  const bootstrap = await cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap())
 
   const cupEventId = bootstrap.game_settings?.cup_start_event_id
   if (!cupEventId) {
@@ -43,7 +47,11 @@ async function getCupCountdown(): Promise<{ days: number | null; underway: boole
 }
 
 export default async function QitawrariPage() {
-  const cupCountdown = await getCupCountdown()
+  const cupCountdown = await withUpstreamCounter(async () => {
+    const result = await getCupCountdown()
+    logTelemetry("/qitawrari")
+    return result
+  })
 
   return (
     <DashboardLayout>

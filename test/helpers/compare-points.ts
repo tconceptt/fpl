@@ -20,7 +20,7 @@
  */
 
 import { LivePointsMap, sumPicks } from "@/services/fpl-live";
-import { TeamPick } from "@/services/fpl-data-cache";
+import { TeamPick } from "@/lib/fpl/types";
 
 export interface TeamPointsComparison {
     teamId: number;

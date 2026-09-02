@@ -4,16 +4,23 @@ import { Crown, BarChart, Zap, Trophy } from "lucide-react"
 import { FootballHero } from "@/components/ui/shape-landing-hero"
 import Link from "next/link"
 import { getStatsData } from "@/app/stats/getStatData"
-import { getLeagueData } from "@/services/league-service"
-import { GameweekStanding } from "@/types/league"
+import { getLeagueSnapshot } from "@/services/league"
 import { leagueConfig } from "@/config/league"
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry"
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export default async function DashboardPage() {
-  const statsData = await getStatsData();
-  const leagueResponse = await getLeagueData();
-  const leagueStandings: GameweekStanding[] = leagueResponse?.standings || [];
+  const { statsData, leagueResponse } = await withUpstreamCounter(async () => {
+    const [statsData, leagueResponse] = await Promise.all([
+      getStatsData(),
+      getLeagueSnapshot(),
+    ]);
+    logTelemetry("/dashboard");
+    return { statsData, leagueResponse };
+  });
+  const leagueStandings = leagueResponse?.managers || [];
 
   const topThree = leagueStandings.slice(0, 3).map(p => ({
     playerName: p.player_name,

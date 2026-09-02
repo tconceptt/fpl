@@ -5,11 +5,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trophy, Wand2, Medal, CalendarDays, Zap, Layers, TrendingUp } from "lucide-react";
 import { getStatsData } from "./getStatData";
 import { formatPoints } from "@/lib/fpl";
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export default async function StatsLandingPage() {
-  const data = await getStatsData();
+  const data = await withUpstreamCounter(async () => {
+    const result = await getStatsData();
+    logTelemetry("/stats");
+    return result;
+  });
   return (
     <DashboardLayout>
       <div className="space-y-6">

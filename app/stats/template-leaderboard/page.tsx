@@ -1,27 +1,14 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
-import { fplApiRoutes } from "@/lib/routes";
-import { getAllPlayersOwnership } from "@/services/get-player-ownership";
-import { getCurrentGameweek } from "@/services/league-service";
+import * as client from "@/lib/fpl/client";
+import { cached } from "@/lib/fpl/cache";
+import { ttlFor } from "@/lib/fpl/ttl";
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import { getUrlParam } from "@/lib/helpers";
 import { TemplateLeaderboardClient } from "./template-leaderboard-client";
 
-interface StandingsResult {
-  entry: number;
-  entry_name: string;
-  player_name: string;
-}
-
-interface LeagueStandingsResponse {
-  standings: {
-    results: StandingsResult[];
-  };
-}
-
-interface TeamDetailsResponse {
-  picks: Array<{ element: number; position: number }>;
-}
+export const maxDuration = 60;
 
 export interface TemplateTeamStat {
   id: number;
@@ -32,46 +19,58 @@ export interface TemplateTeamStat {
 }
 
 export default async function TemplateLeaderboardPage() {
-  // Get gameweek from URL params, default to current active gameweek
   const gameweekParam = await getUrlParam("gameweek");
-  const currentGameweek = await getCurrentGameweek();
-  
-  // Determine selected gameweek (default to current active gameweek)
-  const selectedGameweek = gameweekParam 
-    ? parseInt(gameweekParam as string, 10) 
-    : currentGameweek;
-  
-  // Validate selected gameweek
-  const validSelectedGameweek = (selectedGameweek >= 1 && selectedGameweek <= currentGameweek && !isNaN(selectedGameweek))
-    ? selectedGameweek
-    : currentGameweek;
-  
-  const ownershipMap = await getAllPlayersOwnership();
 
-  // Fetch league standings to get team IDs and names
-  const leagueId = process.env.FPL_LEAGUE_ID;
-  if (!leagueId) {
-    throw new Error("FPL_LEAGUE_ID environment variable is not set.");
-  }
+  const { currentGameweek, validSelectedGameweek, sorted } = await withUpstreamCounter(async () => {
+    const leagueId = process.env.FPL_LEAGUE_ID;
+    if (!leagueId) {
+      throw new Error("FPL_LEAGUE_ID environment variable is not set.");
+    }
 
-  const standingsResp = await fetch(fplApiRoutes.standings(leagueId), {
-    cache: "no-store",
-  });
-  if (!standingsResp.ok) {
-    throw new Error(`Failed to fetch standings: ${standingsResp.status} ${standingsResp.statusText}`);
-  }
-  const standingsJson: LeagueStandingsResponse = await standingsResp.json();
-  const teams = standingsJson.standings.results;
+    const bootstrap = await cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap());
+    const currentEvent =
+      bootstrap.events.find((e) => e.is_current) ??
+      bootstrap.events.find((e) => e.is_next) ??
+      [...bootstrap.events].reverse().find((e) => e.finished);
+    const currentGameweek = currentEvent ? currentEvent.id : 1;
 
-  // For each team, fetch picks for current GW and compute average ownership for entire squad (positions <= 15)
-  const teamStats: TemplateTeamStat[] = await Promise.all(
-    teams.map(async (team) => {
-      try {
-        const tdResp = await fetch(
-          fplApiRoutes.teamDetails(team.entry.toString(), validSelectedGameweek.toString()),
-          { cache: "no-store" }
-        );
-        if (!tdResp.ok) {
+    const parsedGameweek = gameweekParam ? parseInt(gameweekParam, 10) : currentGameweek;
+    const validSelectedGameweek =
+      parsedGameweek >= 1 && parsedGameweek <= currentGameweek && !Number.isNaN(parsedGameweek)
+        ? parsedGameweek
+        : currentGameweek;
+
+    const ownershipMap = new Map<number, number>(
+      bootstrap.elements.map((el) => [el.id, Number.parseFloat(el.selected_by_percent || "0") || 0])
+    );
+
+    const standings = await cached(`standings:${leagueId}`, ttlFor("standings", "quiet"), () =>
+      client.classicStandings(leagueId)
+    );
+    const teams = standings.standings.results;
+
+    const teamStats: TemplateTeamStat[] = await Promise.all(
+      teams.map(async (team) => {
+        try {
+          const teamDetails = await cached(
+            `picks:${team.entry}:${validSelectedGameweek}`,
+            ttlFor("picks", "quiet"),
+            () => client.picks(team.entry, validSelectedGameweek)
+          );
+          const squad = teamDetails.picks.filter((p) => p.position <= 15);
+          const ownershipValues = squad.map((p) => ownershipMap.get(p.element) || 0);
+          const playersCount = ownershipValues.length || 0;
+          const averageOwnership =
+            playersCount === 0 ? 0 : ownershipValues.reduce((sum, v) => sum + v, 0) / playersCount;
+
+          return {
+            id: team.entry,
+            name: team.entry_name,
+            managerName: team.player_name,
+            averageOwnership,
+            playersCount,
+          };
+        } catch {
           return {
             id: team.entry,
             name: team.entry_name,
@@ -80,37 +79,13 @@ export default async function TemplateLeaderboardPage() {
             playersCount: 0,
           };
         }
-        const teamDetails: TeamDetailsResponse = await tdResp.json();
-        const squad = teamDetails.picks.filter((p) => p.position <= 15);
-        const ownershipValues = squad.map((p) => ownershipMap.get(p.element) || 0);
-        const playersCount = ownershipValues.length || 0;
-        const averageOwnership = playersCount === 0
-          ? 0
-          : ownershipValues.reduce((sum, v) => sum + v, 0) / playersCount;
+      })
+    );
 
-        return {
-          id: team.entry,
-          name: team.entry_name,
-          managerName: team.player_name,
-          averageOwnership,
-          playersCount,
-        };
-      } catch {
-        return {
-          id: team.entry,
-          name: team.entry_name,
-          managerName: team.player_name,
-          averageOwnership: 0,
-          playersCount: 0,
-        };
-      }
-    })
-  );
-
-  // Sort from lowest average ownership (most differential) to highest
-  const sorted = teamStats
-    .slice()
-    .sort((a, b) => a.averageOwnership - b.averageOwnership);
+    const sorted = teamStats.slice().sort((a, b) => a.averageOwnership - b.averageOwnership);
+    logTelemetry("/stats/template-leaderboard");
+    return { currentGameweek, validSelectedGameweek, sorted };
+  });
 
   return (
     <DashboardLayout>
@@ -128,5 +103,3 @@ export default async function TemplateLeaderboardPage() {
     </DashboardLayout>
   );
 }
-
-

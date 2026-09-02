@@ -1,40 +1,16 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { LeagueTeam } from "@/lib/fpl";
 import { formatPoints } from "@/lib/fpl";
 import { getUrlParam } from "@/lib/helpers";
-import { fplApiRoutes } from "@/lib/routes";
-import { getPlayerName } from "@/services/get-player-name";
-import { getTeamGameweekPoints } from "@/services/fpl-live";
 import { chipLabel } from "@/lib/chips";
+import { getLeagueSnapshot, type ManagerSnapshot } from "@/services/league";
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import { ArrowDown, ArrowUp, Flame, Star, Trophy } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ReactNode } from "react";
 
-interface GameweekTeamData {
-  name: string;
-  team: string;
-  entry: number;
-  points: number;
-  net_points: number;
-  total_points: number;
-  chip: string | null;
-  captain?: number;
-}
-
-interface GameweekData {
-  name: string;
-  team: string;
-  entry: number;
-  points: number;
-  net_points: number;
-  total_points: number;
-  chip: string | null;
-  captain?: number;
-  currentLeagueRank?: number;
-  movement?: number;
-}
+export const maxDuration = 60;
 
 interface GameweekStats {
   currentGameweek: number;
@@ -74,391 +50,126 @@ interface GameweekStats {
   };
 }
 
-interface ChipPlay {
-  chip_name: string;
-  num_played: number;
+/**
+ * Rank movement, from the snapshot's own league ranks (identical criterion
+ * to the old per-page computation: rank by total_points at the selected and
+ * previous gameweek). `last_rank` 0 means "no previous data" — no movement,
+ * matching the old fallback of comparing a rank to itself.
+ */
+function movementFor(manager: ManagerSnapshot): number {
+  if (manager.last_rank === 0) return 0;
+  return manager.last_rank - manager.rank;
 }
 
-interface TopElementInfo {
-  id: number;
-  points: number;
-}
+function buildGameweekStats(
+  managers: ManagerSnapshot[],
+  currentGameweek: number,
+  selectedGameweek: number
+): GameweekStats {
+  const hasData = managers.length > 0;
 
-interface BootstrapEvent {
-  id: number;
-  name: string;
-  deadline_time: string;
-  average_entry_score: number;
-  finished: boolean;
-  data_checked: boolean;
-  highest_scoring_entry: number;
-  deadline_time_epoch: number;
-  deadline_time_game_offset: number;
-  highest_score: number;
-  is_previous: boolean;
-  is_current: boolean;
-  is_next: boolean;
-  chip_plays: ChipPlay[];
-  most_selected: number;
-  most_transferred_in: number;
-  top_element: number;
-  top_element_info: TopElementInfo;
-  transfers_made: number;
-  most_captained: number;
-  most_vice_captained: number;
-}
+  const sortedByNetPoints = [...managers].sort((a, b) => b.net_points - a.net_points);
+  const currentLeader = hasData
+    ? sortedByNetPoints[0]
+    : { player_name: "-", entry_name: "-", event_total: 0, net_points: 0, active_chip: null as string | null };
+  const lowestPoints = hasData
+    ? sortedByNetPoints[sortedByNetPoints.length - 1]
+    : { player_name: "-", entry_name: "-", event_total: 0, net_points: 0 };
 
-async function getCurrentGameweek(): Promise<number> {
-  try {
-    const response = await fetch(fplApiRoutes.bootstrap, {
-      next: { revalidate: 300 },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch bootstrap data: ${response.status} ${response.statusText}`);
+  const teamsWithMovement = managers.map((m) => ({
+    name: m.player_name,
+    team: m.entry_name,
+    movement: movementFor(m),
+  }));
+
+  const highestRiser = hasData
+    ? [...teamsWithMovement].sort((a, b) => b.movement - a.movement)[0]
+    : { name: "-", team: "-", movement: 0 };
+  const steepestFaller = hasData
+    ? [...teamsWithMovement].sort((a, b) => a.movement - b.movement)[0]
+    : { name: "-", team: "-", movement: 0 };
+
+  // Count chips used in the selected gameweek.
+  const chipCounts = { wildcard: 0, "3xc": 0, bboost: 0, freehit: 0 };
+  const chipUsers = { wildcard: [] as string[], "3xc": [] as string[], bboost: [] as string[], freehit: [] as string[] };
+
+  managers.forEach((m) => {
+    const chipType = m.active_chip?.toLowerCase();
+    switch (chipType) {
+      case "wildcard":
+        chipCounts.wildcard++;
+        chipUsers.wildcard.push(m.player_name);
+        break;
+      case "3xc":
+        chipCounts["3xc"]++;
+        chipUsers["3xc"].push(m.player_name);
+        break;
+      case "bboost":
+        chipCounts.bboost++;
+        chipUsers.bboost.push(m.player_name);
+        break;
+      case "freehit":
+        chipCounts.freehit++;
+        chipUsers.freehit.push(m.player_name);
+        break;
     }
+  });
 
-    const data = await response.json();
-    const events: BootstrapEvent[] = data.events || [];
-    const current = events.find((e) => e.is_current);
-    if (current) return current.id;
-    const next = events.find((e) => e.is_next);
-    if (next) return next.id;
-    const lastFinished = [...events].reverse().find((e) => e.finished);
-    if (lastFinished) return lastFinished.id;
-    return 1;
-  } catch (error) {
-    console.error("Error fetching current gameweek:", error);
-    return 1;
-  }
-}
+  // Most captained player (by web_name — the snapshot doesn't carry full names).
+  const captainCounts = new Map<string, number>();
+  managers.forEach((m) => {
+    if (!m.captain) return;
+    captainCounts.set(m.captain.web_name, (captainCounts.get(m.captain.web_name) ?? 0) + 1);
+  });
 
-async function getGameweekStats(selectedGameweek: number): Promise<GameweekStats> {
-  try {
-    const leagueId = process.env.FPL_LEAGUE_ID;
-    if (!leagueId) {
-      throw new Error("FPL_LEAGUE_ID environment variable is not set");
-    }
-
-    // First get the league standings to get all team IDs
-    const leagueResponse = await fetch(fplApiRoutes.standings(leagueId), {
-      next: { revalidate: 300 },
-    });
-    
-    if (!leagueResponse.ok) {
-      throw new Error(`Failed to fetch league data: ${leagueResponse.status} ${leagueResponse.statusText}`);
-    }
-
-    const leagueData = await leagueResponse.json();
-    const standings = leagueData.standings.results;
-
-    // Fetch bootstrap data for current gameweek info
-    const bootstrapResponse = await fetch(fplApiRoutes.bootstrap, {
-      next: { revalidate: 300 },
-    });
-    
-    if (!bootstrapResponse.ok) {
-      throw new Error(`Failed to fetch bootstrap data: ${bootstrapResponse.status} ${bootstrapResponse.statusText}`);
-    }
-
-    const bootstrapData = await bootstrapResponse.json();
-    const events: BootstrapEvent[] = bootstrapData.events || [];
-    const currentEvent = events.find((e) => e.is_current) || events.find((e) => e.is_next) || [...events].reverse().find((e) => e.finished);
-    const currentGameweek = currentEvent ? currentEvent.id : 1;
-    const isCurrentGameweek = selectedGameweek === currentGameweek;
-
-    // Fetch historical data for all managers
-    const managerHistoryPromises = standings.map((team: LeagueTeam) =>
-      fetch(fplApiRoutes.teamHistory(team.entry.toString()), {
-        next: { revalidate: 300 },
-      })
-        .then((res) => {
-          if (!res.ok)
-            throw new Error(
-              `Failed to fetch history for manager ${team.entry}`
-            );
-          return res.json();
-        })
-        .catch((error) => {
-          console.error(error);
-          return null;
-        })
-    );
-
-    const managersHistory = await Promise.all(managerHistoryPromises);
-
-    // Fetch team details to get captain information
-    const teamDetailsPromises = standings.map((team: LeagueTeam) =>
-      fetch(fplApiRoutes.teamDetails(team.entry.toString(), selectedGameweek.toString()), {
-        next: { revalidate: 30 },
-      })
-        .then((res) => {
-          if (!res.ok)
-            throw new Error(
-              `Failed to fetch team details for manager ${team.entry}`
-            );
-          return res.json();
-        })
-        .catch((error) => {
-          console.error(error);
-          return null;
-        })
-    );
-
-    const teamDetails = await Promise.all(teamDetailsPromises);
-
-    // Fetch live points if it's the current gameweek
-    const livePointsMap = new Map<number, number>();
-    const transferCostMap = new Map<number, number>();
-    
-    if (isCurrentGameweek) {
-      const livePointsPromises = standings.map((team: LeagueTeam) =>
-        getTeamGameweekPoints(team.entry.toString(), selectedGameweek.toString())
-          .catch((error) => {
-            console.error(error);
-            return null;
-          })
-      );
-
-      const livePointsResults = await Promise.all(livePointsPromises);
-      
-      livePointsResults.forEach((result, index) => {
-        if (result) {
-          livePointsMap.set(standings[index].entry, result.totalPoints);
-          transferCostMap.set(standings[index].entry, result.transferCost || 0);
-        }
-      });
-    }
-
-    // Process historical data for the selected gameweek
-    const gameweekData = standings.map((team: LeagueTeam, index: number) => {
-      const history = managersHistory[index];
-      if (!history) return null;
-
-      const gameweekHistory = history.current.find(
-        (gw: { event: number; points: number; total_points: number; event_transfers_cost: number }) => gw.event === selectedGameweek
-      );
-
-      if (!gameweekHistory) return null;
-
-      // Get captain information
-      const teamDetail = teamDetails[index];
-      let captainId = null;
-      if (teamDetail && teamDetail.picks) {
-        const captain = teamDetail.picks.find((pick: { is_captain: boolean }) => pick.is_captain);
-        if (captain) {
-          captainId = captain.element;
-        }
+  let mostCaptainedInfo: GameweekStats["mostCaptained"] = undefined;
+  if (captainCounts.size > 0) {
+    let mostCaptainedName = "";
+    let highestCount = 0;
+    captainCounts.forEach((count, name) => {
+      if (count > highestCount) {
+        highestCount = count;
+        mostCaptainedName = name;
       }
-
-      // Use live points if available for current gameweek
-      const points = isCurrentGameweek
-        ? (livePointsMap.get(team.entry) || gameweekHistory.points)
-        : gameweekHistory.points;
-      
-      const transferCost = isCurrentGameweek
-        ? (transferCostMap.get(team.entry) || gameweekHistory.event_transfers_cost || 0)
-        : (gameweekHistory.event_transfers_cost || 0);
-
-      return {
-        name: team.player_name,
-        team: team.entry_name,
-        entry: team.entry,
-        points: points,
-        net_points: points - transferCost,
-        total_points: gameweekHistory.total_points,
-        chip: history.chips.find(
-          (chip: { event: number }) => chip.event === selectedGameweek
-        )?.name || null,
-        captain: captainId,
+    });
+    if (mostCaptainedName) {
+      mostCaptainedInfo = {
+        player: mostCaptainedName,
+        count: highestCount,
+        percentage: Math.round((highestCount / managers.length) * 100),
       };
-    }).filter(Boolean);
-
-    const hasData = (gameweekData as unknown[]).length > 0;
-
-    // Sort by total points to get current ranks
-    const sortedByPoints = hasData
-      ? [...(gameweekData as GameweekData[])]
-          .sort((a, b) => b.total_points - a.total_points)
-          .map((team, index) => ({
-            ...team,
-            currentLeagueRank: index + 1
-          }))
-      : [];
-
-    // If not gameweek 1, get previous gameweek data for rank movement
-    let previousGameweekRanks = new Map();
-    if (hasData && selectedGameweek > 1) {
-      const previousGameweekData = standings.map((team: LeagueTeam, index: number) => {
-        const history = managersHistory[index];
-        if (!history) return null;
-
-        const previousGameweekHistory = history.current.find(
-          (gw: { event: number; total_points: number }) => gw.event === selectedGameweek - 1
-        );
-
-        if (!previousGameweekHistory) return null;
-
-        return {
-          entry: team.entry,
-          total_points: previousGameweekHistory.total_points,
-        };
-      }).filter(Boolean);
-
-      // Sort by total points to get previous ranks
-      const sortedPreviousGameweek = [...previousGameweekData]
-        .sort((a, b) => b.total_points - a.total_points);
-
-      // Create map of entry to previous rank
-      previousGameweekRanks = new Map(
-        sortedPreviousGameweek.map((team, index) => [team.entry, index + 1])
-      );
     }
-
-    // Calculate rank movements and find highest riser and steepest faller
-    const teamsWithMovement = hasData
-      ? (sortedByPoints as GameweekData[]).map(team => {
-          const previousRank = previousGameweekRanks.get(team.entry) || team.currentLeagueRank!;
-          const movement = previousRank - team.currentLeagueRank!;
-          return {
-            name: team.name,
-            team: team.team,
-            movement
-          };
-        })
-      : [];
-
-    const highestRiser = hasData ? [...teamsWithMovement].sort((a, b) => b.movement - a.movement)[0] : { name: "-", team: "-", movement: 0 };
-    const steepestFaller = hasData ? [...teamsWithMovement].sort((a, b) => a.movement - b.movement)[0] : { name: "-", team: "-", movement: 0 };
-
-    // Get current leader and struggler based on net points
-    const sortedByNetPoints = hasData ? [...(gameweekData as GameweekData[])].sort((a, b) => b.net_points - a.net_points) : [];
-    const currentLeader = hasData ? sortedByNetPoints[0] : { name: "-", team: "-", points: 0, net_points: 0, chip: null };
-    const lowestPoints = hasData ? sortedByNetPoints[sortedByNetPoints.length - 1] : { name: "-", team: "-", points: 0, net_points: 0 };
-
-    // Count chips used in selected gameweek
-    const chipCounts = {
-      wildcard: 0,
-      "3xc": 0,
-      bboost: 0,
-      freehit: 0,
-    };
-
-    const chipUsers = {
-      wildcard: [] as string[],
-      "3xc": [] as string[],
-      bboost: [] as string[],
-      freehit: [] as string[],
-    };
-
-    (gameweekData as GameweekData[]).forEach((team: GameweekTeamData) => {
-      if (team && team.chip) {
-        const chipType = team.chip.toLowerCase();
-        switch (chipType) {
-          case "wildcard":
-            chipCounts.wildcard++;
-            chipUsers.wildcard.push(team.name);
-            break;
-          case "3xc":
-            chipCounts["3xc"]++;
-            chipUsers["3xc"].push(team.name);
-            break;
-          case "bboost":
-            chipCounts.bboost++;
-            chipUsers.bboost.push(team.name);
-            break;
-          case "freehit":
-            chipCounts.freehit++;
-            chipUsers.freehit.push(team.name);
-            break;
-        }
-      }
-    });
-
-    // Find most captained player
-    const captainCounts = new Map<number, number>();
-    let mostCaptainedInfo = undefined;
-    
-    // Count captains
-    (gameweekData as GameweekData[]).forEach((team: GameweekTeamData) => {
-      if (team && team.captain) {
-        const count = captainCounts.get(team.captain) || 0;
-        captainCounts.set(team.captain, count + 1);
-      }
-    });
-    
-    // Find the most captained player
-    if (captainCounts.size > 0) {
-      let mostCaptainedId = 0;
-      let highestCount = 0;
-      
-      captainCounts.forEach((count, playerId) => {
-        if (count > highestCount) {
-          highestCount = count;
-          mostCaptainedId = playerId;
-        }
-      });
-      
-      if (mostCaptainedId > 0) {
-        const playerName = await getPlayerName(mostCaptainedId, 'full_name');
-        mostCaptainedInfo = {
-          player: playerName,
-          count: highestCount,
-          percentage: Math.round((highestCount / gameweekData.length) * 100)
-        };
-      }
-    }
-
-    const chipsSummary = [
-      {
-        type: chipLabel("wildcard"),
-        count: chipCounts.wildcard,
-        users: chipUsers.wildcard.join(", "),
-      },
-      {
-        type: chipLabel("3xc"),
-        count: chipCounts["3xc"],
-        users: chipUsers["3xc"].join(", "),
-      },
-      {
-        type: chipLabel("bboost"),
-        count: chipCounts.bboost,
-        users: chipUsers.bboost.join(", "),
-      },
-      {
-        type: chipLabel("freehit"),
-        count: chipCounts.freehit,
-        users: chipUsers.freehit.join(", "),
-      },
-    ];
-
-    return {
-      currentGameweek,
-      selectedGameweek,
-      currentLeader: {
-        name: currentLeader.name,
-        team: currentLeader.team,
-        points: currentLeader.points,
-        net_points: currentLeader.net_points,
-        chipUsed: currentLeader.chip,
-      },
-      lowestPoints: {
-        name: lowestPoints.name,
-        team: lowestPoints.team,
-        points: lowestPoints.points,
-        net_points: lowestPoints.net_points,
-      },
-      chipsSummary,
-      highestRiser,
-      steepestFaller,
-      mostCaptained: mostCaptainedInfo,
-    };
-  } catch (error) {
-    console.error("Error in getGameweekStats:", error);
-    throw new Error("Failed to fetch gameweek stats");
   }
-}
 
+  const chipsSummary = [
+    { type: chipLabel("wildcard"), count: chipCounts.wildcard, users: chipUsers.wildcard.join(", ") },
+    { type: chipLabel("3xc"), count: chipCounts["3xc"], users: chipUsers["3xc"].join(", ") },
+    { type: chipLabel("bboost"), count: chipCounts.bboost, users: chipUsers.bboost.join(", ") },
+    { type: chipLabel("freehit"), count: chipCounts.freehit, users: chipUsers.freehit.join(", ") },
+  ];
+
+  return {
+    currentGameweek,
+    selectedGameweek,
+    currentLeader: {
+      name: currentLeader.player_name,
+      team: currentLeader.entry_name,
+      points: currentLeader.event_total,
+      net_points: currentLeader.net_points,
+      chipUsed: "active_chip" in currentLeader ? currentLeader.active_chip : null,
+    },
+    lowestPoints: {
+      name: lowestPoints.player_name,
+      team: lowestPoints.entry_name,
+      points: lowestPoints.event_total,
+      net_points: lowestPoints.net_points,
+    },
+    chipsSummary,
+    highestRiser,
+    steepestFaller,
+    mostCaptained: mostCaptainedInfo,
+  };
+}
 
 // Add interface for GameweekCard props
 interface GameweekCardProps {
@@ -477,20 +188,26 @@ interface GameweekCardProps {
 }
 
 export default async function GameweekPage() {
-  // First, get the current gameweek
-  const gameweek = await getUrlParam("gameweek");
-  const currentGameweek = await getCurrentGameweek();
+  const gameweekParam = await getUrlParam("gameweek");
+  const parsedGameweek = gameweekParam ? parseInt(gameweekParam, 10) : undefined;
 
-  // Then, determine the selected gameweek
-  const parsedGameweek = gameweek ? parseInt(gameweek as string, 10) : currentGameweek;
-  const requestedGameweek = Number.isNaN(parsedGameweek) ? currentGameweek : parsedGameweek;
+  const { snapshot, stats } = await withUpstreamCounter(async () => {
+    const snapshot = await getLeagueSnapshot(parsedGameweek);
+    logTelemetry("/gameweek");
+    const stats = buildGameweekStats(snapshot.managers, snapshot.currentGameweek, snapshot.selectedGameweek);
+    return { snapshot, stats };
+  });
 
-  // Validate the requested gameweek
-  if (Number.isNaN(parsedGameweek) || requestedGameweek < 1 || requestedGameweek > currentGameweek) {
+  // Validate the requested gameweek only against a successfully fetched current gameweek.
+  if (
+    gameweekParam !== null &&
+    (parsedGameweek === undefined ||
+      Number.isNaN(parsedGameweek) ||
+      parsedGameweek < 1 ||
+      parsedGameweek > snapshot.currentGameweek)
+  ) {
     notFound();
   }
-
-  const stats = await getGameweekStats(requestedGameweek);
 
   return (
     <DashboardLayout>
@@ -498,12 +215,12 @@ export default async function GameweekPage() {
         <PageHeader
           title={`Gameweek ${stats.selectedGameweek} Stats`}
           description={
-            stats.selectedGameweek === stats.currentGameweek 
+            stats.selectedGameweek === stats.currentGameweek
               ? "Live updates and insights"
               : "Historical gameweek data"
           }
-          currentGameweek={currentGameweek}
-          selectedGameweek={requestedGameweek}
+          currentGameweek={snapshot.currentGameweek}
+          selectedGameweek={snapshot.selectedGameweek}
           simpleSelector={true}
         />
 
@@ -586,7 +303,7 @@ export default async function GameweekPage() {
                   "Bench Boost": "from-blue-500/20 to-blue-600/20 border-blue-500/30",
                   "Free Hit": "from-amber-500/20 to-amber-600/20 border-amber-500/30"
                 };
-                
+
                 return (
                   <div
                     key={chip.type}

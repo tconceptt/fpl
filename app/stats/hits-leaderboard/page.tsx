@@ -1,31 +1,21 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
-import { getStatsData } from "../getStatData";
+import { loadStatsData } from "../getStatData";
 import { getUrlParam } from "@/lib/helpers";
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 import { HitsLeaderboardClient } from "./hits-leaderboard-client";
 
+export const maxDuration = 60;
+
 export default async function HitsLeaderboardPage() {
-  // Get gameweek from URL params
   const gameweekParam = await getUrlParam("gameweek");
-  
-  // First, get current gameweek by fetching data once
-  const initialData = await getStatsData();
-  
-  // Determine selected gameweek (default to current active gameweek)
-  const selectedGameweek = gameweekParam 
-    ? parseInt(gameweekParam as string, 10) 
-    : initialData.currentGameweek;
-  
-  // Validate selected gameweek
-  const validSelectedGameweek = (selectedGameweek >= 1 && selectedGameweek <= initialData.currentGameweek && !isNaN(selectedGameweek))
-    ? selectedGameweek
-    : initialData.currentGameweek;
-  
-  // Fetch data filtered by selected gameweek (only if different from initial fetch)
-  const data = validSelectedGameweek === initialData.currentGameweek && !gameweekParam
-    ? initialData
-    : await getStatsData(validSelectedGameweek);
+
+  const { data, validSelectedGameweek } = await withUpstreamCounter(async () => {
+    const result = await loadStatsData(gameweekParam);
+    logTelemetry("/stats/hits-leaderboard");
+    return result;
+  });
 
   return (
     <DashboardLayout>

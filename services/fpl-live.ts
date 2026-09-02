@@ -22,16 +22,14 @@
  * auto-subs): exact match every time.
  */
 
-import {
-    createRequestCache,
-    RequestScopedCache,
+import type {
     BootstrapPlayer,
     BootstrapTeam,
     Fixture,
     LiveGameweekData,
     TeamDetails,
     TeamPick,
-} from "@/services/fpl-data-cache";
+} from "@/lib/fpl/types";
 
 /** elementId -> live total points for the gameweek (bonus included). */
 export type LivePointsMap = Map<number, number>;
@@ -231,50 +229,7 @@ export function countPlayersToStart(
     return toStart;
 }
 
-/**
- * A single team's live gameweek points, fetching what it needs.
- * Prefer the pure helpers above when handling several teams at once — they let
- * one live payload serve the whole league.
- */
-export async function getTeamGameweekPoints(
-    teamId: string,
-    gameweekId: string,
-    cache: RequestScopedCache = createRequestCache()
-): Promise<{
-    totalPoints: number;
-    transferCost: number;
-    activeChip: string | null;
-    picks: TeamPick[];
-}> {
-    const [live, teamDetails] = await Promise.all([
-        cache.getLiveData(gameweekId),
-        cache.getTeamDetails(teamId, gameweekId),
-    ]);
-
-    return {
-        totalPoints: sumPicks(teamDetails.picks, buildLivePointsMap(live)),
-        transferCost: teamDetails.entry_history.event_transfers_cost,
-        activeChip: teamDetails.active_chip,
-        picks: teamDetails.picks,
-    };
-}
-
-/** A single team's per-player breakdown, fetching what it needs. */
-export async function getTeamGameweekBreakdown(
-    teamId: string,
-    gameweekId: string,
-    cache: RequestScopedCache = createRequestCache()
-): Promise<{ breakdown: PlayerBreakdown[]; activeChip: string | null }> {
-    const [live, fixtures, playersMap, teamsMap, teamDetails] = await Promise.all([
-        cache.getLiveData(gameweekId),
-        cache.getFixtures(gameweekId),
-        cache.getPlayersMap(),
-        cache.getTeamsMap(),
-        cache.getTeamDetails(teamId, gameweekId),
-    ]);
-
-    return {
-        breakdown: buildTeamBreakdown(teamDetails, live, fixtures, playersMap, teamsMap),
-        activeChip: teamDetails.active_chip,
-    };
-}
+// Fetching convenience wrappers used to live here too. They now live next to
+// their callers (services/team-page-service.ts, app/api/points-breakdown)
+// and are built from lib/fpl/client.ts and lib/fpl/cache.ts, so this module
+// stays pure and its tests stay fixture-only.

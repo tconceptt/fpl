@@ -3,10 +3,13 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Wand2 } from "lucide-react";
-import { getStatsData } from "../getStatData";
+import { loadStatsData } from "../getStatData";
 import { getUrlParam } from "@/lib/helpers";
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 import { chipDisplayOrder, type ChipStatusResult } from "@/lib/chips";
+
+export const maxDuration = 60;
 
 interface ChipInfo {
   name: string;
@@ -47,26 +50,13 @@ function remainingChipsLine(chipStatuses: ChipStatusResult[] | undefined, curren
 }
 
 export default async function ChipsUsagePage() {
-  // Get gameweek from URL params
   const gameweekParam = await getUrlParam("gameweek");
-  
-  // First, get current gameweek by fetching data once
-  const initialData = await getStatsData();
-  
-  // Determine selected gameweek (default to current active gameweek)
-  const selectedGameweek = gameweekParam 
-    ? parseInt(gameweekParam as string, 10) 
-    : initialData.currentGameweek;
-  
-  // Validate selected gameweek
-  const validSelectedGameweek = (selectedGameweek >= 1 && selectedGameweek <= initialData.currentGameweek && !isNaN(selectedGameweek))
-    ? selectedGameweek
-    : initialData.currentGameweek;
-  
-  // Fetch data filtered by selected gameweek (only if different from initial fetch)
-  const data = validSelectedGameweek === initialData.currentGameweek && !gameweekParam
-    ? initialData
-    : await getStatsData(validSelectedGameweek);
+
+  const { data, validSelectedGameweek } = await withUpstreamCounter(async () => {
+    const result = await loadStatsData(gameweekParam);
+    logTelemetry("/stats/chips-usage");
+    return result;
+  });
 
   return (
     <DashboardLayout>

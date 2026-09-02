@@ -1,7 +1,8 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
-import { getStatsData } from "../getStatData";
+import { loadStatsData } from "../getStatData";
 import { getUrlParam } from "@/lib/helpers";
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 import { Suspense } from "react";
 import { GameweekWinnersClient } from "./gameweek-winners-client";
@@ -9,29 +10,16 @@ import { Loader2 } from "lucide-react";
 
 // Enable dynamic rendering for URL params
 export const dynamic = 'force-dynamic';
-export const revalidate = 300; // Revalidate every 5 minutes
+export const maxDuration = 60;
 
 async function GameweekWinnersContent() {
-  // Get gameweek from URL params
   const gameweekParam = await getUrlParam("gameweek");
-  
-  // Get current gameweek first to determine what to fetch
-  const currentData = await getStatsData();
-  
-  // Determine selected gameweek (default to current active gameweek)
-  const selectedGameweek = gameweekParam 
-    ? parseInt(gameweekParam as string, 10) 
-    : currentData.currentGameweek;
-  
-  // Validate selected gameweek
-  const validSelectedGameweek = (selectedGameweek >= 1 && selectedGameweek <= currentData.currentGameweek && !isNaN(selectedGameweek))
-    ? selectedGameweek
-    : currentData.currentGameweek;
-  
-  // Only fetch again if a different gameweek is selected
-  const data = validSelectedGameweek === currentData.currentGameweek
-    ? currentData
-    : await getStatsData(validSelectedGameweek);
+
+  const { data, validSelectedGameweek } = await withUpstreamCounter(async () => {
+    const result = await loadStatsData(gameweekParam);
+    logTelemetry("/stats/gameweek-winners");
+    return result;
+  });
 
   return (
     <>

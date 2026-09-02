@@ -1,39 +1,14 @@
 import { notFound } from "next/navigation";
-import { createRequestCache, getH2HRanks } from "@/services/fpl-data-cache";
-import { getTeamGameweekBreakdown } from "@/services/fpl-live";
-import { getPlayerName } from "@/services/get-player-name";
+import { getTeamPageDataOptimized } from "@/services/team-page-service";
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { BackButton } from "@/components/layout/back-button";
 import { GameweekNav } from "@/components/layout/gameweek-nav";
 import { TeamBreakdownClient } from "@/components/team/team-breakdown-client";
 import { TeamComparisonClient } from "@/components/team/team-comparison-client";
 import { TeamStatsClient } from "@/components/team/team-stats-client";
-import { fplApiRoutes } from "@/lib/routes";
 
-async function getCurrentGameweek(): Promise<number> {
-  try {
-    const response = await fetch(fplApiRoutes.bootstrap, {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch bootstrap data: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const events: Array<{ id: number; is_current: boolean; is_next: boolean; finished: boolean }> = data.events || [];
-    const current = events.find((e) => e.is_current);
-    if (current) return current.id;
-    const next = events.find((e) => e.is_next);
-    if (next) return next.id;
-    const lastFinished = [...events].reverse().find((e) => e.finished);
-    if (lastFinished) return lastFinished.id;
-    return 1;
-  } catch (error) {
-    console.error("Error fetching current gameweek:", error);
-    return 1;
-  }
-}
+export const maxDuration = 60;
 
 export default async function TeamPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ gw?: string; compare?: string }> }) {
   const resolvedParams = await params;
@@ -43,177 +18,25 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
   const compareTeamId = resolvedSearchParams.compare;
   if (!teamId || !gw) return notFound();
 
-  // Get current gameweek for navigation limits
-  const currentGameweek = await getCurrentGameweek();
+  const { currentGameweek, mainTeam, compareTeam } = await withUpstreamCounter(async () => {
+    const result = await getTeamPageDataOptimized(teamId, gw, compareTeamId);
+    logTelemetry(`/team/${teamId}`);
+    return result;
+  });
 
-  // Fetch league standings to get the team name (entry_name) and manager name (player_name)
-  const leagueId = process.env.FPL_LEAGUE_ID;
-  const h2hRanks = await getH2HRanks(createRequestCache());
-  let teamName = `Team ${teamId}`;
-  let managerName = "";
-  const h2hRank: number | null = h2hRanks.get(Number(teamId)) ?? null;
-
-  if (leagueId) {
-    try {
-      const standingsResponse = await fetch(fplApiRoutes.standings(leagueId), { cache: "no-store" });
-      if (standingsResponse.ok) {
-        const standingsData = await standingsResponse.json();
-        const team = standingsData.standings.results.find((t: { entry: number; entry_name: string; player_name: string }) => t.entry === Number(teamId));
-        if (team) {
-          teamName = team.entry_name;
-          managerName = team.player_name;
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch team name from standings:", error);
-    }
-  }
-
-  // Fetch team history for overall rank and transfer info
-  let overallRank: number | null = null;
-  let transfers = 0;
-  let transferCost = 0;
-
-  try {
-    const historyResponse = await fetch(fplApiRoutes.teamHistory(teamId), { cache: "no-store" });
-    if (historyResponse.ok) {
-      const historyData = await historyResponse.json();
-      const gameweekData = historyData.current.find((g: { event: number; overall_rank: number; event_transfers: number; event_transfers_cost: number }) => g.event === Number(gw));
-      if (gameweekData) {
-        overallRank = gameweekData.overall_rank;
-        transfers = gameweekData.event_transfers;
-        transferCost = gameweekData.event_transfers_cost;
-      }
-    }
-  } catch (error) {
-    console.error("Failed to fetch team history:", error);
-  }
-
-  const breakdownResult = await getTeamGameweekBreakdown(teamId, gw);
-  if (!breakdownResult) return notFound();
-  const players = await Promise.all(
-    breakdownResult.breakdown.map(async (p) => ({ ...p, name: await getPlayerName(p.id, 'web_name') }))
-  );
-  const activeChip = breakdownResult.activeChip;
-
-  const starters = players.filter((p: { position: number }) => p.position <= 11);
-  const startersTotal = starters.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
-
-  // Multipliers already encode the chip, so bench players score 0 unless Bench
-  // Boost is active. Summing every pick is correct either way.
-  const gwTotal = players.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
-
-  // If compare mode, fetch second team data
-  let compareTeamData = null;
-  if (compareTeamId) {
-    const compareBreakdownResult = await getTeamGameweekBreakdown(compareTeamId, gw);
-    if (compareBreakdownResult) {
-      const comparePlayers = await Promise.all(
-        compareBreakdownResult.breakdown.map(async (p) => ({ ...p, name: await getPlayerName(p.id, 'web_name') }))
-      );
-      const compareStarters = comparePlayers.filter((p: { position: number }) => p.position <= 11);
-      const compareStartersTotal = compareStarters.reduce((s: number, p: { total?: number }) => s + (p.total || 0), 0);
-
-      // Fetch compare team name and details
-      let compareTeamName = `Team ${compareTeamId}`;
-      let compareManagerName = "";
-      let compareOverallRank: number | null = null;
-      let compareH2hRank: number | null = null;
-      let compareTransfers = 0;
-      let compareTransferCost = 0;
-
-      if (leagueId) {
-        try {
-          const standingsResponse = await fetch(fplApiRoutes.standings(leagueId), { cache: "no-store" });
-          if (standingsResponse.ok) {
-            const standingsData = await standingsResponse.json();
-            const team = standingsData.standings.results.find((t: { entry: number; entry_name: string; player_name: string }) => t.entry === Number(compareTeamId));
-            if (team) {
-              compareTeamName = team.entry_name;
-              compareManagerName = team.player_name;
-            }
-          }
-        } catch (error) {
-          console.error("Failed to fetch compare team name from standings:", error);
-        }
-      }
-
-      compareH2hRank = h2hRanks.get(Number(compareTeamId)) ?? null;
-
-      // Fetch compare team history
-      try {
-        const historyResponse = await fetch(fplApiRoutes.teamHistory(compareTeamId), { cache: "no-store" });
-        if (historyResponse.ok) {
-          const historyData = await historyResponse.json();
-          const gameweekData = historyData.current.find((g: { event: number; overall_rank: number; event_transfers: number; event_transfers_cost: number }) => g.event === Number(gw));
-          if (gameweekData) {
-            compareOverallRank = gameweekData.overall_rank;
-            compareTransfers = gameweekData.event_transfers;
-            compareTransferCost = gameweekData.event_transfers_cost;
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch compare team history:", error);
-      }
-
-      // Calculate season stats for compare team
-      let compareSeasonTotal = 0;
-      let compareGamesPlayed = 0;
-      try {
-        const historyResponse = await fetch(fplApiRoutes.teamHistory(compareTeamId), { cache: "no-store" });
-        if (historyResponse.ok) {
-          const historyData = await historyResponse.json();
-          compareSeasonTotal = historyData.current.reduce((sum: number, gw: { points: number }) => sum + gw.points, 0);
-          compareGamesPlayed = historyData.current.length;
-        }
-      } catch (error) {
-        console.error("Failed to fetch compare team season stats:", error);
-      }
-
-      compareTeamData = {
-        teamId: compareTeamId,
-        teamName: compareTeamName,
-        managerName: compareManagerName,
-        overallRank: compareOverallRank,
-        h2hRank: compareH2hRank,
-        transfers: compareTransfers,
-        transferCost: compareTransferCost,
-        startersTotal: compareStartersTotal,
-        players: comparePlayers,
-        seasonTotal: compareSeasonTotal,
-        gamesPlayed: compareGamesPlayed,
-        activeChip: compareBreakdownResult.activeChip,
-      };
-    }
-  }
-
-  // Calculate season stats for main team
-  let seasonTotal = 0;
-  let gamesPlayed = 0;
-  if (compareTeamId) {
-    try {
-      const historyResponse = await fetch(fplApiRoutes.teamHistory(teamId), { cache: "no-store" });
-      if (historyResponse.ok) {
-        const historyData = await historyResponse.json();
-        seasonTotal = historyData.current.reduce((sum: number, gw: { points: number }) => sum + gw.points, 0);
-        gamesPlayed = historyData.current.length;
-      }
-    } catch (error) {
-      console.error("Failed to fetch main team season stats:", error);
-    }
-  }
+  const gwTotal = mainTeam.startersTotal;
 
   return (
     <>
-      <div className={compareTeamData ? "max-w-7xl mx-auto text-white px-3 py-2.5 pb-20" : "max-w-2xl mx-auto text-white px-3 py-2.5 pb-20"}>
+      <div className={compareTeam ? "max-w-7xl mx-auto text-white px-3 py-2.5 pb-20" : "max-w-2xl mx-auto text-white px-3 py-2.5 pb-20"}>
         {/* Header with back button and gameweek selector */}
         <div className="flex items-center gap-2 mb-2">
           <BackButton />
           <div className="flex-1 min-w-0">
-            {!compareTeamData ? (
+            {!compareTeam ? (
               <>
-                <div className="text-sm font-bold truncate">{teamName}</div>
-                <div className="text-[10px] text-white/60">{managerName}</div>
+                <div className="text-sm font-bold truncate">{mainTeam.teamName}</div>
+                <div className="text-[10px] text-white/60">{mainTeam.managerName}</div>
               </>
             ) : (
               <div className="text-sm font-bold">Team Comparison</div>
@@ -223,39 +46,23 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
         </div>
 
         {/* Team stats - only show in single team view */}
-        {!compareTeamData && (
+        {!compareTeam && (
           <TeamStatsClient
-            overallRank={overallRank}
-            h2hRank={h2hRank}
-            transfers={transfers}
-            transferCost={transferCost}
+            overallRank={mainTeam.overallRank}
+            h2hRank={mainTeam.h2hRank}
+            transfers={mainTeam.transfers}
+            transferCost={mainTeam.transferCost}
             startersTotal={gwTotal}
             teamId={teamId}
             gameweek={gw}
-            activeChip={activeChip}
+            activeChip={mainTeam.activeChip}
           />
         )}
 
-        {compareTeamData ? (
-          <TeamComparisonClient
-            team1={{
-              teamId,
-              teamName,
-              managerName,
-              overallRank,
-              h2hRank,
-              transfers,
-              transferCost,
-              startersTotal,
-              players,
-              seasonTotal,
-              gamesPlayed,
-              activeChip,
-            }}
-            team2={compareTeamData}
-          />
+        {compareTeam ? (
+          <TeamComparisonClient team1={mainTeam} team2={compareTeam} />
         ) : (
-          <TeamBreakdownClient players={players} teamId={teamId} activeChip={activeChip} />
+          <TeamBreakdownClient players={mainTeam.players} teamId={teamId} activeChip={mainTeam.activeChip} />
         )}
       </div>
 
@@ -264,5 +71,3 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
     </>
   );
 }
-
-

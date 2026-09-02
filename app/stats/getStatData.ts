@@ -1,5 +1,8 @@
-import { fplApiRoutes } from "@/lib/routes";
 import { chipLabel, chipStatus, chipWindowsFromBootstrap, type ChipStatusResult, type ChipWindow } from "@/lib/chips";
+import { cached } from "@/lib/fpl/cache";
+import { ttlFor } from "@/lib/fpl/ttl";
+import * as client from "@/lib/fpl/client";
+import { getLeagueSnapshot } from "@/services/league";
 import { cache } from 'react';
 
 // NEW INTERFACE for Tie Break Details
@@ -201,96 +204,44 @@ export function resolveTieForGameweek(
 
 // Use React cache for request deduplication
 export const getStatsData = cache(async (selectedGameweek?: number) => {
-  const headers = {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-  };
-  // Fetch league standings and bootstrap data with timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-  const [leagueData, bootstrapData] = await Promise.all([
-    fetch(fplApiRoutes.standings(process.env.FPL_LEAGUE_ID || ""), {
-      headers,
-      signal: controller.signal,
-    }),
-    fetch(fplApiRoutes.bootstrap, { 
-      headers,
-      signal: controller.signal,
-    }),
+  // The snapshot already fetched bootstrap, standings, and every manager's
+  // full-season history and chips — reuse it rather than fanning out again.
+  // Fetching bootstrap here too is cheap: it hits the same request-scoped
+  // cache memo as the snapshot's own bootstrap read.
+  const [snapshot, bootstrap] = await Promise.all([
+    getLeagueSnapshot(selectedGameweek),
+    cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
   ]);
 
-  clearTimeout(timeoutId);
-
-  if (!leagueData.ok) {
-    throw new Error(`Failed to fetch league data: ${leagueData.status} ${leagueData.statusText}`);
-  }
-  
-  if (!bootstrapData.ok) {
-    throw new Error(`Failed to fetch bootstrap data: ${bootstrapData.status} ${bootstrapData.statusText}`);
-  }
-
-  const { standings } = await leagueData.json();
-  const { events, chips } = await bootstrapData.json();
-
-  // Get current active gameweek
-  const currentEvent = events.find((e: { is_current: boolean }) => e.is_current)
-    || events.find((e: { is_next: boolean }) => e.is_next)
-    || [...events].reverse().find((e: { finished: boolean }) => e.finished);
-  const currentGameweek = currentEvent ? currentEvent.id : 1;
+  const currentGameweek = snapshot.currentGameweek;
+  const chips = bootstrap.chips;
 
   // Get finished gameweeks, filtered by selectedGameweek if provided.
   // "Finished" here means FPL has checked the data (bonus finalised), not
   // merely that full time has been reached — otherwise wins can be awarded
   // before bonus points are confirmed.
-  let finishedGameweeks = events
-    .filter((event: { data_checked: boolean }) => event.data_checked)
-    .map((event: { id: number }) => event.id)
-    .sort((a: number, b: number) => a - b); // Ensure sorted
-  
+  let finishedGameweeks = bootstrap.events
+    .filter((event) => event.data_checked)
+    .map((event) => event.id)
+    .sort((a, b) => a - b); // Ensure sorted
+
   // If selectedGameweek is provided, filter to only include gameweeks up to that
   if (selectedGameweek !== undefined) {
     finishedGameweeks = finishedGameweeks.filter((gw: number) => gw <= selectedGameweek);
   }
 
   // Extract team data
-  const teams: TeamData[] = standings.results.map(
-    (result: StandingsResult) => ({
-      id: result.entry,
-      name: result.entry_name,
-      managerName: result.player_name,
-    })
-  );
+  const teams: TeamData[] = snapshot.managers.map((m) => ({
+    id: m.entry,
+    name: m.entry_name,
+    managerName: m.player_name,
+  }));
 
-  // Fetch history for all teams with timeout
+  // Every manager's full-season history and chips, already fetched by the snapshot.
   const teamHistories = new Map<number, TeamHistory>();
-  await Promise.all(
-    teams.map(async (team) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout per team
-      
-      try {
-        const response = await fetch(
-          fplApiRoutes.teamHistory(team.id.toString()),
-          { 
-            headers,
-            signal: controller.signal,
-          }
-        );
-        if (response.ok) {
-          const data = await response.json();
-          teamHistories.set(team.id, {
-            current: data.current || [],
-            chips: data.chips || [],
-          });
-        }
-      } catch (error) {
-        console.warn(`Failed to fetch history for team ${team.id}:`, error);
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    })
-  );
+  snapshot.managers.forEach((m) => {
+    teamHistories.set(m.entry, { current: m.history, chips: m.chips });
+  });
 
   // Initialize team stats and chip usage maps
   const teamStatsMap = new Map<number, TeamStats>();
@@ -672,6 +623,36 @@ export const getStatsData = cache(async (selectedGameweek?: number) => {
     unresolvedTies: groupedUnresolvedTies, // ADDED groupedUnresolvedTies
   };
 });
+
+export type StatsData = Awaited<ReturnType<typeof getStatsData>>;
+
+/**
+ * Resolve the `?gameweek=` URL param into stats data with exactly one call
+ * to getStatsData in the common case (no param, or a param that's already
+ * within range). Out-of-range input still self-corrects, at the cost of a
+ * second call — better than silently rendering an empty page.
+ */
+export async function loadStatsData(
+  gameweekParam: string | null
+): Promise<{ data: StatsData; validSelectedGameweek: number }> {
+  const parsedGameweek = gameweekParam ? parseInt(gameweekParam, 10) : undefined;
+  const requestedGameweek =
+    parsedGameweek !== undefined && !Number.isNaN(parsedGameweek) && parsedGameweek >= 1
+      ? parsedGameweek
+      : undefined;
+
+  let data = await getStatsData(requestedGameweek);
+  if (requestedGameweek !== undefined && requestedGameweek > data.currentGameweek) {
+    data = await getStatsData(data.currentGameweek);
+  }
+
+  const validSelectedGameweek =
+    requestedGameweek !== undefined && requestedGameweek <= data.currentGameweek
+      ? requestedGameweek
+      : data.currentGameweek;
+
+  return { data, validSelectedGameweek };
+}
 
 
 export interface TeamData {

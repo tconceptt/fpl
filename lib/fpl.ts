@@ -96,18 +96,6 @@ export interface TeamWithGameweek extends Omit<LeagueTeam, 'entry_name' | 'playe
   movement: "up" | "down" | "none"
 }
 
-export async function fetchWithCache(url: string, revalidate = 300) {
-  const response = await fetch(url, {
-    next: { revalidate },
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}`)
-  }
-
-  return response.json()
-}
-
 export function calculateMovement(currentRank: number, lastRank: number): 'up' | 'down' | 'none' {
   if (lastRank > currentRank) return 'up'
   if (lastRank < currentRank) return 'down'

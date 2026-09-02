@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
-import { fplApiRoutes } from "@/lib/routes";
-import { getPlayerName } from "@/services/get-player-name";
-import { getAllPlayersOwnership } from "@/services/get-player-ownership";
-
-interface TeamDetailsResponse {
-  picks: Array<{ element: number; position: number }>;
-}
+import * as client from "@/lib/fpl/client";
+import { cached } from "@/lib/fpl/cache";
+import { ttlFor } from "@/lib/fpl/ttl";
 
 export async function GET(request: Request) {
   try {
@@ -22,33 +18,30 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Invalid teamId or gw parameter" }, { status: 400 });
     }
 
-    // We will compute league ownership within this endpoint too
-    const tdResp = await fetch(fplApiRoutes.teamDetails(teamId.toString(), gameweek.toString()), { cache: "no-store" });
+    const [bootstrap, teamDetails] = await Promise.all([
+      cached("bootstrap", ttlFor("bootstrap", "quiet"), () => client.bootstrap()),
+      cached(`picks:${teamId}:${gameweek}`, ttlFor("picks", "quiet"), () =>
+        client.picks(teamId, gameweek)
+      ),
+    ]);
 
-    if (!tdResp.ok) {
-      return NextResponse.json({ error: `Failed to fetch team details: ${tdResp.status}` }, { status: 502 });
-    }
-    const teamDetails: TeamDetailsResponse = await tdResp.json();
     const squad = teamDetails.picks.filter((p) => p.position <= 15);
+    const playersMap = new Map(bootstrap.elements.map((el) => [el.id, el]));
 
-    // Use global bootstrap ownership for player rows
-    const ownershipPercent = await getAllPlayersOwnership();
-
-    const players = await Promise.all(
-      squad.map(async (p) => {
-        const name = await getPlayerName(p.element, 'web_name');
-        const ownership = ownershipPercent.get(p.element) ?? 0;
-        return { id: p.element, name, ownership, position: p.position };
+    const players = squad
+      .map((p) => {
+        const player = playersMap.get(p.element);
+        return {
+          id: p.element,
+          name: player?.web_name ?? "Unknown",
+          ownership: Number.parseFloat(player?.selected_by_percent || "0") || 0,
+          position: p.position,
+        };
       })
-    );
-
-    // Sort by position ascending
-    players.sort((a, b) => a.position - b.position);
+      .sort((a, b) => a.position - b.position);
 
     return NextResponse.json({ players });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message || "Unknown error" }, { status: 500 });
   }
 }
-
-
