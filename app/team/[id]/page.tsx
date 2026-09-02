@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getTeamPageDataOptimized } from "@/services/team-page-service";
+import { getTeamPageData } from "@/services/team-page-service";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { BackButton } from "@/components/layout/back-button";
@@ -20,7 +20,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
   if (!teamId || !gw) return notFound();
 
   const { currentGameweek, mainTeam, compareTeam } = await withUpstreamCounter(async () => {
-    const result = await getTeamPageDataOptimized(teamId, gw, compareTeamId);
+    const result = await getTeamPageData(teamId, gw, compareTeamId);
     logTelemetry(`/team/${teamId}`);
     return result;
   });

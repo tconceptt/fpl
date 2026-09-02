@@ -4,7 +4,7 @@ import Link from "next/link";
 import * as client from "@/lib/fpl/client";
 import { cachedKind } from "@/lib/fpl/cache";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
-import { getUrlParam } from "@/lib/helpers";
+import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { TemplateLeaderboardClient } from "./template-leaderboard-client";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +18,13 @@ export interface TemplateTeamStat {
   playersCount: number;
 }
 
-export default async function TemplateLeaderboardPage() {
-  const gameweekParam = await getUrlParam("gameweek");
+export default async function TemplateLeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<GwSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const gameweekParam = resolveGwParam("/stats/template-leaderboard", resolvedSearchParams);
 
   const { currentGameweek, validSelectedGameweek, sorted } = await withUpstreamCounter(async () => {
     const leagueId = process.env.FPL_LEAGUE_ID;

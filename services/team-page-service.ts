@@ -8,8 +8,13 @@ import { cachedKind } from "@/lib/fpl/cache";
 import { buildTeamBreakdown, PlayerBreakdown as LivePlayerBreakdown } from "@/services/fpl-live";
 import type { BootstrapPlayer, BootstrapTeam } from "@/lib/fpl/types";
 
-/** A live breakdown row with the player's name resolved. */
-export type PlayerBreakdown = LivePlayerBreakdown & { name: string };
+/**
+ * A live breakdown row with the player's name and global FPL ownership
+ * resolved. The `ownership` field is what the old
+ * `/api/template-leaderboard/team` route returned per player — folded in
+ * here (Phase 2.4) since `/api/team/[id]/[gw]` replaces that route too.
+ */
+export type PlayerBreakdown = LivePlayerBreakdown & { name: string; ownership: number };
 
 export interface TeamPageData {
   teamId: string;
@@ -54,7 +59,7 @@ async function getH2HRanks(): Promise<Map<number, number>> {
  * Fetch all data for the team page with the shared cache. gameweekId is a
  * string here to match the page's own `searchParams.gw` shape.
  */
-export async function getTeamPageDataOptimized(
+export async function getTeamPageData(
   teamId: string,
   gameweekId: string,
   compareTeamId?: string
@@ -107,6 +112,7 @@ export async function getTeamPageDataOptimized(
     const players: PlayerBreakdown[] = breakdown.map((player) => ({
       ...player,
       name: playersMap.get(player.id)?.web_name ?? "Unknown",
+      ownership: Number.parseFloat(playersMap.get(player.id)?.selected_by_percent || "0") || 0,
     }));
 
     const { teamName, managerName } = getTeamInfo(id);

@@ -62,7 +62,7 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
     const fetchTransfers = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await fetch(`/api/transfers?teamId=${teamId}&gw=${gameweek}`);
+            const response = await fetch(`/api/transfers/${gameweek}?entry=${teamId}`);
             if (!response.ok) throw new Error("Failed to fetch transfers");
             const data = await response.json();
 

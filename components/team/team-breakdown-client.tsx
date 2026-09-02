@@ -58,6 +58,7 @@ export function TeamBreakdownClient({ players, teamId, activeChip }: { players: 
         onClose={() => setShowTeamSelector(false)}
         onSelect={handleTeamSelect}
         excludeTeamId={Number(teamId)}
+        gw={searchParams.get("gw") ?? ""}
       />
     </>
   );

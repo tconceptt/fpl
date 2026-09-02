@@ -360,6 +360,7 @@ export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps
         onClose={() => setShowTeamSelector(false)}
         onSelect={handleTeamSelect}
         excludeTeamId={getExcludedTeamId()}
+        gw={searchParams.get("gw") ?? ""}
       />
     </>
   );

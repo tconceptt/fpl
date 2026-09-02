@@ -35,7 +35,7 @@ export function GameweekSelector({
 
   const handleGameweekChange = (value: string) => {
     const params = new URLSearchParams(searchParams)
-    params.set('gameweek', value)
+    params.set('gw', value)
     router.push(`?${params.toString()}`, { scroll: false })
   }
 

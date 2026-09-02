@@ -14,27 +14,38 @@ interface TeamSelectorProps {
   onClose: () => void;
   onSelect: (teamId: number) => void;
   excludeTeamId?: number;
+  /** The gameweek to read the league's team list from, via `/api/league/[gw]`. */
+  gw: string;
 }
 
-export function TeamSelector({ isOpen, onClose, onSelect, excludeTeamId }: TeamSelectorProps) {
+export function TeamSelector({ isOpen, onClose, onSelect, excludeTeamId, gw }: TeamSelectorProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && gw) {
       fetchTeams();
     }
-  }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, gw]);
 
   const fetchTeams = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/league-teams");
-      
+      const response = await fetch(`/api/league/${gw}`);
+
       if (response.ok) {
         const data = await response.json();
-        setTeams(data.teams || []);
+        const standings: Array<{ entry: number; entry_name: string; player_name: string }> =
+          data.standings || [];
+        setTeams(
+          standings.map((s) => ({
+            entry: s.entry,
+            entry_name: s.entry_name,
+            player_name: s.player_name,
+          }))
+        );
       }
     } catch (error) {
       console.error("Failed to fetch teams:", error);

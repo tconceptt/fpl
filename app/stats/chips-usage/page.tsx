@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Wand2 } from "lucide-react";
 import { loadStatsData } from "../getStatData";
-import { getUrlParam } from "@/lib/helpers";
+import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 import { chipDisplayOrder, type ChipStatusResult } from "@/lib/chips";
@@ -50,8 +50,13 @@ function remainingChipsLine(chipStatuses: ChipStatusResult[] | undefined, curren
   return `${abbrs.join(", ")} left (${currentHalfAvailable.length})`;
 }
 
-export default async function ChipsUsagePage() {
-  const gameweekParam = await getUrlParam("gameweek");
+export default async function ChipsUsagePage({
+  searchParams,
+}: {
+  searchParams: Promise<GwSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const gameweekParam = resolveGwParam("/stats/chips-usage", resolvedSearchParams);
 
   const { data, validSelectedGameweek } = await withUpstreamCounter(async () => {
     const result = await loadStatsData(gameweekParam);

@@ -2,7 +2,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatPoints } from "@/lib/fpl";
-import { getUrlParam } from "@/lib/helpers";
+import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { chipLabel } from "@/lib/chips";
 import { getLeagueSnapshot, type ManagerSnapshot } from "@/services/league";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
@@ -188,8 +188,13 @@ interface GameweekCardProps {
   compact?: boolean;
 }
 
-export default async function GameweekPage() {
-  const gameweekParam = await getUrlParam("gameweek");
+export default async function GameweekPage({
+  searchParams,
+}: {
+  searchParams: Promise<GwSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const gameweekParam = resolveGwParam("/gameweek", resolvedSearchParams);
   const parsedGameweek = gameweekParam ? parseInt(gameweekParam, 10) : undefined;
 
   const { snapshot, stats } = await withUpstreamCounter(async () => {

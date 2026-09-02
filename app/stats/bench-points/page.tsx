@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Medal, TrendingDown, TrendingUp } from "lucide-react";
 import { loadStatsData } from "../getStatData";
 import { formatPoints, perGameweek } from "@/lib/fpl";
-import { getUrlParam } from "@/lib/helpers";
+import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 
@@ -19,8 +19,13 @@ interface BenchStats {
   benchPoints: number;
 }
 
-export default async function BenchPointsPage() {
-  const gameweekParam = await getUrlParam("gameweek");
+export default async function BenchPointsPage({
+  searchParams,
+}: {
+  searchParams: Promise<GwSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const gameweekParam = resolveGwParam("/stats/bench-points", resolvedSearchParams);
 
   const { data, validSelectedGameweek } = await withUpstreamCounter(async () => {
     const result = await loadStatsData(gameweekParam);

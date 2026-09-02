@@ -1,7 +1,7 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { loadStatsData } from "../getStatData";
-import { getUrlParam } from "@/lib/helpers";
+import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 import { HitsLeaderboardClient } from "./hits-leaderboard-client";
@@ -9,8 +9,13 @@ import { HitsLeaderboardClient } from "./hits-leaderboard-client";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export default async function HitsLeaderboardPage() {
-  const gameweekParam = await getUrlParam("gameweek");
+export default async function HitsLeaderboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<GwSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const gameweekParam = resolveGwParam("/stats/hits-leaderboard", resolvedSearchParams);
 
   const { data, validSelectedGameweek } = await withUpstreamCounter(async () => {
     const result = await loadStatsData(gameweekParam);

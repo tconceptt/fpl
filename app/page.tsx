@@ -1,16 +1,20 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { LeagueTable } from "@/components/league-table/league-table";
-import { getLeagueSnapshot } from "@/services/league";
+import { getLeagueSnapshot, toStandings } from "@/services/league";
 import { notFound } from "next/navigation";
-import { getUrlParam } from "@/lib/helpers";
+import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
-import type { GameweekStanding } from "@/types/league";
 
 export const revalidate = 0;
 export const maxDuration = 60;
 
-export default async function LeaguePage() {
-  const gameweekParam = await getUrlParam("gameweek");
+export default async function LeaguePage({
+  searchParams,
+}: {
+  searchParams: Promise<GwSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const gameweekParam = resolveGwParam("/", resolvedSearchParams);
   const parsedGameweek = gameweekParam ? parseInt(gameweekParam, 10) : undefined;
   const requestedGameweek = Number.isNaN(parsedGameweek) ? undefined : parsedGameweek;
 
@@ -33,21 +37,7 @@ export default async function LeaguePage() {
     notFound();
   }
 
-  const standings: GameweekStanding[] = snapshot.managers.map((m) => ({
-    entry: m.entry,
-    entry_name: m.entry_name,
-    player_name: m.player_name,
-    event_total: m.event_total,
-    total_points: m.total_points,
-    net_points: m.net_points,
-    rank: m.rank,
-    last_rank: m.last_rank,
-    captain_name: m.captain?.web_name,
-    active_chip: m.active_chip,
-    transfer_cost: m.transfer_cost,
-    playersToStart: m.players_to_start,
-    h2h_rank: m.h2h_rank ?? undefined,
-  }));
+  const standings = toStandings(snapshot);
 
   return (
     <DashboardLayout>

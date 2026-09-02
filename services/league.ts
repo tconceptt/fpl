@@ -34,6 +34,7 @@ import type {
   TeamDetails,
   TeamHistory,
 } from "@/lib/fpl/types";
+import type { GameweekStanding } from "@/types/league";
 
 export interface ManagerSnapshot {
   entry: number;
@@ -300,4 +301,28 @@ export function getLeagueSnapshot(
   opts: GetLeagueSnapshotOptions = {}
 ): Promise<LeagueSnapshot> {
   return getLeagueSnapshotMemoized(gw, opts.includePicks ?? true);
+}
+
+/**
+ * The mapping from a snapshot's managers to the shape the league table (and
+ * `/api/league/[gw]`, Phase 2.4) render. Factored out of app/page.tsx so the
+ * page and the route build the exact same standings from the exact same
+ * snapshot.
+ */
+export function toStandings(snapshot: LeagueSnapshot): GameweekStanding[] {
+  return snapshot.managers.map((m) => ({
+    entry: m.entry,
+    entry_name: m.entry_name,
+    player_name: m.player_name,
+    event_total: m.event_total,
+    total_points: m.total_points,
+    net_points: m.net_points,
+    rank: m.rank,
+    last_rank: m.last_rank,
+    captain_name: m.captain?.web_name,
+    active_chip: m.active_chip,
+    transfer_cost: m.transfer_cost,
+    playersToStart: m.players_to_start,
+    h2h_rank: m.h2h_rank ?? undefined,
+  }));
 }

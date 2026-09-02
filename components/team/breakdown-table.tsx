@@ -71,34 +71,39 @@ const metricsLabel: Record<string, string> = {
   points_modification: "Points adjustment",
 };
 
+type OwnerRow = { teamId: number; teamName: string; managerName: string; netPoints: number };
+
 export function BreakdownTable({ players, compact = false, activeChip }: { players: Player[]; compact?: boolean; activeChip?: string | null }) {
   const starters = players.filter((p) => p.position <= 11);
   const bench = players.filter((p) => p.position > 11);
   const isBenchBoostActive = activeChip === 'bboost';
 
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  const [startingTeams, setStartingTeams] = useState<Array<{ teamId: number; teamName: string; managerName: string; netPoints: number }> | null>(null);
-  const [isLoadingTeams, setIsLoadingTeams] = useState(false);
+  const [ownershipByElement, setOwnershipByElement] = useState<Map<number, OwnerRow[]> | null>(null);
+  const [isLoadingOwnership, setIsLoadingOwnership] = useState(false);
   const searchParams = useSearchParams();
   const gw = searchParams.get("gw");
 
+  // Fetched once per gameweek — not per player click — since the bounded
+  // /api/ownership/[gw] route already covers every element in one response.
   useEffect(() => {
-    if (selectedPlayer && gw) {
-      setIsLoadingTeams(true);
-      setStartingTeams(null);
-      fetch(`/api/league/player-ownership?playerId=${selectedPlayer.id}&gw=${gw}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.teams) {
-            setStartingTeams(data.teams);
-          }
-        })
-        .catch((err) => console.error("Failed to fetch starting teams:", err))
-        .finally(() => setIsLoadingTeams(false));
-    } else {
-      setStartingTeams(null);
+    if (!gw) {
+      setOwnershipByElement(null);
+      return;
     }
-  }, [selectedPlayer, gw]);
+    setIsLoadingOwnership(true);
+    fetch(`/api/ownership/${gw}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const entries: Array<{ elementId: number; owners: OwnerRow[] }> = data.ownership || [];
+        setOwnershipByElement(new Map(entries.map((e) => [e.elementId, e.owners])));
+      })
+      .catch((err) => console.error("Failed to fetch ownership:", err))
+      .finally(() => setIsLoadingOwnership(false));
+  }, [gw]);
+
+  const startingTeams = selectedPlayer ? ownershipByElement?.get(selectedPlayer.id) ?? [] : [];
+  const isLoadingTeams = isLoadingOwnership && ownershipByElement === null;
 
   const selectedPlayerIsTripleCaptain = selectedPlayer ? (selectedPlayer.isCaptain && activeChip === "3xc") : false;
 

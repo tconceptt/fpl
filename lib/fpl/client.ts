@@ -211,6 +211,67 @@ function slimBootstrap(raw: RawBootstrap): SlimBootstrap {
   };
 }
 
+// --- Live payload slimming (Phase 2.4: ~444KB raw, stored/read from Redis
+// whole, down to the handful of fields the app actually reads). ---
+
+interface RawLiveStats {
+  minutes: number;
+  total_points: number;
+  bonus: number;
+  bps: number;
+  // influence/creativity/threat/ict_index/expected_*/in_dreamteam/played/etc
+  // — never read, so never kept.
+  [key: string]: unknown;
+}
+
+interface RawLiveExplainStat {
+  identifier: string;
+  points: number;
+  value: number;
+  points_modification?: number;
+}
+
+interface RawLiveExplainFixture {
+  fixture: number;
+  stats: RawLiveExplainStat[];
+}
+
+interface RawLivePlayer {
+  id: number;
+  stats: RawLiveStats;
+  explain: RawLiveExplainFixture[];
+  // `modified` (and anything else FPL adds) is dropped.
+  [key: string]: unknown;
+}
+
+interface RawLiveGameweekData {
+  elements: RawLivePlayer[];
+}
+
+/** Keep only what services/fpl-live.ts and services/team-page-service.ts read. */
+export function slimLive(raw: RawLiveGameweekData): LiveGameweekData {
+  return {
+    elements: raw.elements.map((el) => ({
+      id: el.id,
+      stats: {
+        minutes: el.stats.minutes,
+        total_points: el.stats.total_points,
+        bonus: el.stats.bonus,
+        bps: el.stats.bps,
+      },
+      explain: (el.explain ?? []).map((fixture) => ({
+        fixture: fixture.fixture,
+        stats: (fixture.stats ?? []).map((stat) => ({
+          identifier: stat.identifier,
+          points: stat.points,
+          value: stat.value,
+          points_modification: stat.points_modification,
+        })),
+      })),
+    })),
+  };
+}
+
 // Warn once per process rather than on every request.
 const warnedMissingH2HLeagues = new Set<string>();
 
@@ -234,7 +295,8 @@ export async function fixtures(gw: number): Promise<Fixture[]> {
 }
 
 export async function live(gw: number): Promise<LiveGameweekData> {
-  return fetchJson<LiveGameweekData>(fplApiRoutes.liveStandings(String(gw)));
+  const raw = await fetchJson<RawLiveGameweekData>(fplApiRoutes.liveStandings(String(gw)));
+  return slimLive(raw);
 }
 
 export async function picks(entry: number, gw: number): Promise<TeamDetails> {

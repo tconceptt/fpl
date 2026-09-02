@@ -28,7 +28,7 @@ export function TemplateLeaderboardClient({ data: initialData, currentGameweek, 
   const fetchData = React.useCallback(async (gw: number) => {
     setLoading(true);
     try {
-      const resp = await fetch(`/api/template-leaderboard?gw=${gw}`, { cache: "no-store" });
+      const resp = await fetch(`/api/template/${gw}`, { cache: "no-store" });
       if (resp.ok) {
         const json = await resp.json();
         setData(json.data || []);
@@ -38,9 +38,9 @@ export function TemplateLeaderboardClient({ data: initialData, currentGameweek, 
     }
   }, []);
 
-  // Watch the URL for ?gameweek changes and keep component state + data in sync
+  // Watch the URL for ?gw changes and keep component state + data in sync
   React.useEffect(() => {
-    const gwParam = searchParams.get('gameweek');
+    const gwParam = searchParams.get('gw');
     const nextGw = gwParam ? parseInt(gwParam, 10) : selectedGameweek;
     if (!Number.isFinite(nextGw)) return;
     if (nextGw !== selectedGw) {
@@ -81,10 +81,10 @@ export function TemplateLeaderboardClient({ data: initialData, currentGameweek, 
                   setModalLoading(true);
                   setModalOpen(true);
                   try {
-                    const resp = await fetch(`/api/template-leaderboard/team?teamId=${team.id}&gw=${selectedGw}`, { cache: "no-store" });
+                    const resp = await fetch(`/api/team/${team.id}/${selectedGw}`, { cache: "no-store" });
                     if (resp.ok) {
                       const json = await resp.json();
-                      setModalPlayers(json.players || []);
+                      setModalPlayers(json.mainTeam?.players || []);
                     }
                   } finally {
                     setModalLoading(false);
@@ -124,10 +124,10 @@ export function TemplateLeaderboardClient({ data: initialData, currentGameweek, 
                     setModalLoading(true);
                     setModalOpen(true);
                     try {
-                      const resp = await fetch(`/api/template-leaderboard/team?teamId=${team.id}&gw=${selectedGw}`, { cache: "no-store" });
+                      const resp = await fetch(`/api/team/${team.id}/${selectedGw}`, { cache: "no-store" });
                       if (resp.ok) {
                         const json = await resp.json();
-                        setModalPlayers(json.players || []);
+                        setModalPlayers(json.mainTeam?.players || []);
                       }
                     } finally {
                       setModalLoading(false);

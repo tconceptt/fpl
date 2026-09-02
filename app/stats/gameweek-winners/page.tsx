@@ -1,7 +1,7 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { loadStatsData } from "../getStatData";
-import { getUrlParam } from "@/lib/helpers";
+import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -12,8 +12,13 @@ import { Loader2 } from "lucide-react";
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-async function GameweekWinnersContent() {
-  const gameweekParam = await getUrlParam("gameweek");
+async function GameweekWinnersContent({
+  searchParams,
+}: {
+  searchParams: Promise<GwSearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const gameweekParam = resolveGwParam("/stats/gameweek-winners", resolvedSearchParams);
 
   const { data, validSelectedGameweek } = await withUpstreamCounter(async () => {
     const result = await loadStatsData(gameweekParam);
@@ -50,11 +55,15 @@ function LoadingFallback() {
   );
 }
 
-export default function GameweekWinnersPage() {
+export default function GameweekWinnersPage({
+  searchParams,
+}: {
+  searchParams: Promise<GwSearchParams>;
+}) {
   return (
     <DashboardLayout>
       <Suspense fallback={<LoadingFallback />}>
-        <GameweekWinnersContent />
+        <GameweekWinnersContent searchParams={searchParams} />
       </Suspense>
     </DashboardLayout>
   );

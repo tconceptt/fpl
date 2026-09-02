@@ -19,7 +19,9 @@ import type { EventStatusRow } from "@/lib/fpl/types";
 import { ttlFor, type LiveState, type TtlKind, type TransfersTtlOptions } from "@/lib/fpl/ttl";
 import * as client from "@/lib/fpl/client";
 
-const KEY_PREFIX = "fpl:v1:";
+// Bumped in Phase 2.4 (live payload slimming) so no v1 raw `live` payloads —
+// or anything else cached under the old prefix — are ever read back.
+const KEY_PREFIX = "fpl:v2:";
 
 /** Values are wrapped so a legitimately cached `null`/`undefined` is distinguishable from a cache miss. */
 interface Envelope<T> {
@@ -355,7 +357,12 @@ export async function cachedManyKind<T>(
   return cachedMany(keys, ttl, fetchMissing);
 }
 
-async function resolveTtl(kind: TtlKind, opts: TransfersTtlOptions = {}): Promise<number> {
+/**
+ * Exposed (Phase 2.4) so API routes can compute the same TTL they cached
+ * with, for the `Cache-Control: s-maxage` header — without duplicating the
+ * per-kind live-state logic above.
+ */
+export async function resolveTtl(kind: TtlKind, opts: TransfersTtlOptions = {}): Promise<number> {
   if (kind === "eventStatus") {
     // ttlFor("eventStatus", *) is 60s regardless of state, and resolving
     // state here would call back into getEventStatus — skip the round trip.
