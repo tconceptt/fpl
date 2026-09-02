@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { chipStatus, chipWindowsFromBootstrap } from "@/lib/chips";
+import { chipDisplayOrder, chipStatus, chipWindowsFromBootstrap } from "@/lib/chips";
 import bootstrapSlim from "./fixtures/bootstrap-slim.json";
 import history from "./fixtures/history.json";
 
 const windows = chipWindowsFromBootstrap(bootstrapSlim.chips);
 const playedChips = history.chips;
+
+describe("chipDisplayOrder", () => {
+  it("is the fixed WC, FH, BB, TC order", () => {
+    expect(chipDisplayOrder).toEqual(["wildcard", "freehit", "bboost", "3xc"]);
+  });
+});
 
 describe("chipWindowsFromBootstrap", () => {
   it("builds a window per chip half from the bootstrap chips array", () => {

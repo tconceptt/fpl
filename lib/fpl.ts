@@ -122,6 +122,16 @@ export function formatPoints(points?: number | null): string {
   return val.toLocaleString();
 }
 
+/**
+ * A per-gameweek average, rounded and locale-formatted like formatPoints.
+ * Returns "–" instead of Infinity/NaN when there are no finished gameweeks
+ * to average over.
+ */
+export function perGameweek(total: number, finishedGameweeks: number): string {
+  if (!finishedGameweeks) return "–";
+  return formatPoints(Math.round(total / finishedGameweeks));
+}
+
 export function getAvatarInitial(name: string): string {
   return name.charAt(0).toUpperCase()
 } 

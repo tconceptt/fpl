@@ -6,7 +6,7 @@ import { Wand2 } from "lucide-react";
 import { getStatsData } from "../getStatData";
 import { getUrlParam } from "@/lib/helpers";
 import Link from "next/link";
-import type { ChipStatusResult } from "@/lib/chips";
+import { chipDisplayOrder, type ChipStatusResult } from "@/lib/chips";
 
 interface ChipInfo {
   name: string;
@@ -29,7 +29,7 @@ const CHIP_ABBR: Record<string, string> = {
   "3xc": "TC",
 };
 
-/** "WC, FH left" for the chips still available in the current half. */
+/** "WC, FH left" for the chips still available in the current half, in a fixed WC/FH/BB/TC order. */
 function remainingChipsLine(chipStatuses: ChipStatusResult[] | undefined, currentGameweek: number): string {
   if (!chipStatuses) return "";
   const currentHalfAvailable = chipStatuses.filter(
@@ -39,7 +39,10 @@ function remainingChipsLine(chipStatuses: ChipStatusResult[] | undefined, curren
       currentGameweek <= s.window.stopEvent
   );
   if (currentHalfAvailable.length === 0) return "None left this half";
-  const abbrs = currentHalfAvailable.map((s) => CHIP_ABBR[s.window.name] ?? s.window.name);
+  const availableNames = new Set(currentHalfAvailable.map((s) => s.window.name));
+  const abbrs = chipDisplayOrder
+    .filter((name) => availableNames.has(name))
+    .map((name) => CHIP_ABBR[name] ?? name);
   return `${abbrs.join(", ")} left (${currentHalfAvailable.length})`;
 }
 
@@ -123,7 +126,7 @@ export default async function ChipsUsagePage() {
                         </span>
                       ))}
                     </div>
-                    <div className="text-purple-300/80 text-[8.5px] mt-1">
+                    <div className="text-purple-300/80 text-[11px] mt-1">
                       {remainingChipsLine(team.chipStatuses, data.currentGameweek)}
                     </div>
                   </div>

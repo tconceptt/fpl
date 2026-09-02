@@ -6,6 +6,8 @@ import { Trophy, Wand2, Medal, CalendarDays, Zap, Layers, TrendingUp } from "luc
 import { getStatsData } from "./getStatData";
 import { formatPoints } from "@/lib/fpl";
 
+export const dynamic = 'force-dynamic';
+
 export default async function StatsLandingPage() {
   const data = await getStatsData();
   return (

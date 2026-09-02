@@ -16,12 +16,12 @@ export default async function LeaguePage() {
   // only runs once that fetch has actually succeeded.
   const data = await getLeagueData(requestedGameweek);
 
+  // parsedGameweek is undefined only when gameweekParam was an empty string,
+  // which is itself invalid input — treat that the same as NaN.
+  const gwValue = parsedGameweek ?? NaN;
   if (
     gameweekParam !== null &&
-    (parsedGameweek === undefined ||
-      Number.isNaN(parsedGameweek) ||
-      parsedGameweek < 1 ||
-      parsedGameweek > data.currentGameweek)
+    (Number.isNaN(gwValue) || gwValue < 1 || gwValue > data.currentGameweek)
   ) {
     notFound();
   }

@@ -18,6 +18,9 @@ function isChipName(name: string): name is ChipName {
   return name in CHIP_LABELS;
 }
 
+/** Fixed display order for chip abbreviations: WC, FH, BB, TC. */
+export const chipDisplayOrder: ChipName[] = ["wildcard", "freehit", "bboost", "3xc"];
+
 /** The display label for a chip's raw API name, e.g. "3xc" -> "Triple Captain". */
 export function chipLabel(name: string): string {
   return isChipName(name) ? CHIP_LABELS[name] : name;

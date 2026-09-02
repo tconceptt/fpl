@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Medal, TrendingDown, TrendingUp } from "lucide-react";
 import { getStatsData } from "../getStatData";
-import { formatPoints } from "@/lib/fpl";
+import { formatPoints, perGameweek } from "@/lib/fpl";
 import { getUrlParam } from "@/lib/helpers";
 import Link from "next/link";
 
@@ -90,7 +90,7 @@ export default async function BenchPointsPage() {
                     {formatPoints(team.benchPoints)}
                   </div>
                   <div className="w-12 text-right font-semibold text-[10.5px] text-white/80">
-                    {formatPoints(Math.round(team.benchPoints / data.finishedGameweeks))}
+                    {perGameweek(team.benchPoints, data.finishedGameweeks)}
                   </div>
                 </div>
               ))}
@@ -121,7 +121,7 @@ export default async function BenchPointsPage() {
                     </TableCell>
                     <TableCell className="text-right font-bold py-3 text-white">{formatPoints(team.benchPoints)}</TableCell>
                     <TableCell className="text-right py-3 text-white/80">
-                      {formatPoints(Math.round(team.benchPoints / data.finishedGameweeks))}
+                      {perGameweek(team.benchPoints, data.finishedGameweeks)}
                     </TableCell>
                     <TableCell className="text-right py-3">
                       {index === 0 ? (
