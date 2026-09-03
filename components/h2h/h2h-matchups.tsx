@@ -122,7 +122,7 @@ export function H2HMatchups({ matchups, live, gw }: { matchups: H2HMatchup[]; li
               return (
                 <div
                   key={matchup.id}
-                  className="rounded-lg border border-white/10 bg-gray-900/50 px-3 py-2.5 sm:px-4 sm:py-3"
+                  className="min-w-0 rounded-lg border border-white/10 bg-gray-900/50 px-3 py-2.5 sm:px-4 sm:py-3"
                 >
                   <div className="flex items-center gap-3">
                     <Side side={matchup.home} state={homeState} align="left" live={live} gw={gw} />
@@ -148,6 +148,17 @@ export function H2HMatchups({ matchups, live, gw }: { matchups: H2HMatchup[]; li
   );
 }
 
+/** Shared column widths so the header and rows line up at every breakpoint. */
+const COL = {
+  rank: "w-8 shrink-0",
+  /** Phones only: a single "W-D-L" record column. */
+  record: "w-14 shrink-0 sm:hidden",
+  /** Tablets and up: one column per counter. */
+  stat: "hidden sm:block w-8 md:w-10 shrink-0",
+  pf: "hidden sm:block w-14 md:w-16 shrink-0",
+  pts: "w-11 sm:w-12 shrink-0",
+} as const;
+
 export function H2HTable({ rows }: { rows: H2HTableRow[] }) {
   return (
     <Card>
@@ -160,14 +171,15 @@ export function H2HTable({ rows }: { rows: H2HTableRow[] }) {
       <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
         <div className="text-white text-sm sm:rounded-lg overflow-hidden sm:border border-white/10">
           <div className="flex font-bold text-gray-300 px-3 py-2 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-xs">
-            <div className="w-8 text-center">#</div>
-            <div className="flex-1">Team</div>
-            <div className="w-8 text-center">P</div>
-            <div className="w-8 text-center">W</div>
-            <div className="w-8 text-center">D</div>
-            <div className="w-8 text-center">L</div>
-            <div className="hidden sm:block w-14 text-right">PF</div>
-            <div className="w-12 text-right">Pts</div>
+            <div className={cn(COL.rank, "text-center")}>#</div>
+            <div className="flex-1 min-w-0 ml-1">Team</div>
+            <div className={cn(COL.record, "text-center")}>W-D-L</div>
+            <div className={cn(COL.stat, "text-center")}>P</div>
+            <div className={cn(COL.stat, "text-center")}>W</div>
+            <div className={cn(COL.stat, "text-center")}>D</div>
+            <div className={cn(COL.stat, "text-center")}>L</div>
+            <div className={cn(COL.pf, "text-right")}>PF</div>
+            <div className={cn(COL.pts, "text-right")}>Pts</div>
           </div>
           {rows.length === 0 && (
             <p className="text-sm text-white/60 text-center py-6">No table yet.</p>
@@ -175,28 +187,53 @@ export function H2HTable({ rows }: { rows: H2HTableRow[] }) {
           {rows.map((row, index) => {
             const isFirst = row.rank === 1;
             const isLast = row.rank === rows.length && rows.length > 1;
+            const moved = row.lastRank !== row.rank;
+            const movedUp = row.lastRank > row.rank;
             const inner = (
               <>
-                <div className="w-8 flex flex-col items-center justify-center">
+                <div className={cn(COL.rank, "flex flex-col items-center justify-center")}>
                   <span className={cn("font-bold tabular-nums", isFirst && "text-yellow-400", isLast && "text-red-400")}>
                     {row.rank}
                   </span>
-                  {row.lastRank !== row.rank && (
-                    <span className={cn("text-xs leading-none", row.lastRank > row.rank ? "text-emerald-500" : "text-red-500")}>
-                      {row.lastRank > row.rank ? "▲" : "▼"}
+                  {moved && (
+                    <span
+                      aria-label={movedUp ? "Moved up" : "Moved down"}
+                      className={cn("text-xs leading-none", movedUp ? "text-emerald-500" : "text-red-500")}
+                    >
+                      {movedUp ? "▲" : "▼"}
                     </span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0 ml-1">
                   <div className="font-semibold truncate leading-tight">{row.entryName}</div>
-                  <div className="text-xs text-white/60 truncate leading-tight">{row.playerName}</div>
+                  <div className="flex items-center gap-1.5 text-xs text-white/60 leading-tight">
+                    <span className="truncate">{row.playerName}</span>
+                    {/* PF has no column on phones, so it rides along the manager line. */}
+                    <span className="sm:hidden shrink-0 text-white/40 tabular-nums">
+                      PF {formatPoints(row.pointsFor)}
+                    </span>
+                  </div>
                 </div>
-                <div className="w-8 text-center tabular-nums text-white/70">{row.played}</div>
-                <div className="w-8 text-center tabular-nums text-green-400">{row.won}</div>
-                <div className="w-8 text-center tabular-nums text-amber-300">{row.drawn}</div>
-                <div className="w-8 text-center tabular-nums text-red-400">{row.lost}</div>
-                <div className="hidden sm:block w-14 text-right tabular-nums text-white/70">{formatPoints(row.pointsFor)}</div>
-                <div className="w-12 text-right font-bold tabular-nums">{row.total}</div>
+
+                {/* Phones: one record column, with games played underneath. */}
+                <div className={cn(COL.record, "flex flex-col items-center justify-center")}>
+                  <span className="tabular-nums text-xs font-semibold leading-tight">
+                    <span className="text-green-400">{row.won}</span>
+                    <span className="text-white/30">-</span>
+                    <span className="text-amber-300">{row.drawn}</span>
+                    <span className="text-white/30">-</span>
+                    <span className="text-red-400">{row.lost}</span>
+                  </span>
+                  <span className="text-[10px] text-white/40 tabular-nums leading-tight">P {row.played}</span>
+                </div>
+
+                {/* Tablets and up: the full breakdown. */}
+                <div className={cn(COL.stat, "text-center tabular-nums text-white/70")}>{row.played}</div>
+                <div className={cn(COL.stat, "text-center tabular-nums text-green-400")}>{row.won}</div>
+                <div className={cn(COL.stat, "text-center tabular-nums text-amber-300")}>{row.drawn}</div>
+                <div className={cn(COL.stat, "text-center tabular-nums text-red-400")}>{row.lost}</div>
+                <div className={cn(COL.pf, "text-right tabular-nums text-white/70")}>{formatPoints(row.pointsFor)}</div>
+                <div className={cn(COL.pts, "text-right font-bold tabular-nums")}>{row.total}</div>
               </>
             );
             const className = cn(
