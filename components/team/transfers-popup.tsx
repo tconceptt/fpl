@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRightLeft, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import Image from "next/image";
-import { kitSources } from "@/lib/clubs";
+import { KitImage } from "@/components/ui/kit-image";
 
 interface PlayerKitInfo {
     id: number;
@@ -27,30 +26,6 @@ interface TransfersPopupProps {
     onClose: () => void;
     teamId: string;
     gameweek: string;
-}
-
-function kitCandidatePaths(p: { elementType: number; team: number; teamShortName?: string; teamCode?: number }): string[] {
-    const club = p.teamShortName && p.teamCode
-        ? { id: p.team, name: "", shortName: p.teamShortName, code: p.teamCode }
-        : undefined;
-    return kitSources(club, p.elementType === 1);
-}
-
-function KitImage({ player, className }: { player: { elementType: number; team: number; teamShortName?: string; teamCode?: number }; className?: string }) {
-    const paths = kitCandidatePaths(player);
-    const [idx, setIdx] = useState(0);
-    const src = paths[Math.min(idx, paths.length - 1)];
-
-    return (
-        <Image
-            src={src}
-            alt="kit"
-            width={32}
-            height={32}
-            className={className}
-            onError={() => setIdx((i) => Math.min(i + 1, paths.length - 1))}
-        />
-    );
 }
 
 export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersPopupProps) {

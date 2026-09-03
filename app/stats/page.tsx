@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Wand2, Medal, CalendarDays, Zap, Layers, TrendingUp } from "lucide-react";
+import { Trophy, Wand2, Medal, CalendarDays, Zap, Layers, TrendingUp, Users, ArrowRightLeft } from "lucide-react";
 import { getStatsData } from "./getStatData";
 import { formatPoints } from "@/lib/fpl";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
@@ -188,6 +188,46 @@ export default async function StatsLandingPage() {
               <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
                 <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">Ranked by average ownership of entire squad.</p>
                 <svg className="h-4 w-4 text-green-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/stats/ownership" className="group block">
+            <Card className="border-purple-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-purple-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-purple-900/20 sm:from-gray-800 to-gray-900 group-hover:from-purple-900/20 transition-colors">
+                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
+                  <span className="bg-purple-500/20 sm:bg-purple-500/10 p-1.5 rounded-lg group-hover:bg-purple-500/30 transition-colors">
+                    <Users className="h-4 w-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                  </span>
+                  Effective Ownership
+                </CardTitle>
+                <span className="text-xl group-hover:scale-110 transition-transform">👥</span>
+              </CardHeader>
+              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
+                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">Who the league is riding, and the differentials.</p>
+                <svg className="h-4 w-4 text-purple-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/transfers" className="group block">
+            <Card className="border-blue-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-blue-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-blue-900/20 sm:from-gray-800 to-gray-900 group-hover:from-blue-900/20 transition-colors">
+                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
+                  <span className="bg-blue-500/20 sm:bg-blue-500/10 p-1.5 rounded-lg group-hover:bg-blue-500/30 transition-colors">
+                    <ArrowRightLeft className="h-4 w-4 text-blue-400 group-hover:text-blue-300 transition-colors" />
+                  </span>
+                  Transfer Feed
+                </CardTitle>
+                <span className="text-xl group-hover:scale-110 transition-transform">🔁</span>
+              </CardHeader>
+              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
+                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">Every move this gameweek, best and worst included.</p>
+                <svg className="h-4 w-4 text-blue-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </CardContent>

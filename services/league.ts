@@ -139,8 +139,13 @@ async function fetchHistories(entries: number[]): Promise<Map<number, TeamHistor
   return byEntry;
 }
 
-/** Picks for every manager at one gameweek, batched through one MGET / pipeline. */
-async function fetchPicks(entries: number[], gw: number): Promise<Map<number, TeamDetails>> {
+/**
+ * Picks for every manager at one gameweek, batched through one MGET /
+ * pipeline. Exported so the ownership and transfer services (Phase 4) read
+ * picks through the same keys — and therefore the same request memo — as
+ * the snapshot, rather than each keeping a copy of this loop.
+ */
+export async function fetchPicks(entries: number[], gw: number): Promise<Map<number, TeamDetails>> {
   const keys = entries.map((entry) => `picks:${entry}:${gw}`);
   const byKey = await cachedManyKind<TeamDetails>("picks", keys, async (missingKeys) => {
     const fetched = new Map<string, TeamDetails>();

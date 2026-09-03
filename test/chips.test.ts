@@ -62,3 +62,18 @@ describe("chipStatus", () => {
     }
   });
 });
+
+describe("groupChipWindowsByHalf", () => {
+  it("groups the eight windows into two halves keyed on their stop gameweek", async () => {
+    const { groupChipWindowsByHalf } = await import("@/lib/chips");
+    const halves = groupChipWindowsByHalf(windows);
+
+    expect(halves.map((h) => h.label)).toEqual(["GW1–19", "GW20–38"]);
+    // The first half starts at GW1 even though the wildcard and free hit open at GW2.
+    expect(halves[0]).toMatchObject({ startEvent: 1, stopEvent: 19 });
+    expect(halves[1]).toMatchObject({ startEvent: 20, stopEvent: 38 });
+    for (const half of halves) {
+      expect(half.windows.map((w) => w.name)).toEqual(chipDisplayOrder);
+    }
+  });
+});

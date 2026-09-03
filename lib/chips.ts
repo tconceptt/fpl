@@ -51,6 +51,48 @@ export function chipWindowsFromBootstrap(chips: BootstrapChipLike[]): ChipWindow
     .sort((a, b) => a.startEvent - b.startEvent || a.name.localeCompare(b.name));
 }
 
+/** One half of the season: the chip windows that share a stop gameweek. */
+export interface ChipHalf {
+  label: string;
+  startEvent: number;
+  stopEvent: number;
+  /** In `chipDisplayOrder`: WC, FH, BB, TC. */
+  windows: ChipWindow[];
+}
+
+/**
+ * Group chip windows by the gameweek they close, earliest first, so a grid
+ * can show "GW1–19" and "GW20–38" as two column groups. Chips within a half
+ * follow `chipDisplayOrder`. Halves are keyed on `stopEvent` rather than
+ * `startEvent` because the first wildcard opens at GW2 while the other
+ * first-half chips open at GW1.
+ */
+export function groupChipWindowsByHalf(windows: ChipWindow[]): ChipHalf[] {
+  const halves = new Map<number, ChipHalf>();
+
+  for (const window of windows) {
+    const half = halves.get(window.stopEvent) ?? {
+      label: "",
+      startEvent: window.startEvent,
+      stopEvent: window.stopEvent,
+      windows: [],
+    };
+    half.startEvent = Math.min(half.startEvent, window.startEvent);
+    half.windows.push(window);
+    halves.set(window.stopEvent, half);
+  }
+
+  return [...halves.values()]
+    .sort((a, b) => a.stopEvent - b.stopEvent)
+    .map((half) => ({
+      ...half,
+      label: `GW${half.startEvent}–${half.stopEvent}`,
+      windows: [...half.windows].sort(
+        (a, b) => chipDisplayOrder.indexOf(a.name) - chipDisplayOrder.indexOf(b.name)
+      ),
+    }));
+}
+
 export type ChipUsageStatus = "used" | "available" | "expired";
 
 export interface ChipStatusResult {

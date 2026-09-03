@@ -198,25 +198,50 @@ export interface LeagueStandings {
 export interface H2HStandingsRow {
   entry: number | null;
   entry_name: string;
+  player_name?: string;
   rank: number;
+  last_rank?: number;
+  matches_played?: number;
+  matches_won?: number;
+  matches_drawn?: number;
+  matches_lost?: number;
+  /** Sum of gameweek points across every H2H match. */
+  points_for?: number;
+  /** H2H league points: 3 per win, 1 per draw. */
+  total?: number;
 }
 
 export interface H2HStandings {
   standings: { results: H2HStandingsRow[] } | H2HStandingsRow[];
 }
 
+/**
+ * One H2H fixture. There is no `finished` flag on this payload — whether a
+ * match is over is the gameweek's own state. `entry_*_points` is FPL's
+ * recorded score, which lags live play; `is_bye` marks the odd-league bye
+ * against the "AVERAGE" entry (null `entry_2_entry`).
+ */
 export interface H2HMatch {
   id: number;
   entry_1_entry: number | null;
   entry_1_name: string;
   entry_1_player_name: string;
   entry_1_points: number;
+  entry_1_win?: number;
+  entry_1_draw?: number;
+  entry_1_loss?: number;
+  entry_1_total?: number;
   entry_2_entry: number | null;
   entry_2_name: string;
   entry_2_player_name: string;
   entry_2_points: number;
+  entry_2_win?: number;
+  entry_2_draw?: number;
+  entry_2_loss?: number;
+  entry_2_total?: number;
   event: number;
-  finished: boolean;
+  is_bye?: boolean;
+  is_knockout?: boolean;
 }
 
 export interface EventStatusRow {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart, Zap, Trophy, Home } from "lucide-react";
+import { BarChart, Zap, Trophy, Home, Swords, ArrowRightLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MainNav() {
@@ -26,6 +26,18 @@ export function MainNav() {
       label: "Gameweek",
       icon: Zap,
       active: pathname === "/gameweek",
+    },
+    {
+      href: "/h2h",
+      label: "H2H",
+      icon: Swords,
+      active: pathname === "/h2h",
+    },
+    {
+      href: "/transfers",
+      label: "Transfers",
+      icon: ArrowRightLeft,
+      active: pathname === "/transfers",
     },
     {
       href: "/stats",

@@ -7,7 +7,9 @@ import { loadStatsData } from "../getStatData";
 import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import Link from "next/link";
-import { chipDisplayOrder, type ChipStatusResult } from "@/lib/chips";
+import { chipDisplayOrder, groupChipWindowsByHalf, type ChipStatusResult } from "@/lib/chips";
+import { ChipsGrid } from "@/components/stats/chips-grid";
+import { LayoutGrid } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -64,6 +66,16 @@ export default async function ChipsUsagePage({
     return result;
   });
 
+  const halves = groupChipWindowsByHalf(data.chipWindows);
+  const gridManagers = [...data.chipStats]
+    .sort((a: ChipStats, b: ChipStats) => a.name.localeCompare(b.name))
+    .map((team: ChipStats) => ({
+      id: team.id,
+      name: team.name,
+      managerName: team.managerName,
+      chipStatuses: team.chipStatuses ?? [],
+    }));
+
   return (
     <DashboardLayout>
       <PageHeader
@@ -76,6 +88,20 @@ export default async function ChipsUsagePage({
       <div className="mb-6">
         <Link href="/stats" className="text-sm text-blue-400 hover:underline">← Back to Stats</Link>
       </div>
+      <Card className="mb-4 sm:mb-6 border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
+        <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">
+            <LayoutGrid className="h-5 w-5 text-purple-500" />
+            Chips remaining
+          </CardTitle>
+          <p className="text-xs text-white/50 mt-1">
+            Every chip comes twice this season. Used cells show the gameweek it was played.
+          </p>
+        </CardHeader>
+        <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
+          <ChipsGrid managers={gridManagers} halves={halves} currentGameweek={data.currentGameweek} />
+        </CardContent>
+      </Card>
       <Card className="border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
         <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">

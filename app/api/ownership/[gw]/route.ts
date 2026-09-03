@@ -4,14 +4,19 @@
  * team's net points), and how many captained them. Replaces
  * `/api/league/player-ownership` (which took a `playerId` and returned this
  * for one player); this returns every element in one bounded response so
- * `breakdown-table.tsx` fetches once per gameweek instead of once per click,
- * and Phase 4's effective-ownership page can build on the same shape.
+ * `breakdown-table.tsx` fetches once per gameweek instead of once per click.
+ *
+ * Phase 4.2 adds `players`: the effective-ownership rows the
+ * `/stats/ownership` page renders, built from the same picks by
+ * services/ownership.ts.
  */
 
 import { NextResponse } from "next/server";
 import * as client from "@/lib/fpl/client";
-import { cachedKind, cachedManyKind, resolveTtl } from "@/lib/fpl/cache";
+import { cachedKind, resolveTtl } from "@/lib/fpl/cache";
 import { buildLivePointsMap, sumPicks } from "@/services/fpl-live";
+import { fetchPicks } from "@/services/league";
+import { buildEffectiveOwnership } from "@/services/ownership";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import {
   cacheControlHeader,
@@ -21,7 +26,6 @@ import {
   requireLeagueId,
   upstreamUnavailable,
 } from "@/lib/api";
-import type { TeamDetails } from "@/lib/fpl/types";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -40,25 +44,6 @@ interface ElementOwnership {
   captains: number;
 }
 
-async function fetchPicksByKey(
-  keys: string[]
-): Promise<Map<string, TeamDetails>> {
-  return cachedManyKind<TeamDetails>("picks", keys, async (missingKeys) => {
-    const fetched = new Map<string, TeamDetails>();
-    await Promise.all(
-      missingKeys.map(async (key) => {
-        const [, entryStr, gwStr] = key.split(":");
-        try {
-          fetched.set(key, await client.picks(Number(entryStr), Number(gwStr)));
-        } catch (error) {
-          console.error(`Failed to fetch picks for ${entryStr} gw${gwStr}:`, error);
-        }
-      })
-    );
-    return fetched;
-  });
-}
-
 export async function GET(_request: Request, { params }: { params: Promise<{ gw: string }> }) {
   const { gw: gwParam } = await params;
   const path = `/api/ownership/${gwParam}`;
@@ -73,19 +58,23 @@ export async function GET(_request: Request, { params }: { params: Promise<{ gw:
       }
 
       const leagueId = requireLeagueId();
-      const [standings, liveData] = await Promise.all([
+      const [standings, liveData, bootstrap] = await Promise.all([
         cachedKind("standings", `standings:${leagueId}`, () => client.classicStandings(leagueId)),
         cachedKind("live", `live:${gw}`, () => client.live(gw)),
+        cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
       ]);
       const teams = standings.standings.results;
       const livePoints = buildLivePointsMap(liveData);
 
-      const picksByKey = await fetchPicksByKey(teams.map((t) => `picks:${t.entry}:${gw}`));
+      const picksByEntry = await fetchPicks(
+        teams.map((t) => t.entry),
+        gw
+      );
 
       const ownership = new Map<number, ElementOwnership>();
 
       for (const team of teams) {
-        const picksData = picksByKey.get(`picks:${team.entry}:${gw}`);
+        const picksData = picksByEntry.get(team.entry);
         if (!picksData) continue;
 
         const netPoints = sumPicks(picksData.picks, livePoints) - picksData.entry_history.event_transfers_cost;
@@ -110,11 +99,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ gw:
         }
       }
 
+      const players = buildEffectiveOwnership(
+        picksByEntry,
+        teams.map((t) => ({ entry: t.entry, entryName: t.entry_name, playerName: t.player_name })),
+        livePoints,
+        new Map(bootstrap.elements.map((p) => [p.id, p])),
+        new Map(bootstrap.teams.map((t) => [t.id, t]))
+      );
+
       const ttl = await resolveTtl("picks");
       logTelemetry(path);
 
       return NextResponse.json(
-        { ownership: Array.from(ownership.values()) },
+        { ownership: Array.from(ownership.values()), players, managerCount: teams.length },
         { headers: { "Cache-Control": cacheControlHeader(ttl) } }
       );
     } catch (error) {

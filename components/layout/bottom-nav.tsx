@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart, Zap, Trophy, Home } from "lucide-react";
+import { BarChart, Zap, Trophy, Home, Swords } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** True when `pathname` is exactly `prefix`, or nested under it (`prefix/...`). */
@@ -58,6 +58,12 @@ export function BottomNav() {
       active: matchesPrefix(pathname, "/gameweek"),
     },
     {
+      href: "/h2h",
+      label: "H2H",
+      icon: Swords,
+      active: matchesPrefix(pathname, "/h2h"),
+    },
+    {
       href: "/stats",
       label: "Stats",
       icon: BarChart,
@@ -83,7 +89,7 @@ export function BottomNav() {
             key={route.href}
             href={route.href}
             className={cn(
-              "flex flex-col items-center gap-1 px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg",
+              "flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg",
               route.active
                 ? "bg-gradient-to-r from-purple-900/30 to-blue-900/30 text-white"
                 : "text-white/60 hover:text-white hover:bg-white/5"
