@@ -1,10 +1,23 @@
-'use client';
+"use client";
+
+import { useMemo, useState } from "react";
+import { AlertCircle } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trophy, AlertCircle } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ManagerIdentity } from "@/components/ui/manager-identity";
+import { RankCell } from "@/components/ui/rank-cell";
+import { RowLink } from "@/components/stats/row-link";
 import { formatPoints } from "@/lib/fpl";
-import { Fragment } from "react";
 import type { UnresolvedTie } from "../getStatData";
 
 interface GameweekWin {
@@ -26,210 +39,168 @@ interface GameweekWinnersClientProps {
   unresolvedTies: UnresolvedTie[];
 }
 
-export function GameweekWinnersClient({ 
-  stats, 
-  unresolvedTies
-}: GameweekWinnersClientProps) {
-  return (
-    <div className="relative">
+interface GameweekWinnerRow extends GameweekWin {
+  teamId: number;
+  teamName: string;
+  managerName: string;
+}
 
-      {/* Unresolved Ties Section */}
-      {unresolvedTies && unresolvedTies.length > 0 && (
-        <Card className="border-amber-500/30 bg-amber-900/20 backdrop-blur-sm shadow-lg mb-6">
-          <CardHeader className="pb-3 border-b border-amber-500/20 bg-gradient-to-r from-amber-900/30 to-amber-800/30">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-amber-200">
-              <AlertCircle className="h-5 w-5 text-amber-500" />
-              Unresolved Gameweek Ties
+type View = "manager" | "gameweek";
+
+export function GameweekWinnersClient({ stats, unresolvedTies }: GameweekWinnersClientProps) {
+  const [view, setView] = useState<View>("manager");
+
+  const winnersByGameweek = useMemo<GameweekWinnerRow[]>(() => {
+    return stats
+      .flatMap((team) =>
+        team.gameweekWins.map((win) => ({
+          ...win,
+          teamId: team.id,
+          teamName: team.name,
+          managerName: team.managerName,
+        }))
+      )
+      .sort((a, b) => a.gameweek - b.gameweek);
+  }, [stats]);
+
+  return (
+    <div className="space-y-6">
+      {unresolvedTies.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-fg-3" />
+              Unresolved ties
             </CardTitle>
-            <p className="text-xs sm:text-sm text-amber-300/80 mt-1">
-              These gameweeks have tied scores and will be resolved when the next gameweek completes
-            </p>
           </CardHeader>
-          <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
-            {/* Mobile View */}
-            <div className="sm:hidden text-white text-xs rounded-lg overflow-hidden border border-amber-500/20">
-              {unresolvedTies.map((tie: UnresolvedTie) => (
-                <div key={tie.gameweeks.join('-')} className="border-b border-amber-500/20 last:border-b-0 bg-amber-900/10">
-                  <div className="px-3 py-2 bg-amber-800/30 font-bold text-amber-200">
-                    {tie.gameweeks.length === 1 
-                      ? `Gameweek ${tie.gameweeks[0]}`
-                      : `Gameweeks ${tie.gameweeks.join(', ')}`
-                    }
-                  </div>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-fg-2">
+              These gameweeks are tied and will resolve once the next gameweek finishes.
+            </p>
+            {unresolvedTies.map((tie) => (
+              <div key={tie.gameweeks.join("-")}>
+                <div className="text-xs font-medium text-fg-2">
+                  {tie.gameweeks.length === 1
+                    ? `Gameweek ${tie.gameweeks[0]}`
+                    : `Gameweeks ${tie.gameweeks.join(", ")}`}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
                   {tie.tiedTeams.map((team) => (
-                    <div key={team.id} className="flex items-center justify-between px-3 py-2 border-t border-amber-500/10">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-xs truncate text-white leading-tight">
-                          {team.name}
-                        </div>
-                        <div className="text-white/60 truncate text-xs leading-tight">
-                          {team.managerName}
-                        </div>
-                      </div>
-                      <div className="text-right font-bold text-xs text-amber-300 ml-2">
-                        {formatPoints(team.netPoints)}
-                      </div>
-                    </div>
+                    <span key={team.id} className="text-sm text-fg">
+                      {team.name}{" "}
+                      <span className="tabular-nums text-fg-3">{formatPoints(team.netPoints)}</span>
+                    </span>
                   ))}
                 </div>
-              ))}
-            </div>
-
-            {/* Desktop View */}
-            <div className="hidden sm:block overflow-x-auto rounded-lg border border-amber-500/20">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-amber-500/20 bg-gradient-to-r from-amber-800/30 to-amber-900/30 hover:bg-gradient-to-r">
-                    <TableHead className="text-amber-300 font-bold">Gameweek(s)</TableHead>
-                    <TableHead className="text-amber-300 font-bold">Team</TableHead>
-                    <TableHead className="text-right text-amber-300 font-bold">Net Points</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {unresolvedTies.map((tie: UnresolvedTie) => (
-                    <Fragment key={tie.gameweeks.join('-')}>
-                      {tie.tiedTeams.map((team, idx) => (
-                        <TableRow 
-                          key={`${tie.gameweeks.join('-')}-${team.id}`} 
-                          className={`border-amber-500/10 transition-all ${
-                            idx === 0 ? 'bg-amber-900/20' : 'bg-amber-900/10'
-                          } hover:bg-amber-800/30`}
-                        >
-                          {idx === 0 && (
-                            <TableCell 
-                              className="font-bold py-3 text-amber-200" 
-                              rowSpan={tie.tiedTeams.length}
-                            >
-                              {tie.gameweeks.length === 1 
-                                ? `GW ${tie.gameweeks[0]}`
-                                : `GWs ${tie.gameweeks.join(', ')}`
-                              }
-                            </TableCell>
-                          )}
-                          <TableCell className="py-3">
-                            <div>
-                              <div className="font-medium text-white">{team.name}</div>
-                              <div className="text-sm text-white/60">{team.managerName}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right font-bold py-3 text-amber-300">
-                            {formatPoints(team.netPoints)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </Fragment>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
 
-      {/* Gameweek Winners Table */}
-      <Card className="border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
-        <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">
-            <Trophy className="h-5 w-5 text-yellow-500" />
-            Gameweek Winners
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
-          {/* Mobile View - Compact Table */}
-          <div className="sm:hidden text-white text-xs rounded-lg overflow-hidden border border-white/10">
-            {/* Header */}
-            <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-xs">
-              <div className="w-8 text-center">#</div>
-              <div className="flex-1">Team</div>
-              <div className="w-12 text-right">Wins</div>
-            </div>
-            {/* Rows */}
-            <div className="overflow-y-auto">
-              {stats.map((team: TeamStats, index: number) => (
-                <div
-                  key={team.id}
-                  className={`flex items-center px-2 py-1.5 border-b border-white/5 ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'}`}
-                >
-                  <div className="w-8 flex items-center justify-center">
-                    <span className={`font-bold text-xs ${index === 0 ? 'text-yellow-400' : ''}`}>
-                      {index + 1}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0 ml-2">
-                    <div className="font-semibold text-xs truncate text-white leading-tight">
-                      {team.name}
-                    </div>
-                    <div className="text-white/60 truncate text-xs leading-tight">
-                      {team.managerName}
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {team.gameweekWins.map((win) => (
-                        <span
-                          key={win.gameweek}
-                          className="inline-flex items-center rounded bg-white/10 px-1 py-0.5 text-xs"
-                          title={`${formatPoints(win.points)} points (${formatPoints(win.net_points)} net)`}
-                        >
-                          {win.gameweek}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="w-12 text-right font-bold text-xs text-white">
-                    {team.wins}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      <div className="flex gap-2">
+        <Button
+          variant={view === "manager" ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => setView("manager")}
+        >
+          By manager
+        </Button>
+        <Button
+          variant={view === "gameweek" ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => setView("gameweek")}
+        >
+          By gameweek
+        </Button>
+      </div>
 
-          {/* Desktop View */}
-          <div className="hidden sm:block overflow-x-auto rounded-lg border border-white/10">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-white/10 bg-gradient-to-r from-gray-800 to-gray-900 hover:bg-gradient-to-r">
-                  <TableHead className="w-12 text-gray-300 font-bold">Rank</TableHead>
-                  <TableHead className="text-gray-300 font-bold">Team</TableHead>
-                  <TableHead className="text-right text-gray-300 font-bold">Wins</TableHead>
-                  <TableHead className="text-right text-gray-300 font-bold">Gameweeks</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {stats.map((team: TeamStats, index: number) => (
-                  <TableRow key={team.id} className={`border-white/5 transition-all ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'} hover:bg-purple-900/20`}>
-                    <TableCell className="font-bold py-3">
-                      <div className="flex items-center gap-2">
-                        {index === 0 && <Trophy className="h-4 w-4 text-yellow-400" />}
-                        {index + 1}
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3">
-                      <div>
-                        <div className="font-medium text-white">{team.name}</div>
-                        <div className="text-sm text-white/60">{team.managerName}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-bold py-3 text-white">{team.wins}</TableCell>
-                    <TableCell className="py-3">
-                      <div className="flex flex-wrap justify-end gap-1">
-                        {team.gameweekWins.map((win) => (
-                          <span
-                            key={win.gameweek}
-                            className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 text-xs"
-                            title={`${formatPoints(win.points)} points (${formatPoints(win.net_points)} net)`}
-                          >
-                            {win.gameweek}
-                          </span>
-                        ))}
-                      </div>
-                    </TableCell>
+      {view === "manager" ? (
+        <Card>
+          <CardContent className="p-0">
+            {stats.length === 0 ? (
+              <EmptyState title="No wins yet" description="Wins will show up once a gameweek finishes." />
+            ) : (
+              <Table>
+                <caption className="sr-only">Wins by manager</caption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">Rank</TableHead>
+                    <TableHead>Team</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">Gameweeks</TableHead>
+                    <TableHead className="text-right">Wins</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {stats.map((team, index) => (
+                    <TableRow key={team.id} className="relative">
+                      <TableCell>
+                        <RankCell rank={index + 1} total={stats.length} />
+                      </TableCell>
+                      <TableCell className="min-w-0">
+                        <ManagerIdentity entryName={team.name} playerName={team.managerName} />
+                      </TableCell>
+                      <TableCell className="hidden text-right sm:table-cell">
+                        <div className="flex flex-wrap justify-end gap-1">
+                          {team.gameweekWins.map((win) => (
+                            <span
+                              key={win.gameweek}
+                              title={`${formatPoints(win.points)} pts (${formatPoints(win.net_points)} net)`}
+                              className="inline-flex items-center rounded-sm bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg-2"
+                            >
+                              GW{win.gameweek}
+                            </span>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-fg">
+                        <RowLink href={`/team/${team.id}`} label={`${team.name} team page`} />
+                        {team.wins}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            {winnersByGameweek.length === 0 ? (
+              <EmptyState title="No gameweeks finished" description="Winners appear once a gameweek is checked." />
+            ) : (
+              <Table>
+                <caption className="sr-only">Winners by gameweek</caption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">GW</TableHead>
+                    <TableHead>Team</TableHead>
+                    <TableHead className="text-right">Net points</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {winnersByGameweek.map((win) => (
+                    <TableRow key={win.gameweek} className="relative">
+                      <TableCell className="font-semibold tabular-nums text-fg">GW{win.gameweek}</TableCell>
+                      <TableCell className="min-w-0">
+                        <ManagerIdentity entryName={win.teamName} playerName={win.managerName} />
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-fg">
+                        <RowLink
+                          href={`/team/${win.teamId}?gw=${win.gameweek}`}
+                          label={`${win.teamName} team page, GW${win.gameweek}`}
+                        />
+                        {formatPoints(win.net_points)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
-

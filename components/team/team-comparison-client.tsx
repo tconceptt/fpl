@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { ArrowLeft, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Repeat } from "lucide-react";
+import { formatPoints } from "@/lib/fpl";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { BreakdownTable } from "./breakdown-table";
 import { TeamSelector } from "./team-selector";
 
@@ -45,6 +48,91 @@ interface TeamComparisonClientProps {
   team2: TeamData;
 }
 
+function CompareStat({
+  label,
+  aValue,
+  aLabel,
+  bValue,
+  bLabel,
+  format = (v: number) => formatPoints(v),
+}: {
+  label: string;
+  aValue: number;
+  aLabel: string;
+  bValue: number;
+  bLabel: string;
+  format?: (v: number) => string;
+}) {
+  const aWins = aValue > bValue;
+  const bWins = bValue > aValue;
+  return (
+    <div className="p-4 text-center sm:p-5">
+      <div className="mb-2 text-xs text-fg-2">{label}</div>
+      <div className="flex items-center justify-center gap-3">
+        <div className="min-w-0 flex-1 text-right">
+          <div className={cn("text-lg font-semibold tabular-nums", aWins ? "text-accent" : "text-fg-2")}>
+            {format(aValue)}
+          </div>
+          <div className="truncate text-xs text-fg-3">{aLabel}</div>
+        </div>
+        <div className="shrink-0 text-xs text-fg-3">vs</div>
+        <div className="min-w-0 flex-1 text-left">
+          <div className={cn("text-lg font-semibold tabular-nums", bWins ? "text-accent" : "text-fg-2")}>
+            {format(bValue)}
+          </div>
+          <div className="truncate text-xs text-fg-3">{bLabel}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeamSideHeader({ team, onSwitch }: { team: TeamData; onSwitch: () => void }) {
+  return (
+    <Card className="p-3 sm:p-4">
+      <button
+        type="button"
+        onClick={onSwitch}
+        className="flex w-full items-center justify-between gap-2 rounded-md p-1 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+      >
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-fg">{team.teamName}</div>
+          <div className="truncate text-xs text-fg-3">{team.managerName}</div>
+        </div>
+        <Repeat className="h-3.5 w-3.5 shrink-0 text-fg-3" />
+      </button>
+
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-border pt-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {team.overallRank && (
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wide text-fg-3">Overall</span>
+              <span className="text-xs font-semibold tabular-nums text-fg">{team.overallRank.toLocaleString()}</span>
+            </div>
+          )}
+          {team.h2hRank && (
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wide text-fg-3">H2H</span>
+              <span className="text-xs font-semibold tabular-nums text-fg">#{team.h2hRank}</span>
+            </div>
+          )}
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-wide text-fg-3">Transfers</span>
+            <span className="text-xs font-semibold tabular-nums text-fg">
+              {team.transfers}
+              {team.transferCost > 0 && <span className="ml-0.5 text-negative">(-{team.transferCost})</span>}
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] uppercase tracking-wide text-fg-3">GW</span>
+          <span className="text-lg font-semibold tabular-nums text-positive">{team.startersTotal}</span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps) {
   const [showTeamSelector, setShowTeamSelector] = useState(false);
   const [selectingTeamSide, setSelectingTeamSide] = useState<1 | 2>(1);
@@ -66,318 +154,75 @@ export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps
 
   const handleTeamSelect = (selectedTeamId: number) => {
     const params = new URLSearchParams(searchParams.toString());
-    
     if (selectingTeamSide === 1) {
-      // Switch the base team (the one in the URL path)
       const compareTeamId = team2.teamId;
       router.push(`/team/${selectedTeamId}?gw=${params.get("gw")}&compare=${compareTeamId}`);
     } else {
-      // Switch the compare team
       params.set("compare", selectedTeamId.toString());
       router.push(`${pathname}?${params.toString()}`);
     }
   };
 
-  const getExcludedTeamId = () => {
-    return selectingTeamSide === 1 ? Number(team2.teamId) : Number(team1.teamId);
-  };
+  const getExcludedTeamId = () => (selectingTeamSide === 1 ? Number(team2.teamId) : Number(team1.teamId));
 
-  const pointDifference = team1.startersTotal - team2.startersTotal;
-  const team1AvgGW = team1.gamesPlayed > 0 ? (team1.seasonTotal / team1.gamesPlayed) : 0;
-  const team2AvgGW = team2.gamesPlayed > 0 ? (team2.seasonTotal / team2.gamesPlayed) : 0;
+  const team1AvgGW = team1.gamesPlayed > 0 ? team1.seasonTotal / team1.gamesPlayed : 0;
+  const team2AvgGW = team2.gamesPlayed > 0 ? team2.seasonTotal / team2.gamesPlayed : 0;
 
   return (
-    <>
-      {/* Exit compare button */}
-      <div className="mb-2.5">
-        <button
-          onClick={handleExitCompare}
-          className="w-full px-4 py-2 bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white text-sm font-semibold rounded-lg transition-all active:scale-[0.98]"
-        >
-          Exit Comparison
-        </button>
-      </div>
+    <div className="flex flex-col gap-3 sm:gap-4">
+      <Button type="button" variant="secondary" onClick={handleExitCompare} className="w-full gap-2 sm:w-auto sm:self-start">
+        <ArrowLeft className="h-4 w-4" />
+        Exit comparison
+      </Button>
 
-      {/* Quick Stats Bar */}
-      <div className="mb-3 bg-gradient-to-br from-purple-900/20 via-gray-900/40 to-red-900/20 border border-white/10 rounded-lg overflow-hidden">
-        {/* Mobile: Stacked layout */}
-        <div className="md:hidden">
-          {/* Gameweek Difference - Full width on mobile */}
-          <div className="p-3 text-center border-b border-white/10">
-            <div className="text-xs text-white/50 uppercase tracking-wide mb-1">This Gameweek</div>
-            {pointDifference === 0 ? (
-              <>
-                <div className="text-2xl font-bold text-gray-400">Tied</div>
-                <div className="text-xs text-white/40 mt-0.5">Both teams level</div>
-              </>
-            ) : pointDifference > 0 ? (
-              <>
-                <div className="text-2xl font-bold text-purple-400">{team1.startersTotal}</div>
-                <div className="text-xs text-white/40 my-1">vs</div>
-                <div className="text-lg font-semibold text-red-400/60">{team2.startersTotal}</div>
-                <div className="text-xs text-purple-300 mt-2 font-semibold truncate">
-                  {team1.teamName} ahead by {Math.abs(pointDifference)}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-lg font-semibold text-purple-400/60">{team1.startersTotal}</div>
-                <div className="text-xs text-white/40 my-1">vs</div>
-                <div className="text-2xl font-bold text-red-400">{team2.startersTotal}</div>
-                <div className="text-xs text-red-300 mt-2 font-semibold truncate">
-                  {team2.teamName} ahead by {Math.abs(pointDifference)}
-                </div>
-              </>
-            )}
-          </div>
+      <Card className="divide-y divide-border sm:grid sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <CompareStat label="This gameweek" aValue={team1.startersTotal} aLabel={team1.teamName} bValue={team2.startersTotal} bLabel={team2.teamName} />
+        <CompareStat label="Season total" aValue={team1.seasonTotal} aLabel={team1.teamName} bValue={team2.seasonTotal} bLabel={team2.teamName} />
+        <CompareStat
+          label="Avg per GW"
+          aValue={team1AvgGW}
+          aLabel={team1.teamName}
+          bValue={team2AvgGW}
+          bLabel={team2.teamName}
+          format={(v) => v.toFixed(1)}
+        />
+      </Card>
 
-          {/* Season stats - 2 columns on mobile */}
-          <div className="grid grid-cols-2 divide-x divide-white/10">
-            <div className="p-3 text-center">
-              <div className="text-xs text-white/50 uppercase tracking-wide mb-1.5">Season Total</div>
-              <div className="space-y-1">
-                <div className={cn("text-base font-bold", team1.seasonTotal > team2.seasonTotal ? "text-purple-300" : "text-purple-400/60")}>
-                  {team1.seasonTotal}
-                </div>
-                <div className="text-xs text-white/40">vs</div>
-                <div className={cn("text-base font-bold", team2.seasonTotal > team1.seasonTotal ? "text-red-300" : "text-red-400/60")}>
-                  {team2.seasonTotal}
-                </div>
-              </div>
-            </div>
-            <div className="p-3 text-center">
-              <div className="text-xs text-white/50 uppercase tracking-wide mb-1.5">Avg per GW</div>
-              <div className="space-y-1">
-                <div className={cn("text-base font-bold", team1AvgGW > team2AvgGW ? "text-purple-300" : "text-purple-400/60")}>
-                  {team1AvgGW.toFixed(1)}
-                </div>
-                <div className="text-xs text-white/40">vs</div>
-                <div className={cn("text-base font-bold", team2AvgGW > team1AvgGW ? "text-red-300" : "text-red-400/60")}>
-                  {team2AvgGW.toFixed(1)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop: 3-column layout */}
-        <div className="hidden md:grid md:grid-cols-3 divide-x divide-white/10">
-          {/* Gameweek Difference */}
-          <div className="p-4 text-center">
-            <div className="text-xs text-white/50 uppercase tracking-wide mb-2">This Gameweek</div>
-            {pointDifference === 0 ? (
-              <>
-                <div className="text-2xl font-bold text-gray-400">Tied</div>
-                <div className="text-xs text-white/40 mt-1">Both teams level</div>
-              </>
-            ) : pointDifference > 0 ? (
-              <>
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <div className="text-2xl font-bold text-purple-400">{team1.startersTotal}</div>
-                  <div className="text-xs text-white/40">vs</div>
-                  <div className="text-lg font-semibold text-red-400/60">{team2.startersTotal}</div>
-                </div>
-                <div className="text-xs text-purple-300 font-semibold truncate mt-2">
-                  {team1.teamName}
-                </div>
-                <div className="text-xs text-white/50 mt-0.5">
-                  ahead by {Math.abs(pointDifference)} {Math.abs(pointDifference) === 1 ? "pt" : "pts"}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <div className="text-lg font-semibold text-purple-400/60">{team1.startersTotal}</div>
-                  <div className="text-xs text-white/40">vs</div>
-                  <div className="text-2xl font-bold text-red-400">{team2.startersTotal}</div>
-                </div>
-                <div className="text-xs text-red-300 font-semibold truncate mt-2">
-                  {team2.teamName}
-                </div>
-                <div className="text-xs text-white/50 mt-0.5">
-                  ahead by {Math.abs(pointDifference)} {Math.abs(pointDifference) === 1 ? "pt" : "pts"}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Season Total */}
-          <div className="p-4">
-            <div className="text-xs text-white/50 uppercase tracking-wide mb-2 text-center">Season Total</div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex-1 text-center">
-                <div className={cn("text-lg font-bold mb-1", team1.seasonTotal > team2.seasonTotal ? "text-purple-300" : "text-purple-400/60")}>
-                  {team1.seasonTotal}
-                </div>
-                <div className="text-xs text-white/40 truncate">{team1.teamName}</div>
-              </div>
-              <div className="text-white/30 text-xs">vs</div>
-              <div className="flex-1 text-center">
-                <div className={cn("text-lg font-bold mb-1", team2.seasonTotal > team1.seasonTotal ? "text-red-300" : "text-red-400/60")}>
-                  {team2.seasonTotal}
-                </div>
-                <div className="text-xs text-white/40 truncate">{team2.teamName}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Average GW Score */}
-          <div className="p-4">
-            <div className="text-xs text-white/50 uppercase tracking-wide mb-2 text-center">Avg per GW</div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex-1 text-center">
-                <div className={cn("text-lg font-bold mb-1", team1AvgGW > team2AvgGW ? "text-purple-300" : "text-purple-400/60")}>
-                  {team1AvgGW.toFixed(1)}
-                </div>
-                <div className="text-xs text-white/40 truncate">{team1.teamName}</div>
-              </div>
-              <div className="text-white/30 text-xs">vs</div>
-              <div className="flex-1 text-center">
-                <div className={cn("text-lg font-bold mb-1", team2AvgGW > team1AvgGW ? "text-red-300" : "text-red-400/60")}>
-                  {team2AvgGW.toFixed(1)}
-                </div>
-                <div className="text-xs text-white/40 truncate">{team2.teamName}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile team switcher — stacks the two teams below md, one at a time */}
-      <div className="md:hidden sticky top-0 z-20 -mx-3 px-3 py-2 bg-gray-950/95 backdrop-blur border-b border-white/10 mb-2">
-        <div className="flex items-center gap-1 bg-gray-800/50 border border-white/10 rounded-lg p-1">
+      {/* Mobile team switcher — one team's breakdown visible at a time below md */}
+      <div className="sticky top-0 z-10 -mx-4 border-b border-border bg-bg px-4 py-2 sm:hidden">
+        <div className="flex items-center gap-1 rounded-md border border-border bg-surface-2 p-0.5">
           <button
+            type="button"
             onClick={() => setActiveSide(1)}
             className={cn(
-              "flex-1 flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-sm font-semibold transition-all",
-              activeSide === 1 ? "bg-purple-600 text-white shadow-lg" : "text-white/60"
+              "flex flex-1 items-center justify-between gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+              activeSide === 1 ? "bg-accent text-accent-fg" : "text-fg-2 hover:text-fg"
             )}
           >
             <span className="truncate">{team1.teamName}</span>
-            <span className="tabular-nums text-xs font-bold shrink-0">{team1.startersTotal}</span>
+            <span className="shrink-0 text-xs font-bold tabular-nums">{team1.startersTotal}</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveSide(2)}
             className={cn(
-              "flex-1 flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-sm font-semibold transition-all",
-              activeSide === 2 ? "bg-red-600 text-white shadow-lg" : "text-white/60"
+              "flex flex-1 items-center justify-between gap-2 rounded px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+              activeSide === 2 ? "bg-accent text-accent-fg" : "text-fg-2 hover:text-fg"
             )}
           >
             <span className="truncate">{team2.teamName}</span>
-            <span className="tabular-nums text-xs font-bold shrink-0">{team2.startersTotal}</span>
+            <span className="shrink-0 text-xs font-bold tabular-nums">{team2.startersTotal}</span>
           </button>
         </div>
       </div>
 
-      {/* Comparison Grid — stacked (one team visible at a time) below md, side by side from md */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
-        {/* Team 1 */}
-        <div className={cn("space-y-1.5 md:space-y-2.5", activeSide === 2 && "hidden md:block")}>
-          {/* Team header with selector */}
-          <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/20 rounded-lg p-1.5 md:p-2.5">
-            <button
-              onClick={() => handleSwitchTeam(1)}
-              className="w-full text-left hover:bg-white/5 rounded p-1 md:p-1.5 transition-colors group"
-            >
-              <div className="flex items-center justify-between gap-1">
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs md:text-sm font-bold truncate group-hover:text-purple-300 transition-colors">
-                    {team1.teamName}
-                  </div>
-                  <div className="text-xs md:text-xs text-white/60 truncate">{team1.managerName}</div>
-                </div>
-                <div className="text-xs md:text-xs text-white/40 group-hover:text-white/60 flex-shrink-0">
-                  <Repeat className="w-3 h-3" />
-                </div>
-              </div>
-            </button>
-            
-            <div className="flex items-center justify-between gap-1 md:gap-2 mt-1.5 md:mt-2 pt-1.5 md:pt-2 border-t border-white/10">
-              <div className="flex items-center gap-1.5 md:gap-2.5 flex-wrap">
-                {team1.overallRank && (
-                  <div className="flex flex-col">
-                    <span className="text-xs md:text-xs text-white/50 uppercase tracking-wide">Overall</span>
-                    <span className="text-xs md:text-xs font-bold text-white">{team1.overallRank.toLocaleString()}</span>
-                  </div>
-                )}
-                {team1.h2hRank && (
-                  <div className="flex flex-col">
-                    <span className="text-xs md:text-xs text-white/50 uppercase tracking-wide">H2H</span>
-                    <span className="text-xs md:text-xs font-bold text-white">#{team1.h2hRank}</span>
-                  </div>
-                )}
-                <div className="flex flex-col">
-                  <span className="text-xs md:text-xs text-white/50 uppercase tracking-wide">Trans</span>
-                  <span className="text-xs md:text-xs font-bold text-white">
-                    {team1.transfers}
-                    {team1.transferCost > 0 && (
-                      <span className="text-red-400 ml-0.5">(-{team1.transferCost})</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-xs md:text-xs text-white/50 uppercase tracking-wide">GW</span>
-                <span className="text-base md:text-xl font-bold text-green-400">{team1.startersTotal}</span>
-              </div>
-            </div>
-          </div>
-
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+        <div className={cn("flex flex-col gap-2", activeSide === 2 && "hidden md:flex")}>
+          <TeamSideHeader team={team1} onSwitch={() => handleSwitchTeam(1)} />
           <BreakdownTable players={team1.players} compact activeChip={team1.activeChip} />
         </div>
-
-        {/* Team 2 */}
-        <div className={cn("space-y-1.5 md:space-y-2.5", activeSide === 1 && "hidden md:block")}>
-          {/* Team header with selector */}
-          <div className="bg-gradient-to-br from-red-900/30 to-red-800/30 border border-red-500/20 rounded-lg p-1.5 md:p-2.5">
-            <button
-              onClick={() => handleSwitchTeam(2)}
-              className="w-full text-left hover:bg-white/5 rounded p-1 md:p-1.5 transition-colors group"
-            >
-              <div className="flex items-center justify-between gap-1">
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs md:text-sm font-bold truncate group-hover:text-red-300 transition-colors">
-                    {team2.teamName}
-                  </div>
-                  <div className="text-xs md:text-xs text-white/60 truncate">{team2.managerName}</div>
-                </div>
-                <div className="text-xs md:text-xs text-white/40 group-hover:text-white/60 flex-shrink-0">
-                  <Repeat className="w-3 h-3" />
-                </div>
-              </div>
-            </button>
-            
-            <div className="flex items-center justify-between gap-1 md:gap-2 mt-1.5 md:mt-2 pt-1.5 md:pt-2 border-t border-white/10">
-              <div className="flex items-center gap-1.5 md:gap-2.5 flex-wrap">
-                {team2.overallRank && (
-                  <div className="flex flex-col">
-                    <span className="text-xs md:text-xs text-white/50 uppercase tracking-wide">Overall</span>
-                    <span className="text-xs md:text-xs font-bold text-white">{team2.overallRank.toLocaleString()}</span>
-                  </div>
-                )}
-                {team2.h2hRank && (
-                  <div className="flex flex-col">
-                    <span className="text-xs md:text-xs text-white/50 uppercase tracking-wide">H2H</span>
-                    <span className="text-xs md:text-xs font-bold text-white">#{team2.h2hRank}</span>
-                  </div>
-                )}
-                <div className="flex flex-col">
-                  <span className="text-xs md:text-xs text-white/50 uppercase tracking-wide">Trans</span>
-                  <span className="text-xs md:text-xs font-bold text-white">
-                    {team2.transfers}
-                    {team2.transferCost > 0 && (
-                      <span className="text-red-400 ml-0.5">(-{team2.transferCost})</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-xs md:text-xs text-white/50 uppercase tracking-wide">GW</span>
-                <span className="text-base md:text-xl font-bold text-green-400">{team2.startersTotal}</span>
-              </div>
-            </div>
-          </div>
-
+        <div className={cn("flex flex-col gap-2", activeSide === 1 && "hidden md:flex")}>
+          <TeamSideHeader team={team2} onSwitch={() => handleSwitchTeam(2)} />
           <BreakdownTable players={team2.players} compact activeChip={team2.activeChip} />
         </div>
       </div>
@@ -389,7 +234,6 @@ export function TeamComparisonClient({ team1, team2 }: TeamComparisonClientProps
         excludeTeamId={getExcludedTeamId()}
         gw={searchParams.get("gw") ?? ""}
       />
-    </>
+    </div>
   );
 }
-

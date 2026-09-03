@@ -1,236 +1,192 @@
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Crown, BarChart, Zap, Trophy } from "lucide-react"
-import { FootballHero } from "@/components/ui/shape-landing-hero"
-import Link from "next/link"
-import { getStatsData } from "@/app/stats/getStatData"
-import { getLeagueSnapshot } from "@/services/league"
-import { leagueConfig } from "@/config/league"
-import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry"
+import { Suspense } from "react";
+import Link from "next/link";
+import {
+  ArrowRightLeft,
+  BarChart3,
+  ChevronRight,
+  Frown,
+  Swords,
+  Trophy,
+  Zap,
+} from "lucide-react";
 
-export const dynamic = 'force-dynamic';
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { PageHeader } from "@/components/page-header";
+import { Section } from "@/components/ui/section";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatTile } from "@/components/ui/stat-tile";
+import { LivePill } from "@/components/ui/live-pill";
+import { DashboardDataSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { getStatsData } from "@/app/stats/getStatData";
+import { getLeagueSnapshot } from "@/services/league";
+import { leagueConfig } from "@/config/league";
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
+import { formatPoints } from "@/lib/fpl";
+
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export default async function DashboardPage() {
-  const { statsData, leagueResponse } = await withUpstreamCounter(async () => {
-    const [statsData, leagueResponse] = await Promise.all([
+const QUICK_LINKS = [
+  { href: "/", label: "League", description: "Full standings for any gameweek", icon: Trophy },
+  { href: "/gameweek", label: "Gameweek", description: "This week's leaders, risers and fallers", icon: Zap },
+  { href: "/h2h", label: "H2H", description: "Head-to-head matchups and standings", icon: Swords },
+  { href: "/transfers", label: "Transfers", description: "Every transfer made this gameweek", icon: ArrowRightLeft },
+  { href: "/stats", label: "Stats", description: "Records, chips, ownership and more", icon: BarChart3 },
+];
+
+/**
+ * The one heavy section on this page. `getStatsData()` calls
+ * `getLeagueSnapshot(selectedGameweek, { includePicks: false })` internally
+ * with the same (undefined, false) arguments used here, so — since
+ * getLeagueSnapshot is memoised per request via React `cache()` — the two
+ * calls below resolve the same promise rather than fetching twice, and
+ * neither pays for the 14 picks/fixtures/live calls this page never reads.
+ */
+async function DashboardData() {
+  const { snapshot, statsData } = await withUpstreamCounter(async () => {
+    const [snapshot, statsData] = await Promise.all([
+      getLeagueSnapshot(undefined, { includePicks: false }),
       getStatsData(),
-      getLeagueSnapshot(),
     ]);
     logTelemetry("/dashboard");
-    return { statsData, leagueResponse };
+    return { snapshot, statsData };
   });
-  const leagueStandings = leagueResponse?.managers || [];
 
-  const topThree = leagueStandings.slice(0, 3).map(p => ({
-    playerName: p.player_name,
-    teamName: p.entry_name,
-    points: p.total_points
-  }));
+  const managers = snapshot.managers;
+  const isLive = snapshot.liveState === "live";
 
-  // Find the highest gameweek score across all teams
-  const highestGWScore = statsData.stats.reduce((best, team) => {
-    if (team.bestGameweek.points > best.points) {
-      return {
-        teamId: team.id,
-        teamName: team.name,
-        managerName: team.managerName,
-        gameweek: team.bestGameweek.gameweek,
-        points: team.bestGameweek.points
-      };
-    }
-    return best;
-  }, { teamId: 0, teamName: '', managerName: '', gameweek: 0, points: -1 });
+  const leader =
+    managers.length > 0
+      ? managers.reduce((best, m) => (m.total_points > best.total_points ? m : best))
+      : null;
+
+  const gwLeader =
+    managers.length > 0
+      ? managers.reduce((best, m) => (m.net_points > best.net_points ? m : best))
+      : null;
+
+  const highestGW = statsData.stats.reduce(
+    (best, team) =>
+      team.bestGameweek.points > best.points
+        ? {
+            teamId: team.id,
+            teamName: team.name,
+            managerName: team.managerName,
+            gameweek: team.bestGameweek.gameweek,
+            points: team.bestGameweek.points,
+          }
+        : best,
+    { teamId: 0, teamName: "", managerName: "", gameweek: 0, points: -1 }
+  );
 
   return (
-    <DashboardLayout>
-      <div>
-        <FootballHero
-          badge="Qitawrari League" 
-          title1="Qitawrari League" 
-          title2="Track Your FPL Standings" 
-          subtitle="Live gameweek points, detailed stats, and league history"
-          showBadge={false}
+    <>
+      <Card className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 sm:p-5">
+        <div className="min-w-0">
+          <div className="text-xs text-fg-2">League</div>
+          <div className="truncate text-sm font-semibold text-fg">{snapshot.leagueName}</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-xs text-fg-2">Gameweek</div>
+          <div className="text-sm font-semibold text-fg">GW {snapshot.selectedGameweek}</div>
+        </div>
+        <div className="ml-auto">
+          {isLive ? <LivePill /> : <span className="text-xs text-fg-3">Final</span>}
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <StatTile
+          label="League leader"
+          value={leader ? formatPoints(leader.total_points) : "–"}
+          sub={leader ? `${leader.entry_name} · ${leader.player_name}` : "No standings yet"}
+          tone="accent"
+          href={leader ? `/team/${leader.entry}` : undefined}
+          icon={Trophy}
+        />
+        <StatTile
+          label="Highest GW score"
+          value={highestGW.points > 0 ? formatPoints(highestGW.points) : "–"}
+          sub={
+            highestGW.points > 0
+              ? `${highestGW.teamName} · GW ${highestGW.gameweek}`
+              : "No data yet"
+          }
+          href={highestGW.points > 0 ? `/team/${highestGW.teamId}?gw=${highestGW.gameweek}` : undefined}
+          icon={Zap}
+        />
+        <StatTile
+          label="This week's leader"
+          value={gwLeader ? formatPoints(gwLeader.net_points) : "–"}
+          sub={gwLeader ? `${gwLeader.entry_name} · GW ${snapshot.selectedGameweek}` : "No standings yet"}
+          href={gwLeader ? `/team/${gwLeader.entry}?gw=${snapshot.selectedGameweek}` : undefined}
+          icon={BarChart3}
         />
       </div>
 
-      <div className="flex flex-col gap-4 sm:gap-6 mt-6">
-        {/* Quick Navigation Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <Link href="/gameweek" className="group block">
-            <Card className="border-blue-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-blue-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-blue-900/20 sm:from-gray-800 to-gray-900 group-hover:from-blue-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-blue-500/20 sm:bg-blue-500/10 p-1.5 rounded-lg group-hover:bg-blue-500/30 transition-colors">
-                    <Zap className="h-4 w-4 text-blue-400 group-hover:text-blue-300 transition-colors" />
-                  </span>
-                  Gameweek Stats
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">⚡</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">View weekly performance</p>
-                <svg className="h-4 w-4 text-blue-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-fg-3" />
+              Reigning Champion
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold tracking-tight text-fg">
+              {leagueConfig.reigning.champion}
+            </p>
+            <p className="mt-1 text-xs text-fg-3">Last season winner</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Frown className="h-4 w-4 text-fg-3" />
+              Reigning Qitawrari
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold tracking-tight text-fg">
+              {leagueConfig.reigning.qitawrari}
+            </p>
+            <p className="mt-1 text-xs text-fg-3">{leagueConfig.reigning.qitawrariNote}</p>
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
 
-          <Link href="/stats" className="group block">
-            <Card className="border-purple-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-purple-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-purple-900/20 sm:from-gray-800 to-gray-900 group-hover:from-purple-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-purple-500/20 sm:bg-purple-500/10 p-1.5 rounded-lg group-hover:bg-purple-500/30 transition-colors">
-                    <BarChart className="h-4 w-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
-                  </span>
-                  Stats & Records
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">📊</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">Explore league statistics</p>
-                <svg className="h-4 w-4 text-purple-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
+export default function DashboardPage() {
+  return (
+    <DashboardLayout>
+      <div className="flex flex-col gap-6 sm:gap-8">
+        <PageHeader title="Dashboard" showGameweekSelector={false} currentGameweek={0} selectedGameweek={0} />
 
-          <Link href="/" className="group block">
-            <Card className="border-yellow-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-yellow-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-yellow-900/20 sm:from-gray-800 to-gray-900 group-hover:from-yellow-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-yellow-500/20 sm:bg-yellow-500/10 p-1.5 rounded-lg group-hover:bg-yellow-500/30 transition-colors">
-                    <Crown className="h-4 w-4 text-yellow-400 group-hover:text-yellow-300 transition-colors" />
-                  </span>
-                  League Table
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">🏆</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">Check current standings</p>
-                <svg className="h-4 w-4 text-yellow-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
+        <Suspense fallback={<DashboardDataSkeleton />}>
+          <DashboardData />
+        </Suspense>
 
-        {/* Season Overview & Current Leaders */}
-        <div className="grid gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-3">
-          {/* Season Overview */}
-          <Card className="lg:col-span-1 border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
-            <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
-              <CardTitle className="text-base sm:text-lg font-semibold text-white">Season Overview</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 sm:pt-6 space-y-4">
-              <div>
-                <p className="text-sm text-white/60 mb-1">League Name</p>
-                <p className="text-base sm:text-lg font-semibold text-white">{leagueResponse.leagueName}</p>
-              </div>
-              
-              {/* Highest Gameweek Score */}
-              {highestGWScore.points > 0 && (
-                <Link href={`/team/${highestGWScore.teamId}?gw=${highestGWScore.gameweek}`} className="block group">
-                  <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-lg p-4 transition-all hover:scale-[1.02] hover:border-orange-500/50 hover:shadow-lg cursor-pointer active:scale-95">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs text-orange-400 font-semibold">🔥 Highest GW Score</p>
-                      <svg className="h-4 w-4 text-orange-400 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                    <p className="text-3xl font-bold text-orange-300 mb-1">{highestGWScore.points} pts</p>
-                    <p className="text-sm font-semibold text-white truncate">{highestGWScore.teamName}</p>
-                    <p className="text-xs text-white/60 truncate">{highestGWScore.managerName}</p>
-                    <p className="text-xs text-orange-400 mt-2">GW {highestGWScore.gameweek}</p>
-                  </div>
-                </Link>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Current Leaders */}
-          <Card className="lg:col-span-2 border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
-            <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
-              <CardTitle className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-yellow-400" />
-                Current Leaders
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 sm:pt-6">
-              {topThree.length > 0 ? (
-                <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
-                  {topThree.map((p, idx) => {
-                    const colors = [
-                      { bg: "from-yellow-500/20 to-yellow-600/20", border: "border-yellow-500/30", text: "text-yellow-400" },
-                      { bg: "from-gray-400/20 to-gray-500/20", border: "border-gray-400/30", text: "text-gray-300" },
-                      { bg: "from-orange-500/20 to-orange-600/20", border: "border-orange-500/30", text: "text-orange-400" }
-                    ];
-                    const color = colors[idx];
-                    
-                    return (
-                      <div key={idx} className={`rounded-lg bg-gradient-to-br ${color.bg} border ${color.border} p-4 transition-all hover:scale-[1.02]`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`text-2xl font-bold ${color.text}`}>#{idx + 1}</span>
-                          {idx === 0 && <span className="text-xl">🏆</span>}
-                          {idx === 1 && <span className="text-xl">🥈</span>}
-                          {idx === 2 && <span className="text-xl">🥉</span>}
-                        </div>
-                        <div className="font-bold text-base sm:text-lg text-white truncate">{p.playerName}</div>
-                        <div className="text-xs sm:text-sm text-white/60 truncate mb-2">{p.teamName}</div>
-                        {p.points !== undefined && (
-                          <div className={`text-xl sm:text-2xl font-bold ${color.text}`}>{p.points} pts</div>
-                        )}
-                      </div>
-                    );
-                  })}
+        <Section title="Explore">
+          <Card className="divide-y divide-border p-0">
+            {QUICK_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5"
+              >
+                <link.icon className="h-5 w-5 shrink-0 text-fg-3" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-fg">{link.label}</div>
+                  <div className="truncate text-xs text-fg-2">{link.description}</div>
                 </div>
-              ) : (
-                <div className="text-white/70 text-center py-8">Standings will appear once the first gameweek is underway.</div>
-              )}
-            </CardContent>
+                <ChevronRight className="h-4 w-4 shrink-0 text-fg-3" />
+              </Link>
+            ))}
           </Card>
-        </div>
-        
-        {/* Hall of Fame */}
-        <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
-          <Card className="border-green-500/30 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02]">
-            <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-green-900/30 to-gray-900">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">
-                <Trophy className="h-5 w-5 text-green-400" />
-                Reigning Champion
-                <span className="text-xl ml-auto">👑</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 sm:pt-6">
-              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 sm:p-6">
-                <p className="text-3xl sm:text-4xl font-bold text-green-300 mb-2">{leagueConfig.reigning.champion}</p>
-                <p className="text-xs sm:text-sm text-white/60">Last Season Winner</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-red-500/30 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02]">
-            <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-red-900/30 to-gray-900">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">
-                Reigning Qitawrari
-                <span className="text-xl ml-auto">💩</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 sm:pt-6">
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 sm:p-6">
-                <p className="text-3xl sm:text-4xl font-bold text-red-300 mb-2">{leagueConfig.reigning.qitawrari}</p>
-                <p className="text-xs sm:text-sm text-white/60 italic">
-                  {leagueConfig.reigning.qitawrariNote}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
+        </Section>
       </div>
     </DashboardLayout>
-  )
+  );
 }

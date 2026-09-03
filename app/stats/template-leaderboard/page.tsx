@@ -1,10 +1,9 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { PageHeader } from "@/components/page-header";
-import Link from "next/link";
 import * as client from "@/lib/fpl/client";
 import { cachedKind } from "@/lib/fpl/cache";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
+import { fetchPicks } from "@/services/league";
 import { TemplateLeaderboardClient } from "./template-leaderboard-client";
 
 export const dynamic = "force-dynamic";
@@ -54,38 +53,30 @@ export default async function TemplateLeaderboardPage({
     );
     const teams = standings.standings.results;
 
-    const teamStats: TemplateTeamStat[] = await Promise.all(
-      teams.map(async (team) => {
-        try {
-          const teamDetails = await cachedKind(
-            "picks",
-            `picks:${team.entry}:${validSelectedGameweek}`,
-            () => client.picks(team.entry, validSelectedGameweek)
-          );
-          const squad = teamDetails.picks.filter((p) => p.position <= 15);
-          const ownershipValues = squad.map((p) => ownershipMap.get(p.element) || 0);
-          const playersCount = ownershipValues.length || 0;
-          const averageOwnership =
-            playersCount === 0 ? 0 : ownershipValues.reduce((sum, v) => sum + v, 0) / playersCount;
-
-          return {
-            id: team.entry,
-            name: team.entry_name,
-            managerName: team.player_name,
-            averageOwnership,
-            playersCount,
-          };
-        } catch {
-          return {
-            id: team.entry,
-            name: team.entry_name,
-            managerName: team.player_name,
-            averageOwnership: 0,
-            playersCount: 0,
-          };
-        }
-      })
+    // Batched MGET across every manager's picks for this gameweek, instead
+    // of one cachedKind call per team (perf-research §5 item 3) — same
+    // cache keys (`picks:{entry}:{gw}`), same shape.
+    const picksByEntry = await fetchPicks(
+      teams.map((t) => t.entry),
+      validSelectedGameweek
     );
+
+    const teamStats: TemplateTeamStat[] = teams.map((team) => {
+      const teamDetails = picksByEntry.get(team.entry);
+      const squad = teamDetails ? teamDetails.picks.filter((p) => p.position <= 15) : [];
+      const ownershipValues = squad.map((p) => ownershipMap.get(p.element) || 0);
+      const playersCount = ownershipValues.length;
+      const averageOwnership =
+        playersCount === 0 ? 0 : ownershipValues.reduce((sum, v) => sum + v, 0) / playersCount;
+
+      return {
+        id: team.entry,
+        name: team.entry_name,
+        managerName: team.player_name,
+        averageOwnership,
+        playersCount,
+      };
+    });
 
     const sorted = teamStats.slice().sort((a, b) => a.averageOwnership - b.averageOwnership);
     logTelemetry("/stats/template-leaderboard");
@@ -94,17 +85,11 @@ export default async function TemplateLeaderboardPage({
 
   return (
     <DashboardLayout>
-      <PageHeader
-        title="Template Leaderboard"
-        description={`Ranked by average ownership of entire squad (15 players${validSelectedGameweek < currentGameweek ? `, GW ${validSelectedGameweek}` : ', current GW'})`}
+      <TemplateLeaderboardClient
+        data={sorted}
         currentGameweek={currentGameweek}
         selectedGameweek={validSelectedGameweek}
-        showGameweekSelector={true}
       />
-      <div className="mb-6">
-        <Link href="/stats" className="text-sm text-blue-400 hover:underline">← Back to Stats</Link>
-      </div>
-      <TemplateLeaderboardClient data={sorted} currentGameweek={currentGameweek} selectedGameweek={validSelectedGameweek} />
     </DashboardLayout>
   );
 }

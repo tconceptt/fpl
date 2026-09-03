@@ -4,10 +4,16 @@
  *
  * - Browser-shaped headers (the raw FPL API 403s without them from some
  *   networks).
- * - 3 attempts with 500ms/1000ms/2000ms backoff. A 404 never retries — it
+ * - 2 attempts with a 400ms backoff between them. A 404 never retries — it
  *   throws `FplNotFoundError` immediately, since retrying a "this league
  *   doesn't exist" response wastes the whole backoff window for nothing.
- * - A 10 second AbortController timeout per attempt.
+ * - A 6 second AbortController timeout per attempt, so one stalled endpoint
+ *   can cost at most ~12.4s (2 * 6s + 400ms) instead of the old worst case
+ *   of ~31.5s (3 * 10s + 500ms + 1000ms) — a stalled request no longer
+ *   compounds across a page's sequential fetch stages into a 60s+ wait.
+ *   `lib/fpl/cache.ts`'s stale-if-error fallback is what makes this safe:
+ *   a request that still fails after the shorter budget serves the last
+ *   known-good cached value instead of the page waiting even longer.
  * - A small semaphore caps in-flight upstream requests at 8, so fanning out
  *   to 14 managers at once doesn't burst past what FPL tolerates.
  * - Every successful upstream round trip increments the per-request counter
@@ -38,8 +44,9 @@ const BROWSER_HEADERS = {
   Referer: "https://fantasy.premierleague.com/",
 };
 
-const RETRY_BACKOFF_MS = [500, 1000, 2000];
-const REQUEST_TIMEOUT_MS = 10_000;
+const RETRY_BACKOFF_MS = [400];
+const REQUEST_TIMEOUT_MS = 6_000;
+const MAX_ATTEMPTS = RETRY_BACKOFF_MS.length + 1;
 const MAX_CONCURRENT_REQUESTS = 8;
 
 export class FplNotFoundError extends Error {
@@ -79,7 +86,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   try {
     let lastError: unknown;
 
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -103,7 +110,7 @@ async function fetchJson<T>(url: string): Promise<T> {
       } catch (err) {
         if (err instanceof FplNotFoundError) throw err;
         lastError = err;
-        if (attempt < RETRY_BACKOFF_MS.length - 1) {
+        if (attempt < RETRY_BACKOFF_MS.length) {
           await sleep(RETRY_BACKOFF_MS[attempt]);
         }
       } finally {

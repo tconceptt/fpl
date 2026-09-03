@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { Repeat } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { BreakdownTable } from "./breakdown-table";
 import { TeamSelector } from "./team-selector";
 
@@ -29,10 +31,6 @@ export function TeamBreakdownClient({ players, teamId, activeChip }: { players: 
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const handleCompareClick = () => {
-    setShowTeamSelector(true);
-  };
-
   const handleTeamSelect = (selectedTeamId: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("compare", selectedTeamId.toString());
@@ -40,16 +38,16 @@ export function TeamBreakdownClient({ players, teamId, activeChip }: { players: 
   };
 
   return (
-    <>
-      {/* Compare button */}
-      <div className="mb-2.5">
-        <button
-          onClick={handleCompareClick}
-          className="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-sm font-semibold rounded-lg transition-all active:scale-[0.98]"
-        >
-          Compare with another team
-        </button>
-      </div>
+    <div className="flex flex-col gap-3">
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => setShowTeamSelector(true)}
+        className="w-full gap-2"
+      >
+        <Repeat className="h-4 w-4" />
+        Compare with another team
+      </Button>
 
       <BreakdownTable players={players} activeChip={activeChip} />
 
@@ -60,6 +58,6 @@ export function TeamBreakdownClient({ players, teamId, activeChip }: { players: 
         excludeTeamId={Number(teamId)}
         gw={searchParams.get("gw") ?? ""}
       />
-    </>
+    </div>
   );
 }

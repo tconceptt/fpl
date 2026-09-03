@@ -1,173 +1,126 @@
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Crown, Timer } from "lucide-react"
+import { Timer } from "lucide-react";
 
-import { ImageSlideshow } from "./image-slideshow"
-import { leagueConfig } from "@/config/league"
-import * as client from "@/lib/fpl/client"
-import { cachedKind } from "@/lib/fpl/cache"
-import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry"
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import { ImageSlideshow } from "./image-slideshow";
+import { leagueConfig } from "@/config/league";
+import * as client from "@/lib/fpl/client";
+import { cachedKind } from "@/lib/fpl/cache";
+import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const HALL_OF_QITAWRARI_ICONS = ["🏆", "👑", "❓"]
-const HALL_OF_QITAWRARI_STYLES = [
-  "bg-gradient-to-r from-amber-500/20 to-orange-500/20",
-  "bg-white/5",
-  "bg-white/5",
-]
-const HALL_OF_QITAWRARI_VALUE_STYLES = ["text-amber-500", "text-orange-500", "text-white/40"]
-
 function daysUntil(targetDate: Date): number {
-  const today = new Date()
-  const diffTime = targetDate.getTime() - today.getTime()
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const today = new Date();
+  const diffTime = targetDate.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
 async function getCupCountdown(): Promise<{ days: number | null; underway: boolean; announced: boolean }> {
-  const bootstrap = await cachedKind("bootstrap", "bootstrap", () => client.bootstrap())
+  const bootstrap = await cachedKind("bootstrap", "bootstrap", () => client.bootstrap());
 
-  const cupEventId = bootstrap.game_settings?.cup_start_event_id
+  const cupEventId = bootstrap.game_settings?.cup_start_event_id;
   if (!cupEventId) {
-    return { days: null, underway: false, announced: false }
+    return { days: null, underway: false, announced: false };
   }
 
-  const cupEvent = bootstrap.events.find((e) => e.id === cupEventId)
+  const cupEvent = bootstrap.events.find((e) => e.id === cupEventId);
   if (!cupEvent?.deadline_time) {
-    return { days: null, underway: false, announced: false }
+    return { days: null, underway: false, announced: false };
   }
 
-  const days = daysUntil(new Date(cupEvent.deadline_time))
+  const days = daysUntil(new Date(cupEvent.deadline_time));
   if (days < 0) {
-    return { days: null, underway: true, announced: true }
+    return { days: null, underway: true, announced: true };
   }
 
-  return { days, underway: false, announced: true }
+  return { days, underway: false, announced: true };
 }
 
 export default async function QitawrariPage() {
   const cupCountdown = await withUpstreamCounter(async () => {
-    const result = await getCupCountdown()
-    logTelemetry("/qitawrari")
-    return result
-  })
+    const result = await getCupCountdown();
+    logTelemetry("/qitawrari");
+    return result;
+  });
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">Qitawrari Hub</h1>
-          <p className="text-lg text-white/60">
-            Where legends are made (or not) 🏆
-          </p>
-        </div>
+      <div className="flex flex-col gap-6 sm:gap-8">
+        <PageHeader
+          title={leagueConfig.qitawrariHub.name}
+          description={leagueConfig.qitawrariHub.tagline}
+          showGameweekSelector={false}
+          currentGameweek={0}
+          selectedGameweek={0}
+        />
 
-        <div className="grid gap-8">
-          <ImageSlideshow />
+        <ImageSlideshow />
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="relative overflow-hidden bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xl font-medium">Reigning Qitawrari</CardTitle>
-                <Crown className="h-6 w-6 text-fuchsia-500 animate-pulse" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-6">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 text-4xl">
-                    👑
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-2xl font-bold bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
-                      {leagueConfig.qitawrariHub.name}
-                    </div>
-                    <div className="text-lg text-white/60">
-                      {leagueConfig.qitawrariHub.tagline}
-                    </div>
-                    <div className="text-sm text-white/40 italic">
-                      &ldquo;{leagueConfig.qitawrariHub.quote}&rdquo;
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-              <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
-            </Card>
+        <blockquote className="border-l-2 border-accent pl-4 text-sm italic text-accent sm:text-base">
+          &ldquo;{leagueConfig.qitawrariHub.quote}&rdquo;
+        </blockquote>
 
-            <Card className="relative overflow-hidden bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xl font-medium">FPL Cup Countdown</CardTitle>
-                <Timer className="h-6 w-6 text-cyan-500 animate-spin-slow" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-6">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 text-4xl">
-                    ⚔️
-                  </div>
-                  <div className="space-y-2">
-                    {cupCountdown.announced ? (
-                      cupCountdown.underway ? (
-                        <>
-                          <div className="text-3xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
-                            Cup underway
-                          </div>
-                          <div className="text-lg text-white/60">
-                            The FPL Cup has begun!
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="text-3xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
-                            {cupCountdown.days} Days
-                          </div>
-                          <div className="text-lg text-white/60">
-                            Until the FPL Cup begins!
-                          </div>
-                        </>
-                      )
-                    ) : (
-                      <>
-                        <div className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
-                          Cup dates not announced yet
-                        </div>
-                        <div className="text-lg text-white/60">
-                          Check back once FPL schedules the cup.
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-              <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
-            </Card>
-          </div>
+        <Card>
+          <CardContent className="flex items-center justify-between gap-3 p-4 sm:p-5">
+            <div className="flex items-center gap-2 text-sm text-fg-2">
+              <Timer className="h-4 w-4 text-fg-3" />
+              FPL Cup
+            </div>
+            <div className="text-right text-sm font-medium">
+              {cupCountdown.announced ? (
+                cupCountdown.underway ? (
+                  <span className="text-fg">Cup underway</span>
+                ) : (
+                  <span className="text-fg">{cupCountdown.days} days until kickoff</span>
+                )
+              ) : (
+                <span className="text-fg-3">Dates not announced yet</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/20 to-orange-500/20">
-            <CardHeader>
-              <CardTitle className="text-xl">Hall of Qitawrari</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {leagueConfig.records.map((record, index) => (
-                  <div
-                    key={record.season}
-                    className={`flex items-center gap-4 p-4 rounded-lg ${HALL_OF_QITAWRARI_STYLES[index] ?? "bg-white/5"}`}
-                  >
-                    <div className="text-2xl">{HALL_OF_QITAWRARI_ICONS[index] ?? "❓"}</div>
-                    <div>
-                      <div className="font-medium">Season {record.season}</div>
-                      <div className="text-white/60">{record.note}</div>
-                    </div>
-                    <div className={`ml-auto font-bold ${HALL_OF_QITAWRARI_VALUE_STYLES[index] ?? "text-white/40"}`}>
-                      {record.qitawrari}
-                    </div>
-                  </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Hall of Qitawrari</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <caption className="sr-only">Season records: champion and Qitawrari by season</caption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Season</TableHead>
+                  <TableHead>Champion</TableHead>
+                  <TableHead>Qitawrari</TableHead>
+                  <TableHead className="hidden sm:table-cell">Note</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {leagueConfig.records.map((record) => (
+                  <TableRow key={record.season}>
+                    <TableCell className="font-medium text-fg">{record.season}</TableCell>
+                    <TableCell>{record.champion ?? "–"}</TableCell>
+                    <TableCell className="font-medium text-negative">{record.qitawrari ?? "–"}</TableCell>
+                    <TableCell className="hidden text-fg-3 sm:table-cell">{record.note ?? "–"}</TableCell>
+                  </TableRow>
                 ))}
-              </div>
-            </CardContent>
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-          </Card>
-        </div>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
-  )
+  );
 }

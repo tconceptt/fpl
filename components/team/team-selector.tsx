@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Team {
@@ -54,13 +55,14 @@ export function TeamSelector({ isOpen, onClose, onSelect, excludeTeamId, gw }: T
     }
   };
 
-  const filteredTeams = teams.filter(team => {
-    const matchesSearch = searchQuery === "" || 
+  const filteredTeams = teams.filter((team) => {
+    const matchesSearch =
+      searchQuery === "" ||
       team.entry_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       team.player_name.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const notExcluded = excludeTeamId ? team.entry !== excludeTeamId : true;
-    
+
     return matchesSearch && notExcluded;
   });
 
@@ -68,52 +70,51 @@ export function TeamSelector({ isOpen, onClose, onSelect, excludeTeamId, gw }: T
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md bg-gray-900 rounded-lg border border-white/10 shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gradient-to-r from-purple-900/30 to-blue-900/30">
-          <h3 className="font-semibold text-white">Select Team to Compare</h3>
-          <button 
-            onClick={onClose} 
-            className="text-white/60 hover:text-white transition-colors text-lg"
+      <div className="absolute inset-0 bg-bg/80" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-lg border border-border bg-surface-3 shadow-pop">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <h3 className="text-sm font-semibold text-fg">Select team to compare</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
           >
-            ✕
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Search */}
-        <div className="p-4 border-b border-white/10">
+        <div className="border-b border-border p-4">
           <input
             type="text"
-            placeholder="Search teams or managers..."
+            placeholder="Search teams or managers…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 bg-gray-800 border border-white/10 rounded-md text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="h-10 w-full rounded-md border border-border bg-surface-2 px-3 text-sm text-fg placeholder:text-fg-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
 
-        {/* Teams list */}
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-96 divide-y divide-border overflow-y-auto">
           {loading ? (
-            <div className="p-8 text-center text-white/60">Loading teams...</div>
+            <div className="p-8 text-center text-sm text-fg-2">Loading teams…</div>
           ) : filteredTeams.length === 0 ? (
-            <div className="p-8 text-center text-white/60">No teams found</div>
+            <div className="p-8 text-center text-sm text-fg-2">No teams found</div>
           ) : (
-            filteredTeams.map((team, index) => (
+            filteredTeams.map((team) => (
               <button
                 key={team.entry}
+                type="button"
                 onClick={() => {
                   onSelect(team.entry);
                   onClose();
                 }}
                 className={cn(
-                  "w-full px-4 py-3 text-left border-b border-white/5 transition-all",
-                  index % 2 === 0 ? "bg-gray-800/50" : "bg-gray-900/50",
-                  "hover:bg-purple-900/20 active:scale-[0.99]"
+                  "flex w-full min-h-12 flex-col items-start px-4 py-3 text-left transition-colors",
+                  "hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 )}
               >
-                <div className="font-semibold text-white text-sm">{team.entry_name}</div>
-                <div className="text-xs text-white/60 mt-0.5">{team.player_name}</div>
+                <span className="truncate text-sm font-medium text-fg">{team.entry_name}</span>
+                <span className="truncate text-xs text-fg-3">{team.player_name}</span>
               </button>
             ))
           )}
@@ -122,4 +123,3 @@ export function TeamSelector({ isOpen, onClose, onSelect, excludeTeamId, gw }: T
     </div>
   );
 }
-

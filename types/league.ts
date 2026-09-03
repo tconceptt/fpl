@@ -1,5 +1,3 @@
-import { LucideIcon } from "lucide-react";
-
 export interface LeagueStanding {
   id: number;
   event_total: number;
@@ -26,12 +24,6 @@ export interface GameweekStanding {
   transfer_cost: number;
   playersToStart: number;
   h2h_rank?: number;
-}
-
-export interface RankMovement {
-  icon: LucideIcon;
-  color: string;
-  diff: number;
 }
 
 export interface LeagueData {

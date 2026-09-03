@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Qitawrari FPL",
     start_url: "/",
     display: "standalone",
-    background_color: "#131928",
-    theme_color: "#131928",
+    background_color: "#0B0E14",
+    theme_color: "#0B0E14",
     icons: [
       {
         src: "/icons/icon-192.png",

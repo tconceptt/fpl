@@ -1,121 +1,80 @@
 "use client";
 
 import { useState } from "react";
+import { StatTile } from "@/components/ui/stat-tile";
 import { TransfersPopup } from "./transfers-popup";
+import { cn } from "@/lib/utils";
 
 interface TeamStatsProps {
-    overallRank: number | null;
-    h2hRank: number | null;
-    transfers: number;
-    transferCost: number;
-    startersTotal: number;
-    teamId: string;
-    gameweek: string;
-    activeChip?: string | null;
+  overallRank: number | null;
+  h2hRank: number | null;
+  transfers: number;
+  transferCost: number;
+  startersTotal: number;
+  teamId: string;
+  gameweek: string;
+  activeChip?: string | null;
 }
 
 export function TeamStatsClient({
-    overallRank,
-    h2hRank,
-    transfers,
-    transferCost,
-    startersTotal,
-    teamId,
-    gameweek,
-    activeChip,
+  overallRank,
+  h2hRank,
+  transfers,
+  transferCost,
+  startersTotal,
+  teamId,
+  gameweek,
+  activeChip,
 }: TeamStatsProps) {
-    const [showTransfers, setShowTransfers] = useState(false);
-    const isBenchBoostActive = activeChip === 'bboost';
+  const [showTransfers, setShowTransfers] = useState(false);
+  const isBenchBoostActive = activeChip === "bboost";
 
-    const transfersButton = (
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {overallRank !== null && (
+          <StatTile label="Overall rank" value={overallRank.toLocaleString()} />
+        )}
+        {h2hRank !== null && <StatTile label="H2H rank" value={`#${h2hRank}`} />}
+
+        {/* Not a plain StatTile: it opens the transfers popup on click, which
+            the StatTile contract doesn't support (only a `href` Link). Kept
+            visually identical to StatTile so the row still reads as one
+            family of tiles. */}
         <button
-            onClick={() => transfers > 0 && setShowTransfers(true)}
-            className={`text-xs font-bold text-left ${transfers > 0
-                ? "text-white hover:text-purple-300 cursor-pointer transition-colors"
-                : "text-white cursor-default"
-                }`}
-            disabled={transfers === 0}
+          type="button"
+          onClick={() => transfers > 0 && setShowTransfers(true)}
+          disabled={transfers === 0}
+          aria-haspopup="dialog"
+          className={cn(
+            "flex min-h-[76px] flex-col items-start rounded-lg border border-border bg-surface p-4 text-left transition-colors sm:p-5",
+            transfers > 0 &&
+              "hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+          )}
         >
-            <span className={transfers > 0 ? "underline underline-offset-2 decoration-dotted" : ""}>
-                {transfers}
-            </span>
+          <span className="text-xs text-fg-2">Transfers</span>
+          <span className="mt-1 text-2xl font-semibold tabular-nums text-fg sm:text-3xl">
+            {transfers}
             {transferCost > 0 && (
-                <span className="text-red-400 ml-0.5">(-{transferCost})</span>
+              <span className="ml-1.5 text-sm font-medium text-negative">-{transferCost}</span>
             )}
+          </span>
         </button>
-    );
 
-    const gwTotalLabel = (
-        <div className="flex items-center gap-1.5">
-            <span className="text-xs text-white/50 uppercase tracking-wide">GW Total</span>
-            {isBenchBoostActive && (
-                <span className="text-xs text-cyan-300 font-bold bg-cyan-500/30 px-1.5 py-0.5 rounded border border-cyan-400/50">
-                    BB
-                </span>
-            )}
-        </div>
-    );
+        <StatTile
+          label="GW total"
+          value={startersTotal}
+          tone="positive"
+          sub={isBenchBoostActive ? "Bench boost active" : undefined}
+        />
+      </div>
 
-    return (
-        <>
-            <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/20 rounded-lg p-2.5 mb-2.5">
-                {/* Phones: a 2x2 grid so every cell has the same label-over-value shape. */}
-                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 md:hidden">
-                    {overallRank && (
-                        <div className="flex flex-col">
-                            <span className="text-xs text-white/50 uppercase tracking-wide">Overall Rank</span>
-                            <span className="text-xs font-bold text-white">{overallRank.toLocaleString()}</span>
-                        </div>
-                    )}
-                    {h2hRank && (
-                        <div className="flex flex-col">
-                            <span className="text-xs text-white/50 uppercase tracking-wide">H2H Rank</span>
-                            <span className="text-xs font-bold text-white">#{h2hRank}</span>
-                        </div>
-                    )}
-                    <div className="flex flex-col">
-                        <span className="text-xs text-white/50 uppercase tracking-wide">Transfers</span>
-                        {transfersButton}
-                    </div>
-                    <div className="flex flex-col">
-                        {gwTotalLabel}
-                        <span className="text-xl font-bold text-green-400">{startersTotal}</span>
-                    </div>
-                </div>
-
-                {/* Tablets and up: the original single-row layout. */}
-                <div className="hidden md:flex md:items-center md:justify-between md:gap-2">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                        {overallRank && (
-                            <div className="flex flex-col">
-                                <span className="text-xs text-white/50 uppercase tracking-wide">Overall Rank</span>
-                                <span className="text-xs font-bold text-white">{overallRank.toLocaleString()}</span>
-                            </div>
-                        )}
-                        {h2hRank && (
-                            <div className="flex flex-col">
-                                <span className="text-xs text-white/50 uppercase tracking-wide">H2H Rank</span>
-                                <span className="text-xs font-bold text-white">#{h2hRank}</span>
-                            </div>
-                        )}
-                        <div className="flex flex-col">
-                            <span className="text-xs text-white/50 uppercase tracking-wide">Transfers</span>
-                            {transfersButton}
-                        </div>
-                    </div>
-                    <div className="flex flex-col items-end">
-                        {gwTotalLabel}
-                        <span className="text-xl font-bold text-green-400">{startersTotal}</span>
-                    </div>
-                </div>
-            </div>
-
-            <TransfersPopup
-                isOpen={showTransfers}
-                onClose={() => setShowTransfers(false)}
-                teamId={teamId}
-                gameweek={gameweek}
-            />
-        </>
-    );
+      <TransfersPopup
+        isOpen={showTransfers}
+        onClose={() => setShowTransfers(false)}
+        teamId={teamId}
+        gameweek={gameweek}
+      />
+    </>
+  );
 }

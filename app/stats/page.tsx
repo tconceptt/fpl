@@ -1,240 +1,162 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import {
+  ArrowRightLeft,
+  CalendarDays,
+  ChevronRight,
+  Layers,
+  PieChart,
+  TrendingDown,
+  Trophy,
+  Users,
+  Wand2,
+} from "lucide-react";
+
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Wand2, Medal, CalendarDays, Zap, Layers, TrendingUp, Users, ArrowRightLeft } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { StatTile } from "@/components/ui/stat-tile";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getHeaderContext } from "@/services/league";
 import { getStatsData } from "./getStatData";
 import { formatPoints } from "@/lib/fpl";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+const LINKS = [
+  {
+    href: "/stats/gameweek-winners",
+    icon: CalendarDays,
+    title: "Gameweek winners",
+    description: "Weekly winners for every finished gameweek.",
+  },
+  {
+    href: "/stats/chips-usage",
+    icon: Wand2,
+    title: "Chips usage",
+    description: "Who's played what, and what's left this half.",
+  },
+  {
+    href: "/stats/bench-points",
+    icon: Layers,
+    title: "Bench points",
+    description: "Who's scored the most points warming the bench.",
+  },
+  {
+    href: "/stats/hits-leaderboard",
+    icon: TrendingDown,
+    title: "Hits leaderboard",
+    description: "Who's taken the most transfer hits.",
+  },
+  {
+    href: "/stats/template-leaderboard",
+    icon: Users,
+    title: "Template leaderboard",
+    description: "Ranked by average ownership of the entire squad.",
+  },
+  {
+    href: "/stats/ownership",
+    icon: PieChart,
+    title: "Effective ownership",
+    description: "Who the league is riding, and the differentials.",
+  },
+  {
+    href: "/transfers",
+    icon: ArrowRightLeft,
+    title: "Transfer feed",
+    description: "Every move this gameweek, best and worst included.",
+  },
+] as const;
+
 export default async function StatsLandingPage() {
+  const header = await getHeaderContext();
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        <PageHeader
+          title="Stats"
+          description="League highlights and detailed statistics"
+          currentGameweek={header.currentGameweek}
+          selectedGameweek={header.currentGameweek}
+          showGameweekSelector={false}
+        />
+        <Suspense fallback={<RecordsStripSkeleton />}>
+          <RecordsStrip />
+        </Suspense>
+        <Card>
+          <CardContent className="p-0">
+            {LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="flex min-h-12 items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg sm:px-5"
+              >
+                <link.icon className="h-5 w-5 shrink-0 text-fg-3" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-fg">{link.title}</div>
+                  <div className="truncate text-xs text-fg-2">{link.description}</div>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-fg-3" />
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+}
+
+async function RecordsStrip() {
   const data = await withUpstreamCounter(async () => {
     const result = await getStatsData();
     logTelemetry("/stats");
     return result;
   });
+
+  const mostWins = data.stats[0];
+  const mostChips = data.chipStats[0];
+  const mostBench = data.benchStats[0];
+
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader title="Stats & Records" description="League highlights and detailed statistics" currentGameweek={data.finishedGameweeks} selectedGameweek={data.finishedGameweeks} showGameweekSelector={false} />
-        
-        {/* Top Stats Cards */}
-        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Card className="relative overflow-hidden border border-yellow-500/30 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02]">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-yellow-900/30 to-yellow-800/30">
-              <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                <span className="bg-yellow-500/10 p-1.5 rounded-lg">
-                  <Trophy className="h-4 w-4 text-yellow-400" />
-                </span>
-                Most Wins
-              </CardTitle>
-              <span className="text-2xl">🏆</span>
-            </CardHeader>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-yellow-500/20 border border-yellow-500/30 text-xl sm:text-2xl font-bold text-yellow-400">
-                  {data.stats[0]?.wins}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-base sm:text-lg text-white truncate">{data.stats[0]?.name}</div>
-                  <div className="text-xs sm:text-sm text-white/60 truncate">{data.stats[0]?.managerName}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden border border-purple-500/30 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02]">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-purple-900/30 to-purple-800/30">
-              <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                <span className="bg-purple-500/10 p-1.5 rounded-lg">
-                  <Wand2 className="h-4 w-4 text-purple-400" />
-                </span>
-                Most Chips Used
-              </CardTitle>
-              <span className="text-2xl">✨</span>
-            </CardHeader>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-purple-500/20 border border-purple-500/30 text-xl sm:text-2xl font-bold text-purple-400">
-                  {data.chipStats[0]?.totalChipsUsed}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-base sm:text-lg text-white truncate">{data.chipStats[0]?.name}</div>
-                  <div className="text-xs sm:text-sm text-white/60 truncate">{data.chipStats[0]?.managerName}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden border border-blue-500/30 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02]">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-blue-900/30 to-blue-800/30">
-              <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                <span className="bg-blue-500/10 p-1.5 rounded-lg">
-                  <Medal className="h-4 w-4 text-blue-400" />
-                </span>
-                Most Bench Points
-              </CardTitle>
-              <span className="text-2xl">💺</span>
-            </CardHeader>
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-blue-500/20 border border-blue-500/30 text-xl sm:text-2xl font-bold text-blue-400">
-                  {formatPoints(data.benchStats[0]?.benchPoints)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-base sm:text-lg text-white truncate">{data.benchStats[0]?.name}</div>
-                  <div className="text-xs sm:text-sm text-white/60 truncate">{data.benchStats[0]?.managerName}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        {/* Navigation Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          <Link href="/stats/gameweek-winners" className="group block">
-            <Card className="border-green-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-green-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-green-900/20 sm:from-gray-800 to-gray-900 group-hover:from-green-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-green-500/20 sm:bg-green-500/10 p-1.5 rounded-lg group-hover:bg-green-500/30 transition-colors">
-                    <CalendarDays className="h-4 w-4 text-green-400 group-hover:text-green-300 transition-colors" />
-                  </span>
-                  Gameweek Winners
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">📅</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">View weekly winners for each gameweek.</p>
-                <svg className="h-4 w-4 text-green-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/stats/chips-usage" className="group block">
-            <Card className="border-purple-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-purple-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-purple-900/20 sm:from-gray-800 to-gray-900 group-hover:from-purple-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-purple-500/20 sm:bg-purple-500/10 p-1.5 rounded-lg group-hover:bg-purple-500/30 transition-colors">
-                    <Zap className="h-4 w-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
-                  </span>
-                  Chips Usage
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">⚡</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">Analyze chip usage across managers.</p>
-                <svg className="h-4 w-4 text-purple-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/stats/bench-points" className="group block">
-            <Card className="border-blue-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-blue-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-blue-900/20 sm:from-gray-800 to-gray-900 group-hover:from-blue-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-blue-500/20 sm:bg-blue-500/10 p-1.5 rounded-lg group-hover:bg-blue-500/30 transition-colors">
-                    <Layers className="h-4 w-4 text-blue-400 group-hover:text-blue-300 transition-colors" />
-                  </span>
-                  Bench Points
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">💺</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">See who scored the most on the bench.</p>
-                <svg className="h-4 w-4 text-blue-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/stats/hits-leaderboard" className="group block">
-            <Card className="border-red-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-red-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-red-900/20 sm:from-gray-800 to-gray-900 group-hover:from-red-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-red-500/20 sm:bg-red-500/10 p-1.5 rounded-lg group-hover:bg-red-500/30 transition-colors">
-                    <TrendingUp className="h-4 w-4 text-red-400 group-hover:text-red-300 transition-colors" />
-                  </span>
-                  Hits Leaderboard
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">📉</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">See who&apos;s taken the most transfer hits.</p>
-                <svg className="h-4 w-4 text-red-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/stats/template-leaderboard" className="group block">
-            <Card className="border-green-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-green-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-green-900/20 sm:from-gray-800 to-gray-900 group-hover:from-green-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-green-500/20 sm:bg-green-500/10 p-1.5 rounded-lg group-hover:bg-green-500/30 transition-colors">
-                    <Layers className="h-4 w-4 text-green-400 group-hover:text-green-300 transition-colors" />
-                  </span>
-                  Template Leaderboard
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">📊</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">Ranked by average ownership of entire squad.</p>
-                <svg className="h-4 w-4 text-green-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/stats/ownership" className="group block">
-            <Card className="border-purple-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-purple-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-purple-900/20 sm:from-gray-800 to-gray-900 group-hover:from-purple-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-purple-500/20 sm:bg-purple-500/10 p-1.5 rounded-lg group-hover:bg-purple-500/30 transition-colors">
-                    <Users className="h-4 w-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
-                  </span>
-                  Effective Ownership
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">👥</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">Who the league is riding, and the differentials.</p>
-                <svg className="h-4 w-4 text-purple-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/transfers" className="group block">
-            <Card className="border-blue-500/30 sm:border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:border-blue-500/50 hover:bg-gray-800/60 h-full cursor-pointer active:scale-95 sm:active:scale-[0.98]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 sm:pb-3 border-b border-white/10 bg-gradient-to-r from-blue-900/20 sm:from-gray-800 to-gray-900 group-hover:from-blue-900/20 transition-colors">
-                <CardTitle className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <span className="bg-blue-500/20 sm:bg-blue-500/10 p-1.5 rounded-lg group-hover:bg-blue-500/30 transition-colors">
-                    <ArrowRightLeft className="h-4 w-4 text-blue-400 group-hover:text-blue-300 transition-colors" />
-                  </span>
-                  Transfer Feed
-                </CardTitle>
-                <span className="text-xl group-hover:scale-110 transition-transform">🔁</span>
-              </CardHeader>
-              <CardContent className="pt-3 sm:pt-4 flex items-center justify-between">
-                <p className="text-xs sm:text-sm text-white/60 group-hover:text-white/80 transition-colors">Every move this gameweek, best and worst included.</p>
-                <svg className="h-4 w-4 text-blue-400 sm:hidden flex-shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-      </div>
-    </DashboardLayout>
+    <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
+      <StatTile
+        label="Most wins"
+        value={mostWins?.wins ?? 0}
+        sub={mostWins ? `${mostWins.name} · ${mostWins.managerName}` : undefined}
+        href="/stats/gameweek-winners"
+        icon={Trophy}
+      />
+      <StatTile
+        label="Most chips used"
+        value={mostChips?.totalChipsUsed ?? 0}
+        sub={mostChips ? `${mostChips.name} · ${mostChips.managerName}` : undefined}
+        href="/stats/chips-usage"
+        icon={Wand2}
+      />
+      <StatTile
+        label="Most bench points"
+        value={formatPoints(mostBench?.benchPoints)}
+        sub={mostBench ? `${mostBench.name} · ${mostBench.managerName}` : undefined}
+        href="/stats/bench-points"
+        icon={Layers}
+      />
+    </div>
   );
-} 
+}
+
+function RecordsStripSkeleton() {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="rounded-lg border border-border bg-surface p-4 sm:p-5">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="mt-2 h-8 w-16" />
+          <Skeleton className="mt-2 h-3 w-32" />
+        </div>
+      ))}
+    </div>
+  );
+}

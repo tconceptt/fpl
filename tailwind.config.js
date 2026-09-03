@@ -10,55 +10,70 @@ module.exports = {
   theme: {
     container: {
       center: true,
-      padding: { DEFAULT: "0.75rem", md: "2rem" },
+      padding: { DEFAULT: "1rem", md: "2rem" },
       screens: {
-        "2xl": "1400px",
+        "2xl": "1200px",
       },
     },
     extend: {
       fontFamily: {
-        sans: ["var(--font-inter)"],
-        heading: ["var(--font-sora)"],
+        sans: [
+          "var(--font-geist)",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "Roboto",
+          "Helvetica Neue",
+          "Arial",
+          "sans-serif",
+        ],
       },
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "#4A8B8C",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
+        bg: "var(--bg)",
+        surface: "var(--surface)",
+        "surface-2": "var(--surface-2)",
+        "surface-3": "var(--surface-3)",
+        border: "var(--border)",
+        "border-strong": "var(--border-strong)",
+        fg: "var(--fg)",
+        "fg-2": "var(--fg-2)",
+        "fg-3": "var(--fg-3)",
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: "var(--accent)",
+          soft: "var(--accent-soft)",
+          fg: "var(--accent-fg)",
         },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
+        positive: {
+          DEFAULT: "var(--positive)",
+          soft: "var(--positive-soft)",
         },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+        negative: {
+          DEFAULT: "var(--negative)",
+          soft: "var(--negative-soft)",
         },
+        info: {
+          DEFAULT: "var(--info)",
+          soft: "var(--info-soft)",
+        },
+        violet: {
+          DEFAULT: "var(--violet)",
+          soft: "var(--violet-soft)",
+        },
+        rose: {
+          DEFAULT: "var(--rose)",
+          soft: "var(--rose-soft)",
+        },
+        ring: "var(--ring)",
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        sm: "var(--radius-sm)",
+        DEFAULT: "var(--radius)",
+        lg: "var(--radius-lg)",
+      },
+      boxShadow: {
+        pop: "0 8px 24px -12px rgba(0,0,0,0.6)",
       },
       keyframes: {
         "accordion-down": {
@@ -78,4 +93,3 @@ module.exports = {
   },
   plugins: [require("tailwindcss-animate")],
 }
-

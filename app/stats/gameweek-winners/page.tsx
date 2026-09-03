@@ -1,15 +1,14 @@
+import { Suspense } from "react";
+
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { PageHeader } from "@/components/page-header";
+import { StatsPageShell } from "@/components/stats/stats-page-shell";
+import { LeaderboardSkeleton } from "@/components/stats/stats-skeletons";
 import { loadStatsData } from "../getStatData";
 import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
-import Link from "next/link";
-import { Suspense } from "react";
 import { GameweekWinnersClient } from "./gameweek-winners-client";
-import { Loader2 } from "lucide-react";
 
-// Enable dynamic rendering for URL params
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 async function GameweekWinnersContent({
@@ -27,31 +26,16 @@ async function GameweekWinnersContent({
   });
 
   return (
-    <>
-      <PageHeader
-        title="Gameweek Winners"
-        description={`After ${data.finishedGameweeks} completed gameweeks${validSelectedGameweek < data.currentGameweek ? ` (as of GW ${validSelectedGameweek})` : ''}`}
-        currentGameweek={data.currentGameweek}
-        selectedGameweek={validSelectedGameweek}
-        showGameweekSelector={true}
-      />
-      <div className="mb-6">
-        <Link href="/stats" className="text-sm text-blue-400 hover:underline">← Back to Stats</Link>
-      </div>
-      <GameweekWinnersClient
-        stats={data.stats}
-        unresolvedTies={data.unresolvedTies}
-      />
-    </>
-  );
-}
-
-function LoadingFallback() {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-      <Loader2 className="h-12 w-12 text-purple-500 animate-spin" />
-      <p className="text-white text-lg font-medium">Loading gameweek winners...</p>
-    </div>
+    <StatsPageShell
+      title="Gameweek Winners"
+      description={`After ${data.finishedGameweeks} completed gameweeks${
+        validSelectedGameweek < data.currentGameweek ? ` (as of GW ${validSelectedGameweek})` : ""
+      }`}
+      currentGameweek={data.currentGameweek}
+      selectedGameweek={validSelectedGameweek}
+    >
+      <GameweekWinnersClient stats={data.stats} unresolvedTies={data.unresolvedTies} />
+    </StatsPageShell>
   );
 }
 
@@ -62,9 +46,9 @@ export default function GameweekWinnersPage({
 }) {
   return (
     <DashboardLayout>
-      <Suspense fallback={<LoadingFallback />}>
+      <Suspense fallback={<LeaderboardSkeleton rows={14} columns={3} />}>
         <GameweekWinnersContent searchParams={searchParams} />
       </Suspense>
     </DashboardLayout>
   );
-} 
+}

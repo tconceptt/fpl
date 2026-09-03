@@ -11,6 +11,8 @@ function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
+const SCROLL_THRESHOLD = 8;
+
 export function BottomNav() {
   const pathname = usePathname();
   const [isVisible, setIsVisible] = useState(true);
@@ -21,15 +23,14 @@ export function BottomNav() {
 
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
+      const delta = currentScrollY - lastScrollY.current;
 
-      // Hide nav on any downward scroll, show when scrolling up or at very top
-      if (currentScrollY > lastScrollY.current && currentScrollY > 5) {
-        setIsVisible(false);
-      } else if (currentScrollY < lastScrollY.current || currentScrollY <= 5) {
+      if (currentScrollY <= 5) {
         setIsVisible(true);
+      } else if (Math.abs(delta) > SCROLL_THRESHOLD) {
+        setIsVisible(delta < 0);
+        lastScrollY.current = currentScrollY;
       }
-
-      lastScrollY.current = currentScrollY;
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -75,24 +76,18 @@ export function BottomNav() {
     <nav
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       className={cn(
-        "fixed bottom-0 left-0 z-30 block w-full md:hidden transition-transform duration-300 ease-in-out",
+        "fixed bottom-0 left-0 z-30 block w-full border-t border-border bg-surface transition-transform duration-200 ease-out md:hidden",
         isVisible ? "translate-y-0" : "translate-y-full"
       )}
     >
-      {/* Subtle backdrop with blur */}
-      <div className="absolute inset-0 bg-gray-900/95 backdrop-blur-lg border-t border-white/10" />
-
-      {/* Navigation content */}
-      <div className="relative container flex justify-around items-center px-2 py-2">
+      <div className="flex h-14 items-center justify-around px-2">
         {routes.map((route) => (
           <Link
             key={route.href}
             href={route.href}
             className={cn(
-              "flex flex-col items-center gap-1 px-2 sm:px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg",
-              route.active
-                ? "bg-gradient-to-r from-purple-900/30 to-blue-900/30 text-white"
-                : "text-white/60 hover:text-white hover:bg-white/5"
+              "flex flex-col items-center gap-0.5 rounded-sm px-2 py-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+              route.active ? "text-accent" : "text-fg-2 hover:text-fg"
             )}
           >
             <route.icon className="h-5 w-5" />

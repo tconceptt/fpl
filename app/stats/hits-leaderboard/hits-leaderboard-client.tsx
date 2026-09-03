@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Fragment, useState } from "react";
+import { ChevronDown } from "lucide-react";
+
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, X } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ManagerIdentity } from "@/components/ui/manager-identity";
+import { RowLink } from "@/components/stats/row-link";
+import { cn } from "@/lib/utils";
 import { formatPoints } from "@/lib/fpl";
 
 interface HitsStats {
@@ -28,212 +32,109 @@ interface HitsLeaderboardClientProps {
 
 type SortOption = "cost" | "transfers";
 
-function HitsDetailModal({ team, isOpen, onClose }: { team: HitsStats | null; isOpen: boolean; onClose: () => void }) {
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+export function HitsLeaderboardClient({ hitsStats }: HitsLeaderboardClientProps) {
+  const [sortBy, setSortBy] = useState<SortOption>("cost");
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  const toggle = (id: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
-  if (!isOpen || !team) return null;
+  const sortedHitsStats = [...hitsStats].sort((a, b) =>
+    sortBy === "transfers" ? b.totalTransfers - a.totalTransfers : b.totalTransferCost - a.totalTransferCost
+  );
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-      onClick={handleBackdropClick}
-    >
-      <div className="bg-gray-900 rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden shadow-2xl border border-gray-700">
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <h3 className="text-lg font-bold text-white">{team.name}</h3>
+    <Card>
+      <CardContent className="p-0">
+        <div className="flex items-center justify-end gap-2 border-b border-border px-4 py-3 sm:px-5">
+          <Button variant={sortBy === "cost" ? "primary" : "secondary"} size="sm" onClick={() => setSortBy("cost")}>
+            Sort by cost
+          </Button>
           <Button
-            variant="ghost"
+            variant={sortBy === "transfers" ? "primary" : "secondary"}
             size="sm"
-            onClick={onClose}
-            className="text-gray-400 hover:text-white"
+            onClick={() => setSortBy("transfers")}
           >
-            <X className="h-4 w-4" />
+            Sort by transfers
           </Button>
         </div>
-        <div className="p-4">
-          <div className="text-sm text-gray-400 mb-4">{team.managerName}</div>
-          <div className="space-y-2">
-            <div className="text-sm font-medium text-white mb-2">Hits by Gameweek:</div>
-            {team.gameweekHits.length > 0 ? (
-              <div className="space-y-1">
-                {team.gameweekHits.map((hit) => (
-                  <div key={hit.gameweek} className="flex justify-between items-center bg-gray-800 rounded px-3 py-2">
-                    <span className="text-white font-medium">GW {hit.gameweek}</span>
-                    <div className="text-right">
-                      <div className="text-red-400 font-bold">-{formatPoints(hit.cost)} Pts </div>
-                      <div className="text-xs text-gray-400">{hit.transfers} transfers</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-gray-400 text-sm">No hits taken</div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CompactHitsView({ hitsStats, onTeamClick }: { hitsStats: HitsStats[]; onTeamClick: (team: HitsStats) => void }) {
-  return (
-    <div className="text-white text-xs rounded-lg overflow-hidden border border-white/10">
-      {/* Header */}
-      <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-xs">
-        <div className="w-8 text-center">#</div>
-        <div className="flex-1">Team</div>
-        <div className="w-10 text-center leading-tight"><div>GWs</div><div className="text-xs">Hits</div></div>
-        <div className="w-10 text-center leading-tight"><div>Total</div><div className="text-xs">Trans</div></div>
-        <div className="w-12 text-right">Cost</div>
-      </div>
-      {/* Rows */}
-      <div className="overflow-y-auto">
-        {hitsStats.map((team, index) => (
-          <div
-            key={team.id}
-            className={`flex items-center px-2 py-1.5 cursor-pointer transition-all active:scale-[0.99] hover:bg-purple-900/20 border-b border-white/5 ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'}`}
-            onClick={() => onTeamClick(team)}
-          >
-            <div className="w-8 flex items-center justify-center">
-              <span className="font-bold text-xs">{index + 1}</span>
-            </div>
-            <div className="flex-1 min-w-0 ml-2">
-              <div className="font-semibold text-xs truncate text-white leading-tight">{team.name}</div>
-              <div className="text-white/60 truncate text-xs leading-tight">{team.managerName}</div>
-            </div>
-            <div className="w-10 text-center font-semibold text-xs">
-              {team.gameweeksWithHits}
-            </div>
-            <div className="w-10 text-center font-semibold text-xs">
-              {team.totalTransfers}
-            </div>
-            <div className="w-12 text-right font-bold text-xs text-white">
-              {formatPoints(team.totalTransferCost)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function HitsLeaderboardClient({ hitsStats }: HitsLeaderboardClientProps) {
-  const [selectedTeam, setSelectedTeam] = useState<HitsStats | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>("cost");
-
-  const handleTeamClick = (team: HitsStats) => {
-    setSelectedTeam(team);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedTeam(null);
-  };
-
-  // Sort the hits stats based on the selected option
-  const sortedHitsStats = [...hitsStats].sort((a, b) => {
-    if (sortBy === "transfers") {
-      return b.totalTransfers - a.totalTransfers;
-    } else {
-      return b.totalTransferCost - a.totalTransferCost;
-    }
-  });
-
-  return (
-    <>
-      <Card className="border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
-        <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">
-              <Zap className="h-5 w-5 text-red-500" />
-              Transfer Hits Taken
-            </CardTitle>
-            
-            {/* Desktop: Button group */}
-            <div className="hidden sm:flex gap-2">
-              <Button
-                variant={sortBy === "cost" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSortBy("cost")}
-                className="text-xs"
-              >
-                Sort by Cost
-              </Button>
-              <Button
-                variant={sortBy === "transfers" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSortBy("transfers")}
-                className="text-xs"
-              >
-                Sort by Transfers
-              </Button>
-            </div>
-
-            {/* Mobile: Dropdown */}
-            <div className="sm:hidden w-full">
-              <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Sort by..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cost">Sort by Cost</SelectItem>
-                  <SelectItem value="transfers">Sort by Transfers</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
-          {/* Mobile View - Compact */}
-          <div className="sm:hidden">
-            <CompactHitsView hitsStats={sortedHitsStats} onTeamClick={handleTeamClick} />
-          </div>
-
-          {/* Desktop View */}
-          <div className="hidden sm:block overflow-x-auto rounded-lg border border-white/10">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-white/10 bg-gradient-to-r from-gray-800 to-gray-900 hover:bg-gradient-to-r">
-                  <TableHead className="w-12 text-gray-300 font-bold">Rank</TableHead>
-                  <TableHead className="text-gray-300 font-bold">Team</TableHead>
-                  <TableHead className="text-right text-gray-300 font-bold">GWs with Hits</TableHead>
-                  <TableHead className="text-right text-gray-300 font-bold">Total Transfers</TableHead>
-                  <TableHead className="text-right text-gray-300 font-bold">Total Cost</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedHitsStats.map((team: HitsStats, index: number) => (
-                  <TableRow key={team.id} className={`border-white/5 transition-all cursor-pointer ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'} hover:bg-purple-900/20`} onClick={() => handleTeamClick(team)}>
-                    <TableCell className="font-bold py-3">{index + 1}</TableCell>
-                    <TableCell className="py-3">
-                      <div>
-                        <div className="font-medium text-white">{team.name}</div>
-                        <div className="text-sm text-white/60">{team.managerName}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-bold py-3 text-white">{team.gameweeksWithHits}</TableCell>
-                    <TableCell className="text-right font-bold py-3 text-white">{team.totalTransfers}</TableCell>
-                    <TableCell className="text-right font-bold py-3 text-white">{formatPoints(team.totalTransferCost)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <HitsDetailModal 
-        team={selectedTeam} 
-        isOpen={isModalOpen} 
-        onClose={handleCloseModal} 
-      />
-    </>
+        {sortedHitsStats.length === 0 ? (
+          <EmptyState title="No hits taken" description="No manager has taken a transfer hit yet." />
+        ) : (
+          <Table>
+            <caption className="sr-only">Transfer hits taken</caption>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">Rank</TableHead>
+                <TableHead>Team</TableHead>
+                <TableHead className="hidden text-right sm:table-cell">GWs</TableHead>
+                <TableHead className="hidden text-right sm:table-cell">Transfers</TableHead>
+                <TableHead className="text-right">Cost</TableHead>
+                <TableHead className="w-10" aria-hidden />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedHitsStats.map((team, index) => {
+                const isOpen = expanded.has(team.id);
+                return (
+                  <Fragment key={team.id}>
+                    <TableRow className="relative">
+                      <TableCell className="font-semibold tabular-nums text-fg">{index + 1}</TableCell>
+                      <TableCell className="min-w-0">
+                        <ManagerIdentity entryName={team.name} playerName={team.managerName} />
+                      </TableCell>
+                      <TableCell className="hidden text-right sm:table-cell">{team.gameweeksWithHits}</TableCell>
+                      <TableCell className="hidden text-right sm:table-cell">{team.totalTransfers}</TableCell>
+                      <TableCell className="text-right font-semibold text-fg">
+                        <RowLink href={`/team/${team.id}`} label={`${team.name} team page`} />
+                        {formatPoints(team.totalTransferCost)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <button
+                          type="button"
+                          onClick={() => toggle(team.id)}
+                          aria-expanded={isOpen}
+                          aria-label={`${isOpen ? "Hide" : "Show"} hit breakdown for ${team.name}`}
+                          className="relative z-10 inline-flex h-8 w-8 items-center justify-center rounded-md text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+                        >
+                          <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                    {isOpen && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-surface-2 p-0">
+                          {team.gameweekHits.length === 0 ? (
+                            <div className="px-4 py-3 text-xs text-fg-3 sm:px-5">No hits taken.</div>
+                          ) : (
+                            <div className="divide-y divide-border px-4 sm:px-5">
+                              {team.gameweekHits.map((hit) => (
+                                <div key={hit.gameweek} className="flex items-center justify-between gap-3 py-2 text-xs">
+                                  <span className="text-fg-2">GW {hit.gameweek}</span>
+                                  <span className="text-fg-3">{hit.transfers} transfers</span>
+                                  <span className="font-semibold tabular-nums text-negative">
+                                    -{formatPoints(hit.cost)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }

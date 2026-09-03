@@ -8,12 +8,16 @@
  * history totals otherwise, and ranks/`last_rank` derived from each
  * manager's `total_points` at the selected and previous gameweek.
  *
- * Fetch order: bootstrap + standings + H2H in parallel, then history for
- * every manager via `cachedManyKind`, then — unless the caller opted out
- * with `includePicks: false` — fixtures + picks (+ live, when the
- * gameweek is live) too. Stats pages only ever read a manager's history and
- * chips, so they pass `includePicks: false` to skip fetching 14 managers'
- * picks (and fixtures/live) for fields they never look at.
+ * Fetch order: bootstrap + standings + H2H (+ live state) in parallel,
+ * then — in one further `Promise.all` — fixtures, history for every manager
+ * via `cachedManyKind`, and (unless the caller opted out with
+ * `includePicks: false`) picks; fixtures only needs bootstrap and
+ * histories/picks only need `teamIds` from standings, so none of the three
+ * depend on each other. Only `live` (when the gameweek is live) waits on
+ * that stage's output (`finishedAllFixtures`) and stays sequential after it.
+ * Stats pages only ever read a manager's history and chips, so they pass
+ * `includePicks: false` to skip fetching 14 managers' picks (and live) for
+ * fields they never look at.
  *
  * `getLeagueSnapshot` itself is memoised per request (React `cache()`,
  * keyed on the two plain arguments below) so calling it more than once in
@@ -209,20 +213,22 @@ async function computeLeagueSnapshot(gw: number | undefined, includePicks: boole
 
   // Fixtures only matter for deciding `useLiveForCurrent` for the current
   // gameweek, and only when the caller actually wants picks/live totals.
-  let fixtures: Fixture[] = [];
-  if (includePicks && isCurrentGameweek) {
-    fixtures = await cachedKind("fixtures", `fixtures:${selectedGameweek}`, () =>
-      client.fixtures(selectedGameweek)
-    );
-  }
-
-  const finishedAllFixtures = fixtures.length > 0 && fixtures.every((f) => f.finished);
-  const useLiveForCurrent = includePicks && isCurrentGameweek && !finishedAllFixtures;
-
-  const [histories, picks] = await Promise.all([
+  // Fixtures only depends on `bootstrap` (already resolved above), and
+  // histories/picks only need `teamIds` from `standings` (also already
+  // resolved) — none of the three depend on each other, so they run as one
+  // `Promise.all` instead of a sequential stage each. Only `live` below
+  // (which needs `finishedAllFixtures`) must wait for this to settle first.
+  const needsFixtures = includePicks && isCurrentGameweek;
+  const [fixtures, histories, picks] = await Promise.all([
+    needsFixtures
+      ? cachedKind("fixtures", `fixtures:${selectedGameweek}`, () => client.fixtures(selectedGameweek))
+      : Promise.resolve<Fixture[]>([]),
     fetchHistories(teamIds),
     includePicks ? fetchPicks(teamIds, selectedGameweek) : Promise.resolve(new Map<number, TeamDetails>()),
   ]);
+
+  const finishedAllFixtures = fixtures.length > 0 && fixtures.every((f) => f.finished);
+  const useLiveForCurrent = includePicks && isCurrentGameweek && !finishedAllFixtures;
 
   let liveData: LiveGameweekData = { elements: [] };
   if (useLiveForCurrent) {
@@ -342,6 +348,36 @@ export function getLeagueSnapshot(
 ): Promise<LeagueSnapshot> {
   return getLeagueSnapshotMemoized(gw, opts.includePicks ?? true);
 }
+
+export interface HeaderContext {
+  currentGameweek: number;
+  liveState: LiveState;
+}
+
+/**
+ * The cheap subset of a snapshot a page's header/nav needs to render before
+ * the full `getLeagueSnapshot` fan-out (history/picks/fixtures/live for
+ * every manager) resolves: just bootstrap (for `currentGameweek`) and
+ * event-status (for `liveState`, via `getLiveState`). Both are already
+ * `cachedKind`/`reactCache`d, so calling this alongside `getLeagueSnapshot`
+ * in the same request reads the same memoised bootstrap/event-status
+ * promises rather than fetching twice — this exists so a page *can* await
+ * it alone (e.g. inside a fast, non-Suspense-blocking header) without
+ * paying for the rest of the snapshot at all.
+ *
+ * Memoised per request (React `cache()`), same as `getLeagueSnapshot`.
+ */
+export const getHeaderContext = reactCache(async (): Promise<HeaderContext> => {
+  const [bootstrap, liveState] = await Promise.all([
+    cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
+    getLiveState(),
+  ]);
+  const currentEvent = findCurrentEvent(bootstrap.events);
+  return {
+    currentGameweek: currentEvent ? currentEvent.id : 1,
+    liveState,
+  };
+});
 
 /**
  * The mapping from a snapshot's managers to the shape the league table (and

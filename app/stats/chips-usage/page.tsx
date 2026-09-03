@@ -1,15 +1,17 @@
+import { LayoutGrid } from "lucide-react";
+
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { PageHeader } from "@/components/page-header";
+import { StatsPageShell } from "@/components/stats/stats-page-shell";
+import { RowLink } from "@/components/stats/row-link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ManagerIdentity } from "@/components/ui/manager-identity";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Wand2 } from "lucide-react";
 import { loadStatsData } from "../getStatData";
 import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
-import Link from "next/link";
 import { chipDisplayOrder, groupChipWindowsByHalf, type ChipStatusResult } from "@/lib/chips";
 import { ChipsGrid } from "@/components/stats/chips-grid";
-import { LayoutGrid } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -49,7 +51,7 @@ function remainingChipsLine(chipStatuses: ChipStatusResult[] | undefined, curren
   const abbrs = chipDisplayOrder
     .filter((name) => availableNames.has(name))
     .map((name) => CHIP_ABBR[name] ?? name);
-  return `${abbrs.join(", ")} left (${currentHalfAvailable.length})`;
+  return `${abbrs.join(", ")} left`;
 }
 
 export default async function ChipsUsagePage({
@@ -78,133 +80,66 @@ export default async function ChipsUsagePage({
 
   return (
     <DashboardLayout>
-      <PageHeader
+      <StatsPageShell
         title="Chips Usage"
-        description={`After ${data.finishedGameweeks} completed gameweeks${validSelectedGameweek < data.currentGameweek ? ` (as of GW ${validSelectedGameweek})` : ''}`}
+        description={`After ${data.finishedGameweeks} completed gameweeks${
+          validSelectedGameweek < data.currentGameweek ? ` (as of GW ${validSelectedGameweek})` : ""
+        }`}
         currentGameweek={data.currentGameweek}
         selectedGameweek={validSelectedGameweek}
-        showGameweekSelector={true}
-      />
-      <div className="mb-6">
-        <Link href="/stats" className="text-sm text-blue-400 hover:underline">← Back to Stats</Link>
-      </div>
-      <Card className="mb-4 sm:mb-6 border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
-        <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">
-            <LayoutGrid className="h-5 w-5 text-purple-500" />
-            Chips remaining
-          </CardTitle>
-          <p className="text-xs text-white/50 mt-1">
-            Every chip comes twice this season. Used cells show the gameweek it was played.
-          </p>
-        </CardHeader>
-        <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
-          <ChipsGrid managers={gridManagers} halves={halves} currentGameweek={data.currentGameweek} />
-        </CardContent>
-      </Card>
-      <Card className="border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
-        <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">
-            <Wand2 className="h-5 w-5 text-purple-500" />
-            Chips Usage
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-0 sm:px-6 py-0 sm:py-6">
-          {/* Mobile View - Compact Table */}
-          <div className="sm:hidden text-white text-xs rounded-lg overflow-hidden border border-white/10">
-            {/* Header */}
-            <div className="flex font-bold text-gray-300 px-2 py-1.5 border-b border-gray-700 items-center bg-gradient-to-r from-gray-800 to-gray-900 text-xs">
-              <div className="w-8 text-center">#</div>
-              <div className="flex-1">Team</div>
-              <div className="w-12 text-right">Used</div>
-            </div>
-            {/* Rows */}
-            <div className="overflow-y-auto">
-              {data.chipStats.map((team: ChipStats, index: number) => (
-                <div
-                  key={team.id}
-                  className={`flex items-center px-2 py-1.5 border-b border-white/5 ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'}`}
-                >
-                  <div className="w-8 flex items-center justify-center">
-                    <span className="font-bold text-xs">
-                      {index + 1}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0 ml-2">
-                    <div className="font-semibold text-xs truncate text-white leading-tight">
-                      {team.name}
-                    </div>
-                    <div className="text-white/60 truncate text-xs leading-tight">
-                      {team.managerName}
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {team.chips.map((chip, chipIndex) => (
-                        <span
-                          key={chipIndex}
-                          className="inline-flex items-center rounded bg-white/10 px-1 py-0.5 text-xs"
-                        >
-                          <span className="font-semibold text-white/90">{chip.name}</span>
-                          <span className="ml-0.5 text-white/60">(GW{chip.gameweek})</span>
-                        </span>
-                      ))}
-                    </div>
-                    <div className="text-purple-300/80 text-xs mt-1">
-                      {remainingChipsLine(team.chipStatuses, data.currentGameweek)}
-                    </div>
-                  </div>
-                  <div className="w-12 text-right font-bold text-xs text-white">
-                    {team.totalChipsUsed}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LayoutGrid className="h-4 w-4 text-fg-3" />
+              Chips remaining
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-xs text-fg-2">
+              Every chip comes twice this season. A used dot shows the gameweek it was played on hover.
+            </p>
+            <ChipsGrid managers={gridManagers} halves={halves} currentGameweek={data.currentGameweek} />
+          </CardContent>
+        </Card>
 
-          {/* Desktop View */}
-          <div className="hidden sm:block overflow-x-auto rounded-lg border border-white/10">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-white/10 bg-gradient-to-r from-gray-800 to-gray-900 hover:bg-gradient-to-r">
-                  <TableHead className="w-12 text-gray-300 font-bold">Rank</TableHead>
-                  <TableHead className="text-gray-300 font-bold">Team</TableHead>
-                  <TableHead className="text-right text-gray-300 font-bold">Used</TableHead>
-                  <TableHead className="text-right text-gray-300 font-bold">Details</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.chipStats.map((team: ChipStats, index: number) => (
-                  <TableRow key={team.id} className={`border-white/5 transition-all ${index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50'} hover:bg-purple-900/20`}>
-                    <TableCell className="font-bold py-3">{index + 1}</TableCell>
-                    <TableCell className="py-3">
-                      <div>
-                        <div className="font-medium text-white">{team.name}</div>
-                        <div className="text-sm text-white/60">{team.managerName}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-bold py-3 text-white">{team.totalChipsUsed}</TableCell>
-                    <TableCell className="py-3">
-                      <div className="flex flex-wrap justify-end gap-1">
-                        {team.chips.map((chip, chipIndex) => (
-                          <span
-                            key={chipIndex}
-                            className="inline-flex items-center rounded bg-white/10 px-2 py-1 text-xs"
-                          >
-                            <span className="font-semibold text-white/90">{chip.name}</span>
-                            <span className="ml-1 text-white/60">(GW{chip.gameweek})</span>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="text-right text-purple-300/80 text-xs mt-1">
-                        {remainingChipsLine(team.chipStatuses, data.currentGameweek)}
-                      </div>
-                    </TableCell>
+        <Card>
+          <CardContent className="p-0">
+            {data.chipStats.length === 0 ? (
+              <EmptyState title="No chips played" description="No manager has played a chip yet." />
+            ) : (
+              <Table>
+                <caption className="sr-only">Chips used by manager</caption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">Rank</TableHead>
+                    <TableHead>Team</TableHead>
+                    <TableHead className="hidden sm:table-cell">Remaining</TableHead>
+                    <TableHead className="text-right">Used</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {data.chipStats.map((team: ChipStats, index: number) => (
+                    <TableRow key={team.id} className="relative">
+                      <TableCell className="font-semibold tabular-nums text-fg">{index + 1}</TableCell>
+                      <TableCell className="min-w-0">
+                        <ManagerIdentity entryName={team.name} playerName={team.managerName} />
+                      </TableCell>
+                      <TableCell className="hidden text-xs text-fg-2 sm:table-cell">
+                        {remainingChipsLine(team.chipStatuses, data.currentGameweek)}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-fg">
+                        <RowLink href={`/team/${team.id}`} label={`${team.name} team page`} />
+                        {team.totalChipsUsed}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </StatsPageShell>
     </DashboardLayout>
   );
-} 
+}

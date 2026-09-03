@@ -83,6 +83,69 @@ function buildStandings(): LeagueStandings {
   };
 }
 
+describe("getLeagueSnapshot fetch concurrency", () => {
+  // A separate top-level describe (its own module-scope-independent state,
+  // running before the `getLeagueSnapshot` describe above touches any
+  // gw-1/gw-2 keys) so lib/fpl/cache.ts's in-memory fallback store (used
+  // here, since test/setup.ts deletes the Redis env vars) is still cold for
+  // `bootstrap`/`standings:*`/`fixtures:2`/`history:*`. Vitest runs describe
+  // blocks within one file in source order, so this one goes first in the
+  // file for that reason — see the inline comment on the test itself.
+  beforeEach(() => {
+    process.env.FPL_LEAGUE_ID = "test-league";
+    delete process.env.FPL_H2H_LEAGUE_ID;
+
+    vi.mocked(client.bootstrap).mockResolvedValue(bootstrap);
+    vi.mocked(client.classicStandings).mockResolvedValue(buildStandings());
+    vi.mocked(client.picks).mockImplementation(async (entry: number) =>
+      entry === BBOOST_ENTRY ? bboostPicks : plainPicks
+    );
+    vi.mocked(client.live).mockResolvedValue(live);
+    vi.mocked(client.eventStatus).mockResolvedValue([]);
+    vi.mocked(client.h2hStandings).mockResolvedValue(null as unknown as H2HStandings);
+  });
+
+  it("fetches fixtures concurrently with histories/picks rather than sequentially", async () => {
+    // Regression test for the stage-2+3 collapse in computeLeagueSnapshot:
+    // fixtures only depends on bootstrap and histories/picks only need the
+    // team ids from standings, so all three now run in one Promise.all
+    // instead of fixtures being awaited before histories/picks even start.
+    //
+    // Give fixtures a long delay and history a short one and record a call
+    // order log. If fixtures were still awaited first (the old sequential
+    // stage), no history call could start — let alone resolve — until
+    // after "fixtures:resolved". Seeing a history resolution appear first
+    // in the log is only possible if the two stages overlap.
+    const order: string[] = [];
+
+    vi.mocked(client.fixtures).mockImplementation(async () => {
+      order.push("fixtures:start");
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      order.push("fixtures:resolved");
+      return fixtures;
+    });
+
+    vi.mocked(client.history).mockImplementation(async (entry: number) => {
+      order.push(`history:start:${entry}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      order.push(`history:resolved:${entry}`);
+      return entry === BBOOST_ENTRY ? bboostHistory : plainHistory;
+    });
+
+    await getLeagueSnapshot(2);
+
+    const firstHistoryResolvedIndex = order.findIndex((entry) => entry.startsWith("history:resolved"));
+    const fixturesResolvedIndex = order.indexOf("fixtures:resolved");
+
+    expect(firstHistoryResolvedIndex).toBeGreaterThan(-1);
+    expect(fixturesResolvedIndex).toBeGreaterThan(-1);
+    expect(firstHistoryResolvedIndex).toBeLessThan(fixturesResolvedIndex);
+    // And fixtures itself must have started before any history call
+    // resolved too — not just interleaved by coincidence.
+    expect(order.indexOf("fixtures:start")).toBeLessThan(firstHistoryResolvedIndex);
+  });
+});
+
 describe("getLeagueSnapshot", () => {
   beforeEach(() => {
     process.env.FPL_LEAGUE_ID = "test-league";

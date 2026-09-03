@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, ScrollText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Recap } from "@/services/recap";
 
 /** Recaps keyed by gameweek, shared across mounts so switching back is instant. */
@@ -10,7 +10,8 @@ const recapCache = new Map<number, Recap>();
 
 /**
  * The gameweek recap (Phase 5.4) as a card. Fetches `/api/recap/[gw]` for
- * the gameweek the page is showing; the bot posts the same text.
+ * the gameweek the page is showing; the bot posts the same text — recap
+ * copy (including any emoji) is bot-authored content and renders as-is.
  */
 export function RecapCard({ gw }: { gw: number }) {
   const [recap, setRecap] = useState<Recap | null>(recapCache.get(gw) ?? null);
@@ -53,26 +54,41 @@ export function RecapCard({ gw }: { gw: number }) {
   }, [gw]);
 
   return (
-    <Card className="border-white/10 bg-gray-900/50 backdrop-blur-sm shadow-lg">
-      <CardHeader className="pb-3 border-b border-white/10 bg-gradient-to-r from-gray-800 to-gray-900">
-        <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white">
-          <ScrollText className="h-5 w-5 text-purple-400" />
-          Gameweek {gw} recap
-          {loading && <Loader2 className="h-4 w-4 animate-spin text-white/50" />}
-          {recap?.provisional && !loading && (
-            <span className="ml-auto text-xs font-normal text-amber-300/80">provisional bonus</span>
-          )}
-        </CardTitle>
+    <Card>
+      <CardHeader>
+        <CardTitle>Gameweek {gw} recap</CardTitle>
+        {recap?.provisional && !loading && (
+          <span className="text-xs font-normal text-fg-3">Provisional bonus</span>
+        )}
       </CardHeader>
-      <CardContent className="pt-4 sm:pt-6">
-        {error && <p className="text-sm text-red-300">{error}</p>}
-        {!error && !recap && loading && <p className="text-sm text-white/50">Writing it up…</p>}
-        {recap && (
+      <CardContent>
+        {error && <p className="text-sm text-negative">{error}</p>}
+
+        {!error && loading && (
+          <div className="grid gap-4 sm:grid-cols-2" aria-label="Writing it up…">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-5/6" />
+                <Skeleton className="h-3 w-4/6" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!error && !loading && !recap && (
+          <p className="text-sm text-fg-2">Recap unavailable.</p>
+        )}
+
+        {recap && !loading && (
           <div className="grid gap-4 sm:grid-cols-2">
             {recap.sections.map((section) => (
               <div key={section.title}>
-                <div className="text-xs font-semibold uppercase tracking-wide text-white/50 mb-1">{section.title}</div>
-                <ul className="space-y-1 text-sm text-white/90">
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-fg-3">
+                  {section.title}
+                </div>
+                <ul className="space-y-1 text-sm text-fg">
                   {section.lines.map((line, i) => (
                     <li key={i} className="leading-snug">
                       {line}

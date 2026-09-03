@@ -1,18 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Sora } from "next/font/google";
+import { Geist } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react"
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { leagueConfig } from "@/config/league";
 
-const sora = Sora({
+const geist = Geist({
   subsets: ["latin"],
-  variable: "--font-sora",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-geist",
 });
 
 export const metadata: Metadata = {
@@ -37,7 +32,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#131928",
+  themeColor: "#0B0E14",
   viewportFit: "cover",
 };
 
@@ -48,7 +43,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${sora.variable} font-sans antialiased bg-[#131928] text-white`}>
+      <body className={`${geist.variable} font-sans antialiased bg-bg text-fg`}>
         <ThemeProvider>
           {children}
         </ThemeProvider>

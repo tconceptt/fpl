@@ -10,11 +10,25 @@
  * TTL selection is centralized here via `cachedKind`/`cachedManyKind` so no
  * call site picks its own TTL (and no two call sites can write the same key
  * with two different TTLs depending on who got there first).
+ *
+ * Stale-if-error: every value is stored with a *physical* TTL of
+ * `max(logicalTtlSeconds, STALE_FLOOR_SECONDS)` — longer than the logical
+ * freshness window it was written with (`ttl` in the envelope, `storedAt`
+ * for when). A read within `ttl` of `storedAt` is a normal fresh hit. A read
+ * past that window but still physically present is *stale but available*:
+ * it is not returned directly (a miss is still counted and a fresh fetch
+ * attempted, keeping the normal "TTL controls freshness" behaviour), but if
+ * the fresh fetch throws — upstream 5xx, timeout, network error — that stale
+ * value is served instead of propagating the error, and the serve is
+ * recorded via `countStaleServe` (`lib/fpl/telemetry.ts`). A rejection is
+ * still never cached: nothing is written back when `fn()`/`fetchMissing`
+ * fails, stale or not. When there is no stale value to fall back to, a
+ * failure propagates exactly as before.
  */
 
 import { Redis } from "@upstash/redis";
 import { cache as reactCache } from "react";
-import { countCacheHit, countCacheMiss } from "@/lib/fpl/telemetry";
+import { countCacheHit, countCacheMiss, countStaleServe } from "@/lib/fpl/telemetry";
 import type { EventStatusRow } from "@/lib/fpl/types";
 import { ttlFor, type LiveState, type TtlKind, type TransfersTtlOptions } from "@/lib/fpl/ttl";
 import * as client from "@/lib/fpl/client";
@@ -23,9 +37,36 @@ import * as client from "@/lib/fpl/client";
 // or anything else cached under the old prefix — are ever read back.
 const KEY_PREFIX = "fpl:v2:";
 
-/** Values are wrapped so a legitimately cached `null`/`undefined` is distinguishable from a cache miss. */
+/**
+ * A physical copy is kept for at least this long regardless of the logical
+ * TTL it was written with, so a short-lived kind (e.g. `live` at 30s during
+ * a live gameweek) still has a same-day stale-if-error fallback available
+ * well after its freshness window has passed.
+ */
+const STALE_FLOOR_SECONDS = 24 * 60 * 60;
+
+/**
+ * Values are wrapped so a legitimately cached `null`/`undefined` is
+ * distinguishable from a cache miss, and so freshness (`storedAt`/`ttl`) can
+ * be judged independently of Redis's own physical expiry (see the
+ * stale-if-error note above).
+ */
 interface Envelope<T> {
   v: T;
+  storedAt: number;
+  ttl: number;
+}
+
+function isFresh(envelope: Envelope<unknown>): boolean {
+  return Date.now() - envelope.storedAt < envelope.ttl * 1000;
+}
+
+function wrap<T>(value: T, ttlSeconds: number): Envelope<T> {
+  return { v: value, storedAt: Date.now(), ttl: ttlSeconds };
+}
+
+function physicalTtl(ttlSeconds: number): number {
+  return Math.max(ttlSeconds, STALE_FLOOR_SECONDS);
 }
 
 let redisSingleton: Redis | null | undefined;
@@ -88,13 +129,20 @@ const inflight = new Map<string, Promise<unknown>>();
 
 async function fetchAndStore<T>(fullKey: string, ttlSeconds: number, fn: () => Promise<T>): Promise<T> {
   const redis = getRedis();
+  // A value found but past its logical `ttl` — physically present only
+  // because of the longer stale-if-error floor. Held onto so a failed
+  // refetch below can fall back to it instead of propagating.
+  let staleEnvelope: Envelope<T> | undefined;
 
   if (redis) {
     try {
       const cachedValue = await redis.get<Envelope<T>>(fullKey);
       if (cachedValue !== null && cachedValue !== undefined) {
-        countCacheHit();
-        return cachedValue.v;
+        if (isFresh(cachedValue)) {
+          countCacheHit();
+          return cachedValue.v;
+        }
+        staleEnvelope = cachedValue;
       }
     } catch (err) {
       if (isDynamicServerUsageError(err)) throw err;
@@ -103,24 +151,40 @@ async function fetchAndStore<T>(fullKey: string, ttlSeconds: number, fn: () => P
   } else {
     const cachedValue = memGet<T>(fullKey);
     if (cachedValue !== undefined) {
-      countCacheHit();
-      return cachedValue.v;
+      if (isFresh(cachedValue)) {
+        countCacheHit();
+        return cachedValue.v;
+      }
+      staleEnvelope = cachedValue;
     }
   }
 
   countCacheMiss();
-  // Never cache a rejection — let it propagate so callers see the real error.
-  const fresh = await fn();
+  // Never cache a rejection — let it propagate so callers see the real
+  // error, unless a stale (but still physically present) value can stand
+  // in for it instead.
+  let fresh: T;
+  try {
+    fresh = await fn();
+  } catch (err) {
+    if (staleEnvelope !== undefined) {
+      countStaleServe();
+      return staleEnvelope.v;
+    }
+    throw err;
+  }
+
+  const envelope = wrap(fresh, ttlSeconds);
 
   if (redis) {
     try {
-      await redis.set(fullKey, { v: fresh } satisfies Envelope<T>, { ex: ttlSeconds });
+      await redis.set(fullKey, envelope satisfies Envelope<T>, { ex: physicalTtl(ttlSeconds) });
     } catch (err) {
       if (isDynamicServerUsageError(err)) throw err;
       warnRedisFailure(err);
     }
   } else {
-    memSet(fullKey, { v: fresh }, ttlSeconds);
+    memSet(fullKey, envelope, physicalTtl(ttlSeconds));
   }
 
   return fresh;
@@ -203,14 +267,26 @@ export async function cachedMany<T>(
       const redis = getRedis();
       let missingKeys: string[] = [];
 
+      // Keys found but past their logical `ttl` — physically present only
+      // because of the longer stale-if-error floor. Treated as misses for
+      // freshness purposes, but held onto so a `fetchMissing` failure (or
+      // partial success — a per-key try/catch inside `fetchMissing` that
+      // simply omits a failed entry) can fall back to them below.
+      const staleValues = new Map<string, T>();
+
       if (redis) {
         const fullKeys = toFetch.map((k) => KEY_PREFIX + k);
         try {
           const values = await redis.mget<Array<Envelope<T> | null>>(...fullKeys);
           values.forEach((value, i) => {
             if (value !== null && value !== undefined) {
-              batchResult.set(toFetch[i], value.v);
-              countCacheHit();
+              if (isFresh(value)) {
+                batchResult.set(toFetch[i], value.v);
+                countCacheHit();
+              } else {
+                staleValues.set(toFetch[i], value.v);
+                missingKeys.push(toFetch[i]);
+              }
             } else {
               missingKeys.push(toFetch[i]);
             }
@@ -224,8 +300,13 @@ export async function cachedMany<T>(
         for (const key of toFetch) {
           const cachedValue = memGet<T>(KEY_PREFIX + key);
           if (cachedValue !== undefined) {
-            batchResult.set(key, cachedValue.v);
-            countCacheHit();
+            if (isFresh(cachedValue)) {
+              batchResult.set(key, cachedValue.v);
+              countCacheHit();
+            } else {
+              staleValues.set(key, cachedValue.v);
+              missingKeys.push(key);
+            }
           } else {
             missingKeys.push(key);
           }
@@ -234,11 +315,39 @@ export async function cachedMany<T>(
 
       if (missingKeys.length > 0) {
         countCacheMiss(missingKeys.length);
-        const fresh = await fetchMissing(missingKeys);
+
+        let fresh: Map<string, T>;
+        try {
+          fresh = await fetchMissing(missingKeys);
+        } catch (err) {
+          // A full-batch failure with no stale fallback anywhere must still
+          // propagate — never silently return an incomplete result. With at
+          // least one stale value available, fall through to the same
+          // "missing from fresh" stale-serve logic below instead.
+          if (staleValues.size === 0) throw err;
+          fresh = new Map();
+        }
 
         for (const [key, value] of fresh) {
           batchResult.set(key, value);
         }
+
+        // Stale-if-error: any requested key that fetchMissing did not
+        // resolve — whether the whole call threw above, or (more commonly)
+        // its own per-key try/catch just omitted a failed entry — falls
+        // back to the last stored value, if one is still physically
+        // present. Never re-stored: it keeps aging from its original
+        // `storedAt` so the next read attempts a fresh fetch again.
+        let staleServed = 0;
+        for (const key of missingKeys) {
+          if (fresh.has(key)) continue;
+          const stale = staleValues.get(key);
+          if (stale !== undefined) {
+            batchResult.set(key, stale);
+            staleServed++;
+          }
+        }
+        if (staleServed > 0) countStaleServe(staleServed);
 
         // A `fetchMissing` that resolves everything to nothing to write —
         // e.g. every entry in the batch 404s, as happens for an
@@ -251,7 +360,9 @@ export async function cachedMany<T>(
             try {
               const pipeline = redis.pipeline();
               for (const [key, value] of fresh) {
-                pipeline.set(KEY_PREFIX + key, { v: value } satisfies Envelope<T>, { ex: ttlSeconds });
+                pipeline.set(KEY_PREFIX + key, wrap(value, ttlSeconds) satisfies Envelope<T>, {
+                  ex: physicalTtl(ttlSeconds),
+                });
               }
               await pipeline.exec();
             } catch (err) {
@@ -260,7 +371,7 @@ export async function cachedMany<T>(
             }
           } else {
             for (const [key, value] of fresh) {
-              memSet(KEY_PREFIX + key, { v: value }, ttlSeconds);
+              memSet(KEY_PREFIX + key, wrap(value, ttlSeconds), physicalTtl(ttlSeconds));
             }
           }
         }

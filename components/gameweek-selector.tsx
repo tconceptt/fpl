@@ -63,40 +63,39 @@ export function GameweekSelector({
   }
 
   return (
-    <div className={cn("flex items-center gap-0.5 bg-gray-800/50 border border-white/10 rounded-lg p-0.5", className)}>
-      {/* Previous arrow button */}
+    <div
+      className={cn(
+        "flex h-9 items-center gap-0.5 rounded-md border border-border bg-surface-2 p-0.5",
+        className
+      )}
+    >
       <button
         onClick={handlePrev}
         disabled={selected <= 1}
         aria-label="Previous gameweek"
         className={cn(
-          "p-1 rounded-md transition-all",
+          "flex h-full min-h-9 min-w-9 items-center justify-center rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
           selected <= 1
-            ? "text-white/20 cursor-not-allowed"
-            : "text-white/60 hover:text-white hover:bg-white/5"
+            ? "cursor-not-allowed text-fg-3 opacity-50"
+            : "text-fg-2 hover:bg-surface-3 hover:text-fg"
         )}
       >
-        <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        <ChevronLeft className="h-4 w-4" />
       </button>
-      
-      {/* Separator */}
-      <div className="w-px h-4 bg-white/10" />
-      
-      {/* Dropdown with subtle background */}
+
       <Select value={currentValue} onValueChange={handleGameweekChange}>
-        <SelectTrigger aria-label="Select gameweek" className="h-auto border-0 bg-purple-900/20 hover:bg-purple-900/30 shadow-none focus:ring-0 px-2 sm:px-3 py-1 text-xs sm:text-xs font-semibold min-w-[55px] sm:min-w-[70px] rounded-md transition-colors">
+        <SelectTrigger
+          aria-label="Select gameweek"
+          className="h-full w-auto min-w-[72px] border-0 bg-transparent px-2 py-0 text-xs font-semibold text-accent shadow-none focus:ring-0 focus-visible:ring-0"
+        >
           <SelectValue placeholder="Select gameweek" />
         </SelectTrigger>
-        <SelectContent className="bg-gray-900 border border-purple-500/30 rounded-lg shadow-2xl">
+        <SelectContent>
           <SelectGroup>
-            <SelectLabel className="text-xs text-white/60 font-semibold px-3 py-2">Select Gameweek</SelectLabel>
+            <SelectLabel>Select Gameweek</SelectLabel>
             <div className="max-h-[300px] overflow-y-auto px-1">
               {gameweeks.map((gw) => (
-                <SelectItem 
-                  key={gw} 
-                  value={gw.toString()} 
-                  className="cursor-pointer rounded-md my-0.5 text-sm hover:bg-purple-900/30 focus:bg-purple-900/40 data-[state=checked]:bg-purple-600 data-[state=checked]:text-white"
-                >
+                <SelectItem key={gw} value={gw.toString()}>
                   GW {gw}
                 </SelectItem>
               ))}
@@ -104,24 +103,20 @@ export function GameweekSelector({
           </SelectGroup>
         </SelectContent>
       </Select>
-      
-      {/* Separator */}
-      <div className="w-px h-4 bg-white/10" />
-      
-      {/* Next arrow button */}
+
       <button
         onClick={handleNext}
         disabled={selected >= currentGameweek}
         aria-label="Next gameweek"
         className={cn(
-          "p-1 rounded-md transition-all",
+          "flex h-full min-h-9 min-w-9 items-center justify-center rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
           selected >= currentGameweek
-            ? "text-white/20 cursor-not-allowed"
-            : "text-white/60 hover:text-white hover:bg-white/5"
+            ? "cursor-not-allowed text-fg-3 opacity-50"
+            : "text-fg-2 hover:bg-surface-3 hover:text-fg"
         )}
       >
-        <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        <ChevronRight className="h-4 w-4" />
       </button>
     </div>
   )
-} 
+}

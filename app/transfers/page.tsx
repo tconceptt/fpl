@@ -1,7 +1,8 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { PageHeader } from "@/components/page-header";
-import { TransferFeed, TransferHighlights } from "@/components/transfers/transfer-feed";
+import { TransfersView, type TransfersPageData } from "@/components/transfers/transfers-view";
+import { TransfersSkeleton } from "@/components/transfers/transfers-skeleton";
 import { resolveGwParam, type GwSearchParams } from "@/lib/gw-param";
 import { withUpstreamCounter, logTelemetry } from "@/lib/fpl/telemetry";
 import { getLeagueSnapshot, InvalidGameweekError } from "@/services/league";
@@ -45,19 +46,20 @@ export default async function TransfersRoute({ searchParams }: { searchParams: P
   const { best, worst } = summarizeTransfers(feed.rows);
   const groups = groupTransfersByManager(feed.rows);
 
+  const initial: TransfersPageData = {
+    leagueName,
+    currentGameweek,
+    selectedGameweek: feed.selectedGameweek,
+    best,
+    worst,
+    groups,
+  };
+
   return (
     <DashboardLayout>
-      <div className="space-y-4 sm:space-y-6">
-        <PageHeader
-          title="Transfers"
-          description={`Every move in ${leagueName} for gameweek ${feed.selectedGameweek}, with the points each one earned`}
-          currentGameweek={currentGameweek}
-          selectedGameweek={feed.selectedGameweek}
-          showGameweekSelector
-        />
-        <TransferHighlights best={best} worst={worst} />
-        <TransferFeed groups={groups} gw={feed.selectedGameweek} />
-      </div>
+      <Suspense fallback={<TransfersSkeleton />}>
+        <TransfersView initial={initial} />
+      </Suspense>
     </DashboardLayout>
   );
 }
