@@ -19,7 +19,7 @@ Runs on Vercel Hobby, GitHub Actions on the public repo, the Upstash Redis free 
 
 ## Status
 
-Phases 0 to 3 were implemented and reviewed on 2 September 2026 (commits 95bab33 through 83611a5 on main). Phase 4 is next. Nothing is pushed yet.
+Phases 0 to 3 were implemented and reviewed on 2 September 2026 (commits 95bab33 through 83611a5 on main). Phases 4 and 5 were implemented on 3 September 2026. Phase 5 needs the one-time setup in `docs/BOT.md` (BotFather, env vars, `setWebhook`, the GitHub secret and variable) before the bot goes live. Phase 6 is the ongoing live checks, starting with GW3 on Friday 4 September.
 
 ## Phase summary
 

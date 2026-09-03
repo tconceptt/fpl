@@ -69,6 +69,8 @@ export interface Fixture {
   kickoff_time: string;
   started: boolean;
   finished: boolean;
+  /** True at the final whistle, before bonus is confirmed and `finished` flips. */
+  finished_provisional?: boolean;
   team_h: number;
   team_a: number;
   stats: FixtureStat[];

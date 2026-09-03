@@ -3,6 +3,7 @@
 import { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GameweekSelector } from "@/components/gameweek-selector";
+import { RecapCard } from "@/components/gameweek/recap-card";
 import { formatPoints } from "@/lib/fpl";
 import { computeGameweekStats } from "@/services/gameweek-stats";
 import { useLeague, type LeagueApiResponse } from "@/hooks/use-league";
@@ -245,6 +246,8 @@ export function GameweekStatsClient({ initial }: { initial: LeagueApiResponse })
             </div>
           </CardContent>
         </Card>
+
+        <RecapCard gw={gw} />
       </div>
     </div>
   );

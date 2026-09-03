@@ -30,7 +30,8 @@ interface Envelope<T> {
 
 let redisSingleton: Redis | null | undefined;
 
-function getRedis(): Redis | null {
+/** The shared Upstash client, or null when Redis is not configured. Also used by lib/bot-state.ts. */
+export function getRedis(): Redis | null {
   if (redisSingleton !== undefined) return redisSingleton;
 
   const url = process.env.KV_REST_API_URL;
