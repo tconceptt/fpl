@@ -76,10 +76,7 @@ function pts(n: number): string {
   return `${n} pt${n === 1 ? "" : "s"}`;
 }
 
-function signed(n: number): string {
-  return n > 0 ? `+${n}` : String(n);
-}
-
+/** Winner and Qitawrari by net points, i.e. after transfer hits are deducted. */
 function winnerAndStruggler(managers: RecapManager[]): RecapSection {
   const max = Math.max(...managers.map((m) => m.netPoints));
   const min = Math.min(...managers.map((m) => m.netPoints));
@@ -94,99 +91,21 @@ function winnerAndStruggler(managers: RecapManager[]): RecapSection {
   }
   if (max !== min) {
     if (strugglers.length === 1) {
-      lines.push(`💩 ${who(strugglers[0])} propped it up with ${pts(min)}`);
+      lines.push(`💩 Qitawrari of the week: ${who(strugglers[0])} with ${pts(min)}`);
     } else {
-      lines.push(`💩 Bottom of the week: ${strugglers.map(who).join(", ")} on ${pts(min)}`);
+      lines.push(`💩 Qitawrari of the week: ${strugglers.map(who).join(", ")} on ${pts(min)}`);
     }
   }
   return { title: "The week", lines };
 }
 
-function tableMovement(managers: RecapManager[]): RecapSection {
-  const lines: string[] = [];
-  const moved = managers.filter((m) => m.lastRank !== m.rank);
-
-  if (moved.length === 0) {
-    lines.push("No movement in the table");
-  } else {
-    const risers = moved.filter((m) => m.rank < m.lastRank).sort((a, b) => b.lastRank - b.rank - (a.lastRank - a.rank) || byName(a, b));
-    const fallers = moved.filter((m) => m.rank > m.lastRank).sort((a, b) => b.rank - b.lastRank - (a.rank - a.lastRank) || byName(a, b));
-    if (risers.length > 0) {
-      const r = risers[0];
-      lines.push(`📈 Biggest riser: ${who(r)}, up ${r.lastRank - r.rank} to #${r.rank}`);
-    }
-    if (fallers.length > 0) {
-      const f = fallers[0];
-      lines.push(`📉 Biggest faller: ${who(f)}, down ${f.rank - f.lastRank} to #${f.rank}`);
-    }
-  }
-
-  const leader = managers.find((m) => m.rank === 1);
-  if (leader) {
-    lines.push(
-      leader.lastRank === 1
-        ? `👑 ${who(leader)} stays top on ${leader.totalPoints}`
-        : `👑 New leader: ${who(leader)} on ${leader.totalPoints} (was #${leader.lastRank})`
-    );
-  }
-  return { title: "Table", lines };
-}
-
-function captaincy(managers: RecapManager[]): RecapSection {
-  const withCaptain = managers.filter((m) => m.captainName !== null && m.captainPoints !== null);
-  if (withCaptain.length === 0) return { title: "Captaincy", lines: ["No captain data"] };
-
-  const counts = new Map<string, { name: string; count: number; points: number }>();
-  for (const m of withCaptain) {
-    const entry = counts.get(m.captainName!) ?? { name: m.captainName!, count: 0, points: m.captainPoints! };
-    entry.count += 1;
-    counts.set(m.captainName!, entry);
-  }
-  const captains = [...counts.values()];
-  const most = [...captains].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))[0];
-  const best = [...captains].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))[0];
-  const worst = [...captains].sort((a, b) => a.points - b.points || a.name.localeCompare(b.name))[0];
-
-  const namesFor = (captain: string) =>
-    withCaptain
-      .filter((m) => m.captainName === captain)
-      .sort(byName)
-      .map((m) => m.playerName)
-      .join(", ");
-
-  const lines = [`⭐ Most captained: ${most.name}, ${most.count} manager${most.count === 1 ? "" : "s"}`];
-  if (captains.length === 1) {
-    lines.push(`Everyone went the same way: ${most.name} returned ${pts(most.points)}`);
-  } else {
-    lines.push(`✅ Best call: ${best.name}, ${pts(best.points)} (${namesFor(best.name)})`);
-    lines.push(`❌ Worst call: ${worst.name}, ${pts(worst.points)} (${namesFor(worst.name)})`);
-  }
-  return { title: "Captaincy", lines };
-}
-
+/** Worst bench waste. Bench Boost players are skipped: their bench scored for them. */
 function benchWaste(managers: RecapManager[]): RecapSection {
-  const top = managers
-    .filter((m) => m.benchPoints > 0)
-    .sort((a, b) => b.benchPoints - a.benchPoints || byName(a, b))
-    .slice(0, 3);
-  if (top.length === 0) return { title: "Bench", lines: ["Nobody left points on the bench"] };
-  return {
-    title: "Bench",
-    lines: top.map((m) => `🪑 ${m.playerName} left ${pts(m.benchPoints)} on the bench`),
-  };
-}
-
-function hits(transfers: ManagerTransfers[]): RecapSection {
-  const withHits = transfers.filter((t) => t.hitCost > 0).sort((a, b) => b.net - b.hitCost - (a.net - a.hitCost) || a.managerName.localeCompare(b.managerName));
-  if (withHits.length === 0) return { title: "Hits", lines: ["No hits taken"] };
-  return {
-    title: "Hits",
-    lines: withHits.map((t) => {
-      const after = t.net - t.hitCost;
-      const verdict = after > 0 ? "paid off" : after === 0 ? "broke even" : "didn't pay off";
-      return `${after > 0 ? "💸" : "🔥"} ${t.managerName} took a -${t.hitCost} for ${signed(t.net)} in points: ${verdict} (${signed(after)})`;
-    }),
-  };
+  const worst = managers
+    .filter((m) => m.benchPoints > 0 && m.activeChip !== "bboost")
+    .sort((a, b) => b.benchPoints - a.benchPoints || byName(a, b))[0];
+  if (!worst) return { title: "Bench", lines: ["Nobody left points on the bench"] };
+  return { title: "Bench", lines: [`🪑 ${worst.playerName} left ${pts(worst.benchPoints)} on the bench`] };
 }
 
 function chipsPlayed(managers: RecapManager[]): RecapSection {
@@ -205,26 +124,29 @@ function chipsPlayed(managers: RecapManager[]): RecapSection {
   };
 }
 
-function headToHead(matchups: H2HMatchup[]): RecapSection | null {
-  if (matchups.length === 0) return null;
+/**
+ * The most one-sided H2H result of the week, as a single line. Byes against
+ * "AVERAGE" are ignored, and a week of nothing but draws yields no section.
+ */
+function biggestThrashing(matchups: H2HMatchup[]): RecapSection | null {
+  const decisive = matchups
+    .filter((m) => !m.isBye && m.home.entry !== null && m.away.entry !== null && m.home.points !== m.away.points)
+    .map((m) => {
+      const [winner, loser] = m.home.points > m.away.points ? [m.home, m.away] : [m.away, m.home];
+      return { winner, loser, margin: winner.points - loser.points };
+    })
+    .sort((a, b) => b.margin - a.margin || a.winner.entryName.localeCompare(b.winner.entryName));
+  if (decisive.length === 0) return null;
+  const { winner, loser, margin } = decisive[0];
   return {
-    title: "Head to head",
-    lines: matchups.map((m) => {
-      const line = `${m.home.entryName} ${m.home.points} – ${m.away.points} ${m.away.entryName}`;
-      return m.state === "level" ? `${line} (draw)` : line;
-    }),
+    title: "Biggest H2H thrashing",
+    lines: [`💥 ${winner.entryName} ${winner.points} – ${loser.points} ${loser.entryName}, won by ${margin}`],
   };
 }
 
-function standings(managers: RecapManager[]): RecapSection {
-  const ordered = [...managers].sort((a, b) => a.rank - b.rank);
-  const lines = ordered.slice(0, 3).map((m) => `${m.rank}. ${who(m)} — ${m.totalPoints}`);
-  if (ordered.length > 4) lines.push("…");
-  if (ordered.length > 3) {
-    const last = ordered[ordered.length - 1];
-    lines.push(`${last.rank}. ${who(last)} — ${last.totalPoints}`);
-  }
-  return { title: "Standings", lines };
+function topThree(managers: RecapManager[]): RecapSection {
+  const ordered = [...managers].sort((a, b) => a.rank - b.rank || byName(a, b));
+  return { title: "Top 3", lines: ordered.slice(0, 3).map((m) => `${m.rank}. ${who(m)} — ${m.totalPoints}`) };
 }
 
 export function buildRecap(input: RecapInput): Recap {
@@ -234,14 +156,11 @@ export function buildRecap(input: RecapInput): Recap {
   }
 
   sections.push(winnerAndStruggler(input.managers));
-  sections.push(tableMovement(input.managers));
-  sections.push(captaincy(input.managers));
-  sections.push(benchWaste(input.managers));
-  sections.push(hits(input.transfers));
   sections.push(chipsPlayed(input.managers));
-  const h2h = headToHead(input.matchups);
-  if (h2h) sections.push(h2h);
-  sections.push(standings(input.managers));
+  const thrashing = biggestThrashing(input.matchups);
+  if (thrashing) sections.push(thrashing);
+  sections.push(benchWaste(input.managers));
+  sections.push(topThree(input.managers));
 
   return { gw: input.gw, leagueName: input.leagueName, provisional: input.provisional, sections };
 }

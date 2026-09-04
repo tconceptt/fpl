@@ -67,7 +67,7 @@ const input: RecapInput = {
   ],
 };
 
-function side(entry: number, entryName: string, points: number): H2HMatchup["home"] {
+function side(entry: number | null, entryName: string, points: number): H2HMatchup["home"] {
   return { entry, entryName, playerName: "", points, rank: null, captain: null, activeChip: null, playersToStart: 0 };
 }
 
@@ -75,63 +75,76 @@ describe("buildRecap", () => {
   const recap = buildRecap(input);
   const section = (title: string) => recap.sections.find((s) => s.title === title)!.lines;
 
-  it("names the winner and the shared bottom of the week", () => {
+  it("names the winner and the shared Qitawrari of the week", () => {
     expect(section("The week")).toEqual([
       "🏆 Amy FC (Amy) won the week with 88 pts",
-      "💩 Bottom of the week: Dan FC (Dan), Eve FC (Eve) on 41 pts",
+      "💩 Qitawrari of the week: Dan FC (Dan), Eve FC (Eve) on 41 pts",
     ]);
   });
 
-  it("reports the biggest riser, biggest faller and a new leader", () => {
-    expect(section("Table")).toEqual([
-      "📈 Biggest riser: Amy FC (Amy), up 2 to #1",
-      "📉 Biggest faller: Ben FC (Ben), down 1 to #2",
-      "👑 New leader: Amy FC (Amy) on 188 (was #3)",
-    ]);
+  it("names a single Qitawrari when the bottom is not shared", () => {
+    const single = buildRecap({ ...input, managers: input.managers.map((m) => (m.playerName === "Eve" ? { ...m, netPoints: 50 } : m)) });
+    expect(single.sections[0].lines[1]).toBe("💩 Qitawrari of the week: Dan FC (Dan) with 41 pts");
   });
 
-  it("covers captaincy from the effective captain's raw points", () => {
-    expect(section("Captaincy")).toEqual([
-      "⭐ Most captained: Haaland, 3 managers",
-      "✅ Best call: B.Fernandes, 23 pts (Amy)",
-      "❌ Worst call: Salah, 2 pts (Cara)",
-    ]);
+  it("has no table or captaincy section", () => {
+    expect(recap.sections.map((s) => s.title)).toEqual(["The week", "Chips", "Biggest H2H thrashing", "Bench", "Top 3"]);
   });
 
-  it("lists the top three bench wastes with a name tie-break", () => {
-    expect(section("Bench")).toEqual([
-      "🪑 Ben left 12 pts on the bench",
-      "🪑 Dan left 12 pts on the bench",
-      "🪑 Cara left 5 pts on the bench",
-    ]);
+  it("names only the worst bench waste, with a name tie-break, skipping Bench Boost", () => {
+    expect(section("Bench")).toEqual(["🪑 Ben left 12 pts on the bench"]);
+    const boosted = buildRecap({
+      ...input,
+      managers: input.managers.map((m) => (m.playerName === "Eve" ? { ...m, activeChip: "bboost", benchPoints: 30 } : m)),
+    });
+    expect(boosted.sections.find((s) => s.title === "Bench")!.lines).toEqual(["🪑 Ben left 12 pts on the bench"]);
   });
 
-  it("judges whether hits paid off", () => {
-    expect(section("Hits")).toEqual([
-      "💸 Ben took a -4 for +8 in points: paid off (+4)",
-      "🔥 Cara took a -4 for -4 in points: didn't pay off (-8)",
-    ]);
+  it("ranks the week on net points, so a hit can cost the win", () => {
+    // Amy scores 90 raw but took a -4 (net 86); Ben scores 88 raw with no hit.
+    const hit = buildRecap({
+      ...input,
+      managers: input.managers.map((m) =>
+        m.playerName === "Amy" ? { ...m, netPoints: 86, transferCost: 4 } : m.playerName === "Ben" ? { ...m, netPoints: 88 } : m
+      ),
+    });
+    expect(hit.sections[0].lines[0]).toBe("🏆 Ben FC (Ben) won the week with 88 pts");
   });
 
-  it("groups chips by label and renders head-to-head results", () => {
+  it("groups chips by label and names only the biggest H2H thrashing", () => {
     expect(section("Chips")).toEqual(["🃏 Bench Boost: Amy", "🃏 Triple Captain: Eve"]);
-    expect(section("Head to head")).toEqual(["Amy FC 88 – 60 Ben FC", "Cara FC 55 – 55 Dan FC (draw)"]);
+    expect(section("Biggest H2H thrashing")).toEqual(["💥 Amy FC 88 – 60 Ben FC, won by 28"]);
+    expect(recap.sections.map((s) => s.title)).not.toContain("Head to head");
   });
 
-  it("ends with the top three and the bottom of the table", () => {
-    expect(section("Standings")).toEqual([
-      "1. Amy FC (Amy) — 188",
-      "2. Ben FC (Ben) — 160",
-      "3. Cara FC (Cara) — 155",
-      "…",
-      "5. Eve FC (Eve) — 141",
-    ]);
+  it("picks the widest margin regardless of home/away and ignores byes against AVERAGE", () => {
+    const bye = { ...side(null, "AVERAGE", 10), entry: null };
+    const withBye = buildRecap({
+      ...input,
+      matchups: [
+        { id: 1, home: side(1, "Amy FC", 88), away: side(2, "Ben FC", 60), state: "leading", isBye: false },
+        { id: 2, home: side(3, "Cara FC", 55), away: side(4, "Dan FC", 90), state: "trailing", isBye: false },
+        { id: 3, home: side(5, "Eve FC", 99), away: bye, state: "leading", isBye: true },
+      ],
+    });
+    expect(withBye.sections.find((s) => s.title === "Biggest H2H thrashing")!.lines).toEqual(["💥 Dan FC 90 – 55 Cara FC, won by 35"]);
   });
 
-  it("is deterministic and drops the H2H section when there are no matchups", () => {
+  it("ends with the top three only", () => {
+    expect(section("Top 3")).toEqual(["1. Amy FC (Amy) — 188", "2. Ben FC (Ben) — 160", "3. Cara FC (Cara) — 155"]);
+    expect(recap.sections.map((s) => s.title)).not.toContain("Standings");
+    expect(recap.sections[recap.sections.length - 1].title).toBe("Top 3");
+  });
+
+  it("is deterministic and drops the thrashing section when there are no decisive matchups", () => {
     expect(buildRecap(input)).toEqual(recap);
     const noH2H = buildRecap({ ...input, matchups: [] });
-    expect(noH2H.sections.map((s) => s.title)).not.toContain("Head to head");
+    expect(noH2H.sections.map((s) => s.title)).not.toContain("Biggest H2H thrashing");
+    const allDraws = buildRecap({
+      ...input,
+      matchups: [{ id: 2, home: side(3, "Cara FC", 55), away: side(4, "Dan FC", 55), state: "level", isBye: false }],
+    });
+    expect(allDraws.sections.map((s) => s.title)).not.toContain("Biggest H2H thrashing");
   });
 
   it("says so when nothing happened", () => {
@@ -142,9 +155,7 @@ describe("buildRecap", () => {
       matchups: [],
     });
     const lines = (title: string) => quiet.sections.find((s) => s.title === title)!.lines;
-    expect(lines("Table")[0]).toBe("No movement in the table");
     expect(lines("Bench")).toEqual(["Nobody left points on the bench"]);
-    expect(lines("Hits")).toEqual(["No hits taken"]);
     expect(lines("Chips")).toEqual(["No chips played"]);
   });
 });
@@ -160,7 +171,7 @@ describe("rendering", () => {
   it("plain text has no tags", () => {
     const text = recapToPlainText(buildRecap(input));
     expect(text).not.toMatch(/<[a-z]/);
-    expect(text).toContain("Standings\n1. Amy FC (Amy) — 188");
+    expect(text).toContain("Top 3\n1. Amy FC (Amy) — 188");
   });
 });
 
