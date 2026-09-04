@@ -11,6 +11,7 @@ import { cachedKind } from "@/lib/fpl/cache";
 import { chipWindowsFromBootstrap } from "@/lib/chips";
 import { getH2HPage } from "@/services/h2h";
 import { getLeagueSnapshot } from "@/services/league";
+import { getPrizes } from "@/services/prizes";
 import { getRecap, recapToTelegramHtml } from "@/services/recap";
 import { getTransferFeed, groupTransfersByManager } from "@/services/transfers";
 import {
@@ -18,12 +19,13 @@ import {
   formatDeadline,
   formatGwSummary,
   formatH2H,
+  formatPrizes,
   formatTable,
   formatTransfers,
   helpText,
 } from "@/services/bot-replies";
 
-export const BOT_COMMANDS = ["table", "gw", "h2h", "chips", "transfers", "recap", "deadline", "help", "start"] as const;
+export const BOT_COMMANDS = ["table", "gw", "h2h", "chips", "transfers", "recap", "prizes", "deadline", "help", "start"] as const;
 export type BotCommand = (typeof BOT_COMMANDS)[number];
 
 export interface ParsedCommand {
@@ -86,6 +88,9 @@ export async function handleBotCommand(parsed: ParsedCommand): Promise<string> {
       }
       const recap = await getRecap(gw);
       return recapToTelegramHtml(recap);
+    }
+    case "prizes": {
+      return formatPrizes(await getPrizes());
     }
     case "deadline": {
       const bootstrap = await cachedKind("bootstrap", "bootstrap", () => client.bootstrap());

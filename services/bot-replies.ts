@@ -9,6 +9,7 @@ import { escapeHtml } from "@/lib/telegram";
 import { formatEatDate, formatRemaining } from "@/lib/time";
 import type { H2HPage } from "@/services/h2h";
 import type { LeagueSnapshot, ManagerSnapshot } from "@/services/league";
+import type { Prizes } from "@/services/prizes";
 import type { ManagerTransfers } from "@/services/transfers";
 
 const CHIP_ABBR: Record<string, string> = { wildcard: "WC", freehit: "FH", bboost: "BB", "3xc": "TC" };
@@ -120,6 +121,47 @@ export function formatTransfers(groups: ManagerTransfers[], gw: number): string 
   return `<b>GW${gw} transfers</b>\n${lines.join("\n")}`;
 }
 
+export function formatPrizes(prizes: Prizes): string {
+  const motm =
+    prizes.managersOfTheMonth.length === 0
+      ? ["No month has finished yet."]
+      : prizes.managersOfTheMonth.map((month) => {
+          const gws = `GW${month.gameweeks[0]}–${month.gameweeks[month.gameweeks.length - 1]}`;
+          const names = month.winners.map((w) => `<b>${e(w.player_name)}</b>`).join(" & ");
+          const top = month.winners[0];
+          const wins = `${top.wins} win${top.wins === 1 ? "" : "s"}`;
+          const shared = month.winners.length > 1 ? " — shared" : "";
+          const winnerIds = new Set(month.winners.map((w) => w.entry));
+          const runnerUp = month.standings.find((s) => !winnerIds.has(s.entry));
+          const margin = runnerUp ? ` · next ${e(runnerUp.player_name)} ${runnerUp.wins}W ${runnerUp.points} pts` : "";
+          return `${e(month.label)} (${gws}): ${names} — ${wins}, ${top.points} pts${shared}${margin}`;
+        });
+
+  const chips =
+    prizes.chipMaster.length === 0
+      ? ["No counting chips played yet."]
+      : prizes.chipMaster.map((row, i) => {
+          const plays = row.plays
+            .map((p) => {
+              const score = p.chip === "3xc" ? `${e(p.detail)} = ${p.points}` : `${e(p.detail)} ${p.points}`;
+              return `${CHIP_ABBR[p.chip]} GW${p.gameweek} ${score}${p.provisional ? "*" : ""}`;
+            })
+            .join(", ");
+          return `${i + 1}. <b>${e(row.player_name)}</b> — ${row.total}${row.provisional ? "*" : ""} (${plays})`;
+        });
+  const provisionalNote = prizes.chipMaster.some((r) => r.provisional)
+    ? "\n<i>* gameweek still in play — points can move.</i>"
+    : "";
+
+  return [
+    "🏆 <b>Manager of the Month</b>",
+    ...motm,
+    "",
+    "🃏 <b>Chip Master leaderboard</b> (TC = captain × 3, BB = bench, FH = whole team; wildcard doesn't count)",
+    ...chips,
+  ].join("\n") + provisionalNote;
+}
+
 export function formatDeadline(
   nextEvent: { id: number; deadline_time: string } | undefined,
   now: Date = new Date()
@@ -146,6 +188,7 @@ export function helpText(): string {
     "/chips — chips remaining this half",
     "/transfers — this week's transfers",
     "/recap [gw] — the gameweek recap",
+    "/prizes — managers of the month and the chip master race",
     "/deadline — the next deadline",
     `Chip labels: ${chipDisplayOrder.map((n) => `${CHIP_ABBR[n]} ${chipLabel(n)}`).join(", ")}`,
   ].join("\n");

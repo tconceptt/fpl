@@ -12,6 +12,7 @@ The bot answers commands in the league group and sends exactly two messages on i
 | `/chips` | Chips remaining per manager for the current half |
 | `/transfers` | This week's transfer feed with points gained and hits |
 | `/recap [gw]` | The recap for a gameweek, default the last one FPL has checked |
+| `/prizes` | Manager of the month for every finished month, and the chip master leaderboard with each chip's points |
 | `/deadline` | The next deadline in EAT, with time remaining |
 | `/help` | This list |
 

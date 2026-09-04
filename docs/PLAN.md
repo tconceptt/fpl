@@ -188,6 +188,7 @@ Done when each page renders from cached data in under a second on a phone and th
 | `/chips` | Chips remaining per manager for the current half |
 | `/transfers` | This week's transfer feed |
 | `/recap [gw]` | The recap text for a gameweek, default the last checked one |
+| `/prizes` | Managers of the month for finished months, and the chip master leaderboard |
 | `/deadline` | Next deadline in EAT, 12-hour clock, with time remaining |
 
 All replies come from the Redis-backed snapshot so they return well inside Telegram's timeout.
