@@ -212,12 +212,22 @@ function MobileList({
 
           return (
             <div key={team.entry} className="border-b border-white/5 last:border-b-0">
-              <button
-                type="button"
+              {/* A div, not a <button>: the ChipBadge inside is a button, and a
+                  button nested in a button is invalid HTML that breaks the
+                  server-rendered markup (rows spill out below the footer). */}
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setExpandedId(isExpanded ? null : team.entry)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setExpandedId(isExpanded ? null : team.entry);
+                  }
+                }}
                 aria-expanded={isExpanded}
                 className={cn(
-                  "w-full flex items-center px-3 py-2 text-left transition-all active:scale-[0.99]",
+                  "w-full flex items-center px-3 py-2 text-left transition-all active:scale-[0.99] cursor-pointer select-none",
                   index % 2 === 0 ? 'bg-gray-800/50' : 'bg-gray-900/50',
                   "hover:bg-purple-900/20",
                   isFirst && "bg-gradient-to-r from-yellow-900/20 to-transparent",
@@ -280,7 +290,7 @@ function MobileList({
                     <ChevronDown className="h-3.5 w-3.5 text-white/40" />
                   )}
                 </div>
-              </button>
+              </div>
 
               {isExpanded && (
                 <div className="px-3 py-3 bg-black/30 border-t border-white/10 space-y-2.5">
