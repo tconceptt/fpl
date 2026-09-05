@@ -1,7 +1,9 @@
-# The bot's scheduler (Phase 5.5). Calls /api/cron/tick every five minutes;
-# the route decides whether a deadline reminder or a recap is due and sends
-# at most one of each per gameweek. Schedules can slip by several minutes
-# under load, which the 30-minute reminder window tolerates.
+# Backup scheduler for the bot (Phase 5.5). The primary trigger is a
+# cron-job.org job ("FPL tick (5 min)") that calls /api/cron/tick every five
+# minutes with the x-cron-secret header: GitHub throttled this schedule to
+# once every few hours on 2026-09-04 and the GW3 reminder was missed. This
+# workflow stays as a fallback; the route's Redis claims mean the two never
+# double-post.
 #
 # Needs a repository secret CRON_SECRET (matching the Vercel env var) and a
 # repository variable APP_URL, e.g. https://your-app.vercel.app.
