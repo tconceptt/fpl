@@ -18,6 +18,8 @@ interface TransferWithDetails {
     playerOut: PlayerKitInfo | null;
     playerInPoints: number;
     playerOutPoints: number;
+    playerInYetToPlay?: boolean;
+    playerOutYetToPlay?: boolean;
     event: number;
 }
 
@@ -134,7 +136,7 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
                                                         <div className="flex items-center gap-2 mt-0.5">
                                                             <span className="text-xs text-white/40 uppercase tracking-wide">Points</span>
                                                             <span className="text-sm font-bold text-red-400">
-                                                                {transfer.playerOutPoints}
+                                                                {transfer.playerOutYetToPlay ? "Yet to play" : transfer.playerOutPoints}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -166,7 +168,7 @@ export function TransfersPopup({ isOpen, onClose, teamId, gameweek }: TransfersP
                                                         <div className="flex items-center md:justify-end gap-2 mt-0.5">
                                                             <span className="hidden md:inline text-xs text-white/40 uppercase tracking-wide">Points</span>
                                                             <span className="text-sm font-bold text-green-400">
-                                                                {transfer.playerInPoints}
+                                                                {transfer.playerInYetToPlay ? "Yet to play" : transfer.playerInPoints}
                                                             </span>
                                                             <span className="md:hidden text-xs text-white/40 uppercase tracking-wide">Points</span>
                                                         </div>

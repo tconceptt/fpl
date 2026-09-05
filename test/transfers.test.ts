@@ -21,6 +21,7 @@ vi.mock("@/lib/fpl/client", () => ({
 
 import * as client from "@/lib/fpl/client";
 import {
+  clubsYetToPlay,
   getTransferFeed,
   groupTransfersByManager,
   summarizeTransfers,
@@ -42,6 +43,8 @@ function row(entry: number, managerName: string, inPts: number, outPts: number, 
     playerOut: { id: 2, name: "Out", team: 1, teamShortName: "ARS", teamCode: 3, elementType: 3, price: 55 },
     playerInPoints: inPts,
     playerOutPoints: outPts,
+    playerInYetToPlay: false,
+    playerOutYetToPlay: false,
     hitCost,
   };
 }
@@ -70,6 +73,26 @@ describe("summarizeTransfers", () => {
     const only = row(1, "Zed", 5, 5);
     expect(summarizeTransfers([only])).toEqual({ best: only, worst: only });
   });
+
+  it("ignores transfers where either player is yet to play", () => {
+    const pendingIn = { ...row(1, "Zed", 0, 9), playerInYetToPlay: true };
+    const pendingOut = { ...row(2, "Amy", 15, 0), playerOutYetToPlay: true };
+    const settled = row(3, "Kim", 4, 2);
+    expect(summarizeTransfers([pendingIn, pendingOut, settled])).toEqual({ best: settled, worst: settled });
+    expect(summarizeTransfers([pendingIn, pendingOut])).toEqual({ best: null, worst: null });
+  });
+});
+
+describe("clubsYetToPlay", () => {
+  it("lists clubs with fixtures that have not kicked off, ignoring blanks and started games", () => {
+    const clubs = clubsYetToPlay([
+      { team_h: 1, team_a: 2, started: true },
+      { team_h: 3, team_a: 4, started: false },
+      // Double gameweek: one game played, one to come still counts as played.
+      { team_h: 1, team_a: 5, started: false },
+    ]);
+    expect([...clubs].sort()).toEqual([3, 4, 5]);
+  });
 });
 
 describe("groupTransfersByManager", () => {
@@ -95,6 +118,11 @@ describe("getTransferFeed", () => {
     vi.mocked(client.bootstrap).mockResolvedValue(bootstrap);
     vi.mocked(client.eventStatus).mockResolvedValue([]);
     vi.mocked(client.live).mockResolvedValue(live);
+    // Arsenal (1) have played; Man Utd (16) kick off later.
+    vi.mocked(client.fixtures).mockResolvedValue([
+      { id: 1, kickoff_time: "", started: true, finished: true, team_h: 1, team_a: 2, stats: [] },
+      { id: 2, kickoff_time: "", started: false, finished: false, team_h: 16, team_a: 3, stats: [] },
+    ]);
     vi.mocked(client.picks).mockResolvedValue(bboostPicks);
     vi.mocked(client.classicStandings).mockResolvedValue({
       league: { name: "Test League" },
@@ -132,6 +160,8 @@ describe("getTransferFeed", () => {
       event: 2,
       playerInPoints: 23,
       playerOutPoints: 11,
+      playerInYetToPlay: true,
+      playerOutYetToPlay: false,
       hitCost: 0,
     });
     expect(only.playerIn).toMatchObject({ name: "B.Fernandes", teamShortName: "MUN", price: 120, elementType: 3 });

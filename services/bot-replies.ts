@@ -112,7 +112,10 @@ export function formatTransfers(groups: ManagerTransfers[], gw: number): string 
     const moves = g.rows
       .map((r) => {
         const gain = r.playerInPoints - r.playerOutPoints;
-        return `${e(r.playerOut?.name ?? "?")} → ${e(r.playerIn?.name ?? "?")} (${gain > 0 ? "+" : ""}${gain})`;
+        const pending = r.playerInYetToPlay || r.playerOutYetToPlay;
+        const out = `${e(r.playerOut?.name ?? "?")}${r.playerOutYetToPlay ? "⏳" : ""}`;
+        const inn = `${e(r.playerIn?.name ?? "?")}${r.playerInYetToPlay ? "⏳" : ""}`;
+        return `${out} → ${inn} (${pending ? "yet to play" : `${gain > 0 ? "+" : ""}${gain}`})`;
       })
       .join(", ");
     const hit = g.hitCost > 0 ? ` <i>-${g.hitCost} hit</i>` : "";

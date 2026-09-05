@@ -132,7 +132,7 @@ describe("formatTransfers", () => {
           pointsOut: 3,
           net: 9,
           rows: [
-            { entry: 1, entryName: "X", managerName: "Amy", event: 3, playerIn: { id: 1, name: "Palmer", team: 1, teamShortName: "CHE", teamCode: 8, elementType: 3, price: 100 }, playerOut: { id: 2, name: "Saka", team: 2, teamShortName: "ARS", teamCode: 3, elementType: 3, price: 100 }, playerInPoints: 12, playerOutPoints: 3, hitCost: 4 },
+            { entry: 1, entryName: "X", managerName: "Amy", event: 3, playerIn: { id: 1, name: "Palmer", team: 1, teamShortName: "CHE", teamCode: 8, elementType: 3, price: 100 }, playerOut: { id: 2, name: "Saka", team: 2, teamShortName: "ARS", teamCode: 3, elementType: 3, price: 100 }, playerInPoints: 12, playerOutPoints: 3, playerInYetToPlay: false, playerOutYetToPlay: false, hitCost: 4 },
           ],
         },
       ],
@@ -140,6 +140,18 @@ describe("formatTransfers", () => {
     );
     expect(text).toBe("<b>GW3 transfers</b>\n<b>Amy</b> <i>-4 hit</i>: Saka → Palmer (+9)");
     expect(formatTransfers([], 3)).toBe("No transfers yet for GW3.");
+    const pending = formatTransfers(
+      [
+        {
+          entry: 1, entryName: "X", managerName: "Amy", hitCost: 0, pointsIn: 0, pointsOut: 3, net: -3,
+          rows: [
+            { entry: 1, entryName: "X", managerName: "Amy", event: 3, playerIn: { id: 1, name: "Palmer", team: 1, teamShortName: "CHE", teamCode: 8, elementType: 3, price: 100 }, playerOut: { id: 2, name: "Saka", team: 2, teamShortName: "ARS", teamCode: 3, elementType: 3, price: 100 }, playerInPoints: 0, playerOutPoints: 3, playerInYetToPlay: true, playerOutYetToPlay: false, hitCost: 0 },
+          ],
+        },
+      ],
+      3
+    );
+    expect(pending).toBe("<b>GW3 transfers</b>\n<b>Amy</b>: Saka → Palmer⏳ (yet to play)");
   });
 });
 

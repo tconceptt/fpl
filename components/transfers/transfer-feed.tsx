@@ -3,7 +3,7 @@ import { ArrowRight, ArrowRightLeft, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KitImage } from "@/components/ui/kit-image";
 import { cn } from "@/lib/utils";
-import { transferGain, type ManagerTransfers, type TransferPlayerInfo, type TransferRow } from "@/services/transfers";
+import { transferGain, transferSettled, type ManagerTransfers, type TransferPlayerInfo, type TransferRow } from "@/services/transfers";
 
 function signed(value: number): string {
   return value > 0 ? `+${value}` : String(value);
@@ -23,10 +23,12 @@ function price(player: TransferPlayerInfo | null): string {
 function PlayerCell({
   player,
   points,
+  yetToPlay,
   align,
 }: {
   player: TransferPlayerInfo | null;
   points: number;
+  yetToPlay: boolean;
   align: "left" | "right";
 }) {
   const right = align === "right";
@@ -44,21 +46,36 @@ function PlayerCell({
           {player && <span className="text-white/30"> · {price(player)}</span>}
         </div>
       </div>
-      <div className={cn("shrink-0 text-base font-bold tabular-nums", right ? "text-green-400" : "text-red-400")}>{points}</div>
+      {yetToPlay ? (
+        <span
+          className="shrink-0 rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/60"
+          title="This player's match has not kicked off yet"
+        >
+          Yet to play
+        </span>
+      ) : (
+        <div className={cn("shrink-0 text-base font-bold tabular-nums", right ? "text-green-400" : "text-red-400")}>{points}</div>
+      )}
     </div>
   );
 }
 
 function TransferLine({ row }: { row: TransferRow }) {
   const gain = transferGain(row);
+  const settled = transferSettled(row);
   return (
     <div className="flex items-center gap-2 py-2">
-      <PlayerCell player={row.playerOut} points={row.playerOutPoints} align="left" />
+      <PlayerCell player={row.playerOut} points={row.playerOutPoints} yetToPlay={row.playerOutYetToPlay} align="left" />
       <div className="shrink-0 flex flex-col items-center text-white/30">
         <ArrowRight className="h-4 w-4" />
-        <span className={cn("text-xs font-bold tabular-nums", gainColor(gain))}>{signed(gain)}</span>
+        {/* The gain only means something once both players have kicked off. */}
+        {settled ? (
+          <span className={cn("text-xs font-bold tabular-nums", gainColor(gain))}>{signed(gain)}</span>
+        ) : (
+          <span className="text-xs font-bold text-white/30" title="Waiting for kick-off">–</span>
+        )}
       </div>
-      <PlayerCell player={row.playerIn} points={row.playerInPoints} align="right" />
+      <PlayerCell player={row.playerIn} points={row.playerInPoints} yetToPlay={row.playerInYetToPlay} align="right" />
     </div>
   );
 }
@@ -95,7 +112,7 @@ function HighlightTile({
             <TransferLine row={row} />
           </>
         ) : (
-          <p className="text-sm text-white/60 py-2">No transfers this gameweek.</p>
+          <p className="text-sm text-white/60 py-2">No settled transfers yet — waiting for kick-off.</p>
         )}
       </CardContent>
     </Card>

@@ -17,7 +17,7 @@ import { cachedKind, cachedManyKind } from "@/lib/fpl/cache";
 import { buildLivePointsMap } from "@/services/fpl-live";
 import { fetchPicks } from "@/services/league";
 import { requireLeagueId } from "@/lib/api";
-import type { EntryTransfer } from "@/lib/fpl/types";
+import type { EntryTransfer, Fixture } from "@/lib/fpl/types";
 
 export interface TransferPlayerInfo {
   id: number;
@@ -39,6 +39,13 @@ export interface TransferRow {
   playerOut: TransferPlayerInfo | null;
   playerInPoints: number;
   playerOutPoints: number;
+  /**
+   * True while the player's club has fixtures this gameweek and none has
+   * kicked off, so the points above are not yet meaningful. A blank
+   * gameweek (no fixture at all) is not "yet to play": those 0 points stand.
+   */
+  playerInYetToPlay: boolean;
+  playerOutYetToPlay: boolean;
   /** The manager's total hit for the gameweek — the same on every one of their rows. */
   hitCost: number;
 }
@@ -65,6 +72,27 @@ export function transferGain(row: TransferRow): number {
   return row.playerInPoints - row.playerOutPoints;
 }
 
+/** A transfer whose gain is final enough to rank: both players have kicked off (or have no fixture). */
+export function transferSettled(row: TransferRow): boolean {
+  return !row.playerInYetToPlay && !row.playerOutYetToPlay;
+}
+
+/**
+ * Club ids whose gameweek has not started: they have at least one fixture and
+ * none of them has kicked off. Clubs on a blank are deliberately excluded.
+ */
+export function clubsYetToPlay(fixtures: Pick<Fixture, "team_h" | "team_a" | "started">[]): Set<number> {
+  const started = new Set<number>();
+  const scheduled = new Set<number>();
+  for (const f of fixtures) {
+    for (const team of [f.team_h, f.team_a]) {
+      scheduled.add(team);
+      if (f.started) started.add(team);
+    }
+  }
+  return new Set([...scheduled].filter((team) => !started.has(team)));
+}
+
 function compareRows(a: TransferRow, b: TransferRow): number {
   return (
     a.managerName.localeCompare(b.managerName) ||
@@ -75,9 +103,12 @@ function compareRows(a: TransferRow, b: TransferRow): number {
 /**
  * Best and worst single transfer of the week by points gained, with ties
  * broken by manager name then player name so reloads never swap the tiles.
- * Both are null when nobody moved; the same row when only one did.
+ * Transfers where either player is yet to play are left out, so a 0 from a
+ * Monday-night player is never "worst transfer" on Saturday. Both are null
+ * when nobody moved (or nothing has settled); the same row when only one did.
  */
 export function summarizeTransfers(rows: TransferRow[]): { best: TransferRow | null; worst: TransferRow | null } {
+  rows = rows.filter(transferSettled);
   if (rows.length === 0) return { best: null, worst: null };
 
   const best = [...rows].sort((a, b) => transferGain(b) - transferGain(a) || compareRows(a, b))[0];
@@ -155,11 +186,13 @@ export async function getTransferFeed(gw: number, entryFilter: number | null = n
   if (teams.length === 0) return { selectedGameweek: gw, rows: [] };
 
   const entries = teams.map((t) => t.entry);
-  const [transfersByEntry, liveData, picksByEntry] = await Promise.all([
+  const [transfersByEntry, liveData, picksByEntry, fixtures] = await Promise.all([
     fetchTransfers(entries),
     cachedKind("live", `live:${gw}`, () => client.live(gw)),
     fetchPicks(entries, gw),
+    cachedKind("fixtures", `fixtures:${gw}`, () => client.fixtures(gw)),
   ]);
+  const yetToPlay = clubsYetToPlay(fixtures);
 
   const playersMap = new Map(bootstrap.elements.map((p) => [p.id, p]));
   const teamsMap = new Map(bootstrap.teams.map((t) => [t.id, t]));
@@ -180,6 +213,11 @@ export async function getTransferFeed(gw: number, entryFilter: number | null = n
     };
   };
 
+  const isYetToPlay = (elementId: number): boolean => {
+    const player = playersMap.get(elementId);
+    return player ? yetToPlay.has(player.team) : false;
+  };
+
   const rows: TransferRow[] = [];
   for (const team of teams) {
     const hitCost = picksByEntry.get(team.entry)?.entry_history.event_transfers_cost ?? 0;
@@ -195,6 +233,8 @@ export async function getTransferFeed(gw: number, entryFilter: number | null = n
         playerOut: toPlayerInfo(t.element_out),
         playerInPoints: livePoints.get(t.element_in) ?? 0,
         playerOutPoints: livePoints.get(t.element_out) ?? 0,
+        playerInYetToPlay: isYetToPlay(t.element_in),
+        playerOutYetToPlay: isYetToPlay(t.element_out),
         hitCost,
       });
     }

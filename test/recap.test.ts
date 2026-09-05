@@ -40,6 +40,8 @@ function transferRow(entry: number, managerName: string, inPts: number, outPts: 
     playerOut: { id: 2, name: "Out", team: 1, teamShortName: "ARS", teamCode: 3, elementType: 3, price: 55 },
     playerInPoints: inPts,
     playerOutPoints: outPts,
+    playerInYetToPlay: false,
+    playerOutYetToPlay: false,
     hitCost,
   };
 }
