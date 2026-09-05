@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ArrowRight, ArrowRightLeft, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KitImage } from "@/components/ui/kit-image";
+import { ChipBadge } from "@/components/ui/chip-badge";
+import { getChipInfo } from "@/lib/chip-info";
 import { cn } from "@/lib/utils";
 import { transferGain, transferSettled, type ManagerTransfers, type TransferPlayerInfo, type TransferRow } from "@/services/transfers";
 
@@ -72,7 +74,7 @@ function TransferLine({ row }: { row: TransferRow }) {
         {settled ? (
           <span className={cn("text-xs font-bold tabular-nums", gainColor(gain))}>{signed(gain)}</span>
         ) : (
-          <span className="text-xs font-bold text-white/30" title="Waiting for kick-off">–</span>
+          <span className="text-xs font-bold text-white/30" title="Both players need to have played">–</span>
         )}
       </div>
       <PlayerCell player={row.playerIn} points={row.playerInPoints} yetToPlay={row.playerInYetToPlay} align="right" />
@@ -112,7 +114,7 @@ function HighlightTile({
             <TransferLine row={row} />
           </>
         ) : (
-          <p className="text-sm text-white/60 py-2">No settled transfers yet — waiting for kick-off.</p>
+          <p className="text-sm text-white/60 py-2">No transfer where both players have played yet.</p>
         )}
       </CardContent>
     </Card>
@@ -151,6 +153,7 @@ export function TransferFeed({ groups, gw }: { groups: ManagerTransfers[]; gw: n
           <div className="space-y-3">
             {groups.map((group) => {
               const afterHit = group.net - group.hitCost;
+              const chip = getChipInfo(group.activeChip);
               return (
                 <div key={group.entry} className="rounded-lg border border-white/10 bg-gray-800/40 px-3 py-2">
                   <div className="flex items-center gap-2 border-b border-white/5 pb-2">
@@ -158,6 +161,7 @@ export function TransferFeed({ groups, gw }: { groups: ManagerTransfers[]; gw: n
                       <div className="text-sm font-semibold text-white truncate leading-tight">{group.entryName}</div>
                       <div className="text-xs text-white/60 truncate leading-tight">{group.managerName}</div>
                     </Link>
+                    {chip && <ChipBadge abbr={chip.abbr} label={chip.label} color={chip.color} />}
                     {group.hitCost > 0 && (
                       <span className="rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-xs font-bold text-red-300">
                         -{group.hitCost} hit

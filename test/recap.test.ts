@@ -43,12 +43,13 @@ function transferRow(entry: number, managerName: string, inPts: number, outPts: 
     playerInYetToPlay: false,
     playerOutYetToPlay: false,
     hitCost,
+    activeChip: null,
   };
 }
 
 function group(entry: number, managerName: string, inPts: number, outPts: number, hitCost: number): ManagerTransfers {
   const row = transferRow(entry, managerName, inPts, outPts, hitCost);
-  return { entry, entryName: row.entryName, managerName, hitCost, rows: [row], pointsIn: inPts, pointsOut: outPts, net: inPts - outPts };
+  return { entry, entryName: row.entryName, managerName, hitCost, activeChip: null, rows: [row], pointsIn: inPts, pointsOut: outPts, net: inPts - outPts };
 }
 
 const input: RecapInput = {

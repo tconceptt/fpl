@@ -106,6 +106,8 @@ export function formatChips(
   return `<b>Chips remaining (${half?.label ?? "this half"})</b>\n${lines.join("\n")}`;
 }
 
+const CHIP_LABEL: Record<string, string> = { wildcard: "WC", "3xc": "TC", bboost: "BB", freehit: "FH" };
+
 export function formatTransfers(groups: ManagerTransfers[], gw: number): string {
   if (groups.length === 0) return `No transfers yet for GW${gw}.`;
   const lines = groups.map((g) => {
@@ -119,7 +121,8 @@ export function formatTransfers(groups: ManagerTransfers[], gw: number): string 
       })
       .join(", ");
     const hit = g.hitCost > 0 ? ` <i>-${g.hitCost} hit</i>` : "";
-    return `<b>${e(g.managerName)}</b>${hit}: ${moves}`;
+    const chip = g.activeChip && CHIP_LABEL[g.activeChip] ? ` [${CHIP_LABEL[g.activeChip]}]` : "";
+    return `<b>${e(g.managerName)}</b>${chip}${hit}: ${moves}`;
   });
   return `<b>GW${gw} transfers</b>\n${lines.join("\n")}`;
 }

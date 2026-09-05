@@ -48,6 +48,8 @@ export interface TransferRow {
   playerOutYetToPlay: boolean;
   /** The manager's total hit for the gameweek — the same on every one of their rows. */
   hitCost: number;
+  /** The chip the manager played this gameweek, as FPL names it, or null. */
+  activeChip: string | null;
 }
 
 export interface TransferFeed {
@@ -60,6 +62,7 @@ export interface ManagerTransfers {
   entryName: string;
   managerName: string;
   hitCost: number;
+  activeChip: string | null;
   rows: TransferRow[];
   pointsIn: number;
   pointsOut: number;
@@ -126,6 +129,7 @@ export function groupTransfersByManager(rows: TransferRow[]): ManagerTransfers[]
       entryName: row.entryName,
       managerName: row.managerName,
       hitCost: row.hitCost,
+      activeChip: row.activeChip,
       rows: [],
       pointsIn: 0,
       pointsOut: 0,
@@ -220,7 +224,9 @@ export async function getTransferFeed(gw: number, entryFilter: number | null = n
 
   const rows: TransferRow[] = [];
   for (const team of teams) {
-    const hitCost = picksByEntry.get(team.entry)?.entry_history.event_transfers_cost ?? 0;
+    const picks = picksByEntry.get(team.entry);
+    const hitCost = picks?.entry_history.event_transfers_cost ?? 0;
+    const activeChip = picks?.active_chip ?? null;
     const gwTransfers = (transfersByEntry.get(team.entry) ?? []).filter((t) => t.event === gw);
 
     for (const t of gwTransfers) {
@@ -236,6 +242,7 @@ export async function getTransferFeed(gw: number, entryFilter: number | null = n
         playerInYetToPlay: isYetToPlay(t.element_in),
         playerOutYetToPlay: isYetToPlay(t.element_out),
         hitCost,
+        activeChip,
       });
     }
   }

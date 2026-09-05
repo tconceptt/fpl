@@ -46,6 +46,7 @@ function row(entry: number, managerName: string, inPts: number, outPts: number, 
     playerInYetToPlay: false,
     playerOutYetToPlay: false,
     hitCost,
+    activeChip: null,
   };
 }
 
@@ -103,7 +104,7 @@ describe("groupTransfersByManager", () => {
       row(2, "Amy", 2, 2),
     ]);
     expect(groups.map((g) => g.managerName)).toEqual(["Zed", "Amy"]);
-    expect(groups[0]).toMatchObject({ pointsIn: 13, pointsOut: 7, net: 6, hitCost: 4 });
+    expect(groups[0]).toMatchObject({ pointsIn: 13, pointsOut: 7, net: 6, hitCost: 4, activeChip: null });
     expect(groups[0].rows).toHaveLength(2);
     expect(groups[1]).toMatchObject({ net: 0, hitCost: 0 });
   });
@@ -163,6 +164,7 @@ describe("getTransferFeed", () => {
       playerInYetToPlay: true,
       playerOutYetToPlay: false,
       hitCost: 0,
+      activeChip: "bboost",
     });
     expect(only.playerIn).toMatchObject({ name: "B.Fernandes", teamShortName: "MUN", price: 120, elementType: 3 });
     expect(only.playerOut).toMatchObject({ name: "Calafiori", teamShortName: "ARS" });
