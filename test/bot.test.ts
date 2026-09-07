@@ -15,6 +15,8 @@ describe("parseCommand", () => {
     expect(parseCommand("/table")).toEqual({ command: "table", arg: null });
     expect(parseCommand("/recap@QitawrariBot 3")).toEqual({ command: "recap", arg: "3" });
     expect(parseCommand("  /GW  ")).toEqual({ command: "gw", arg: null });
+    expect(parseCommand("/h2h")).toEqual({ command: "h2h", arg: null });
+    expect(parseCommand("/h2h@QitawrariBot")).toEqual({ command: "h2h", arg: null });
   });
 
   it("ignores plain chat and unknown commands", () => {

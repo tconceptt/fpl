@@ -36,7 +36,7 @@ export interface ParsedCommand {
 /** "/recap@QitawrariBot 3" -> { command: "recap", arg: "3" }; null for anything that isn't a known command. */
 export function parseCommand(text: string | undefined): ParsedCommand | null {
   if (!text) return null;
-  const match = /^\/([a-z_]+)(?:@\w+)?(?:\s+(.*))?$/i.exec(text.trim());
+  const match = /^\/([a-z0-9_]+)(?:@\w+)?(?:\s+(.*))?$/i.exec(text.trim());
   if (!match) return null;
   const command = match[1].toLowerCase();
   if (!(BOT_COMMANDS as readonly string[]).includes(command)) return null;
