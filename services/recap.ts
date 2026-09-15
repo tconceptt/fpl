@@ -17,11 +17,11 @@ import * as client from "@/lib/fpl/client";
 import { cachedKind } from "@/lib/fpl/cache";
 import { chipLabel } from "@/lib/chips";
 import { escapeHtml } from "@/lib/telegram";
-import { buildLivePointsMap, type LivePointsMap } from "@/services/fpl-live";
+import { buildLivePointsMap, resolveProvisionalPicks, type LivePointsMap } from "@/services/fpl-live";
 import { buildH2HMatchups, type H2HMatchup } from "@/services/h2h";
 import { fetchPicks, getLeagueSnapshot, type LeagueSnapshot } from "@/services/league";
 import { getTransferFeed, groupTransfersByManager, type ManagerTransfers } from "@/services/transfers";
-import type { BootstrapPlayer, TeamDetails } from "@/lib/fpl/types";
+import type { BootstrapPlayer, Fixture, LiveGameweekData, TeamDetails, TeamPick } from "@/lib/fpl/types";
 
 export interface RecapManager {
   entry: number;
@@ -184,25 +184,30 @@ export function recapToPlainText(recap: Recap): string {
 }
 
 /** The pick that carried the armband: the multiplied one, else the named captain. */
-function effectiveCaptain(picks: TeamDetails | undefined): { element: number } | null {
+function effectiveCaptain(picks: TeamPick[] | undefined): { element: number } | null {
   if (!picks) return null;
-  return picks.picks.find((p) => p.multiplier >= 2) ?? picks.picks.find((p) => p.is_captain) ?? null;
+  return picks.find((p) => p.multiplier >= 2) ?? picks.find((p) => p.is_captain) ?? null;
 }
 
 export function recapInputFromSnapshot(
   snapshot: LeagueSnapshot,
   picksByEntry: Map<number, TeamDetails>,
-  livePoints: LivePointsMap,
+  live: LiveGameweekData,
+  fixtures: Fixture[],
   playersMap: Map<number, BootstrapPlayer>,
   transfers: ManagerTransfers[],
   matchups: H2HMatchup[],
   provisional: boolean
 ): RecapInput {
+  const livePoints: LivePointsMap = buildLivePointsMap(live);
   const managers: RecapManager[] = snapshot.managers.map((m) => {
-    const picks = picksByEntry.get(m.entry);
+    const details = picksByEntry.get(m.entry);
+    // Same provisional auto-subs as the snapshot, so a final-whistle recap
+    // (sent before FPL processes the gameweek) names the right winner.
+    const picks = details ? resolveProvisionalPicks(details, live, fixtures, playersMap) : undefined;
     const captain = effectiveCaptain(picks);
     const captainPlayer = captain ? playersMap.get(captain.element) : undefined;
-    const benchPoints = (picks?.picks ?? [])
+    const benchPoints = (picks ?? [])
       .filter((p) => p.multiplier === 0)
       .reduce((sum, p) => sum + (livePoints.get(p.element) ?? 0), 0);
 
@@ -239,9 +244,10 @@ export async function getRecap(gw?: number): Promise<Recap> {
   const entries = snapshot.managers.map((m) => m.entry);
   const h2hLeagueId = process.env.FPL_H2H_LEAGUE_ID;
 
-  const [bootstrap, live, picks, feed, matches] = await Promise.all([
+  const [bootstrap, live, fixtures, picks, feed, matches] = await Promise.all([
     cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
     cachedKind("live", `live:${selected}`, () => client.live(selected)),
+    cachedKind("fixtures", `fixtures:${selected}`, () => client.fixtures(selected)),
     fetchPicks(entries, selected),
     getTransferFeed(selected),
     h2hLeagueId
@@ -260,7 +266,8 @@ export async function getRecap(gw?: number): Promise<Recap> {
   const input = recapInputFromSnapshot(
     snapshot,
     picks,
-    buildLivePointsMap(live),
+    live,
+    fixtures,
     new Map(bootstrap.elements.map((p) => [p.id, p])),
     groupTransfersByManager(feed.rows),
     buildH2HMatchups(matches, snapshot.managers),

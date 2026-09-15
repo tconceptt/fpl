@@ -7,7 +7,6 @@ import {
   type RecapInput,
   type RecapManager,
 } from "@/services/recap";
-import { buildLivePointsMap } from "@/services/fpl-live";
 import type { LeagueSnapshot, ManagerSnapshot } from "@/services/league";
 import type { ManagerTransfers, TransferRow } from "@/services/transfers";
 import type { H2HMatchup } from "@/services/h2h";
@@ -180,7 +179,6 @@ describe("rendering", () => {
 
 describe("recapInputFromSnapshot", () => {
   const bootstrap = bootstrapSlim as unknown as SlimBootstrap;
-  const livePoints = buildLivePointsMap(liveGw2 as unknown as LiveGameweekData);
   const playersMap = new Map(bootstrap.elements.map((p) => [p.id, p]));
   const bboostPicks = picksGw2Bboost as unknown as TeamDetails;
 
@@ -209,7 +207,8 @@ describe("recapInputFromSnapshot", () => {
       [2002, bboostPicks],
       [2001, viceTookOver],
     ]),
-    livePoints,
+    liveGw2 as unknown as LiveGameweekData,
+    [],
     playersMap,
     [],
     [],

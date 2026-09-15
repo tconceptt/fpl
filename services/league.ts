@@ -25,7 +25,7 @@ import { cache as reactCache } from "react";
 import * as client from "@/lib/fpl/client";
 import { cachedKind, cachedManyKind, getLiveState } from "@/lib/fpl/cache";
 import type { LiveState } from "@/lib/fpl/ttl";
-import { buildLivePointsMap, countPlayersToStart, sumPicks } from "@/services/fpl-live";
+import { buildLivePointsMap, countPlayersToStart, resolveProvisionalPicks, sumPicks } from "@/services/fpl-live";
 import type {
   BootstrapEvent,
   Fixture,
@@ -243,9 +243,13 @@ async function computeLeagueSnapshot(gw: number | undefined, includePicks: boole
     if (!team) continue;
 
     const teamPicks = picks.get(teamId);
+    // Until FPL processes the gameweek the picks endpoint still carries the
+    // manager's own multipliers; apply the auto-subs and vice-captain swap
+    // FPL will make so live totals (and the leader) match the final ones.
+    const resolvedPicks = teamPicks ? resolveProvisionalPicks(teamPicks, liveData, fixtures, playersMap) : [];
 
     const event_total =
-      useLiveForCurrent && teamPicks ? sumPicks(teamPicks.picks, livePointsMap) : gwData.points;
+      useLiveForCurrent && teamPicks ? sumPicks(resolvedPicks, livePointsMap) : gwData.points;
 
     const transferCost =
       useLiveForCurrent && teamPicks
@@ -260,12 +264,14 @@ async function computeLeagueSnapshot(gw: number | undefined, includePicks: boole
 
     const total_points = useLiveForCurrent ? previousGWTotal + net_points : gwData.total_points;
 
-    const captainPick = teamPicks?.picks.find((p) => p.is_captain);
+    const captainPick = resolvedPicks.find((p) => p.multiplier >= 2) ?? resolvedPicks.find((p) => p.is_captain);
     const captainPlayer = captainPick ? playersMap.get(captainPick.element) : undefined;
 
+    // Once every fixture is over nobody is still to start — and live data
+    // isn't loaded then, so counting would wrongly report all 11 as pending.
     const playersToStart =
-      includePicks && isCurrentGameweek && teamPicks
-        ? countPlayersToStart(teamPicks.picks, liveData, fixtures, playersMap)
+      useLiveForCurrent && teamPicks
+        ? countPlayersToStart(resolvedPicks, liveData, fixtures, playersMap)
         : 0;
 
     managers.push({

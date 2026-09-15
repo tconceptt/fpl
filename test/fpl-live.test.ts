@@ -4,6 +4,7 @@ import {
     buildLiveMetricsMap,
     buildLivePointsMap,
     countPlayersToStart,
+    resolveProvisionalPicks,
     sumPicks,
 } from "@/services/fpl-live";
 import type {
@@ -208,5 +209,121 @@ describe("countPlayersToStart", () => {
 
         const toStart = countPlayersToStart(syntheticPicks, syntheticLive, syntheticFixtures, syntheticPlayersMap);
         expect(toStart).toBe(1);
+    });
+});
+
+describe("resolveProvisionalPicks", () => {
+    // Players: 1 GK, 2 DEF (one bench), 3 MID, 1 FWD... a minimal 15 built from
+    // synthetic element types so the formation rules are exercised directly.
+    const players: Map<number, BootstrapPlayer> = new Map(
+        [
+            [101, 1, 1], [102, 1, 2], // GKs: 101 starts (club 1), 102 bench (club 2)
+            [201, 2, 1], [202, 2, 1], [203, 2, 1], [204, 2, 3], // DEFs: 204 bench (club 3)
+            [301, 3, 1], [302, 3, 1], [303, 3, 2], [304, 3, 1], [305, 3, 4], // MIDs: 305 bench (club 4)
+            [401, 4, 1], [402, 4, 2], [403, 4, 3], // FWDs: 403 bench (club 3)
+            [999, 3, 1], // extra mid, bench
+        ].map(([id, element_type, team]) => [
+            id,
+            { id, element_type, team, web_name: String(id) } as unknown as BootstrapPlayer,
+        ])
+    );
+
+    const clubDone = (team: number, provisional = false): Fixture =>
+        ({ id: team, team_h: team, team_a: 99, started: true, finished: !provisional, finished_provisional: true } as Fixture);
+    const clubPending = (team: number): Fixture =>
+        ({ id: team, team_h: team, team_a: 99, started: false, finished: false, finished_provisional: false } as Fixture);
+
+    const liveWith = (minutes: Record<number, number>): LiveGameweekData => ({
+        elements: [...players.keys()].map((id) => ({
+            id,
+            stats: { minutes: minutes[id] ?? 90, total_points: 2, bonus: 0, bps: 0 },
+            explain: [],
+        })),
+    });
+
+    const pick = (element: number, position: number, extra: Partial<TeamPick> = {}): TeamPick => ({
+        element,
+        position,
+        multiplier: position <= 11 ? 1 : 0,
+        is_captain: false,
+        is_vice_captain: false,
+        ...extra,
+    });
+
+    const team = (overrides: Partial<TeamDetails> = {}): TeamDetails => ({
+        active_chip: null,
+        automatic_subs: [],
+        entry_history: { event_transfers: 0, event_transfers_cost: 0, points_on_bench: 0, points: 0 },
+        picks: [
+            pick(101, 1),
+            pick(201, 2), pick(202, 3), pick(203, 4),
+            pick(301, 5, { is_captain: true, multiplier: 2 }), pick(302, 6, { is_vice_captain: true }), pick(303, 7), pick(304, 8),
+            pick(401, 9), pick(402, 10), pick(999, 11),
+            pick(102, 12), pick(204, 13), pick(305, 14), pick(403, 15),
+        ],
+        ...overrides,
+    });
+
+    const mult = (picks: TeamPick[], element: number) => picks.find((p) => p.element === element)!.multiplier;
+
+    it("subs a blanked starter for the first bench player who played, once their club is done", () => {
+        // 303 (club 2, MID) blanked and club 2 is done; bench order 204 (DEF, played), 305, 403.
+        const out = resolveProvisionalPicks(team(), liveWith({ 303: 0 }), [clubDone(1), clubDone(2, true), clubDone(3), clubDone(4)], players);
+        expect(mult(out, 303)).toBe(0);
+        expect(mult(out, 204)).toBe(1);
+        expect(mult(out, 305)).toBe(0);
+    });
+
+    it("leaves the starter in while their club still has a fixture to play", () => {
+        const out = resolveProvisionalPicks(team(), liveWith({ 303: 0 }), [clubDone(1), clubPending(2), clubDone(3), clubDone(4)], players);
+        expect(mult(out, 303)).toBe(1);
+        expect(mult(out, 204)).toBe(0);
+    });
+
+    it("waits on a bench player whose fixture is still to come rather than skipping past them", () => {
+        // 204's club 3 hasn't played: don't jump to 305, hold the sub.
+        const out = resolveProvisionalPicks(team(), liveWith({ 303: 0, 204: 0 }), [clubDone(1), clubDone(2), clubPending(3), clubDone(4)], players);
+        expect(mult(out, 303)).toBe(1);
+        expect(mult(out, 305)).toBe(0);
+    });
+
+    it("skips a bench player who also blanked and keeps the formation legal", () => {
+        // 402 (FWD, club 2) blanked; 204 blanked too; 305 (MID) would leave 1 FWD → fine since 401 remains.
+        // Then 401 (FWD) also blanked: 403 (FWD) must come in, not another MID that would drop FWD to 0.
+        const out = resolveProvisionalPicks(
+            team(),
+            liveWith({ 402: 0, 204: 0, 401: 0 }),
+            [clubDone(1), clubDone(2), clubDone(3), clubDone(4)],
+            players
+        );
+        expect(mult(out, 402)).toBe(0);
+        expect(mult(out, 305)).toBe(1); // replaces 402 (FWD count 2 → 1, still legal)
+        expect(mult(out, 401)).toBe(0);
+        expect(mult(out, 403)).toBe(1); // only a FWD keeps ≥1 FWD
+        expect(mult(out, 204)).toBe(0);
+    });
+
+    it("only swaps a goalkeeper for the bench goalkeeper", () => {
+        const out = resolveProvisionalPicks(team(), liveWith({ 101: 0 }), [clubDone(1), clubDone(2), clubDone(3), clubDone(4)], players);
+        expect(mult(out, 101)).toBe(0);
+        expect(mult(out, 102)).toBe(1);
+        expect(mult(out, 204)).toBe(0);
+    });
+
+    it("moves the armband to the vice-captain, keeping a Triple Captain's ×3", () => {
+        const tc = team({ active_chip: "3xc" });
+        tc.picks.find((p) => p.is_captain)!.multiplier = 3;
+        const out = resolveProvisionalPicks(tc, liveWith({ 301: 0 }), [clubDone(1), clubDone(2), clubDone(3), clubDone(4)], players);
+        expect(mult(out, 302)).toBe(3);
+        expect(mult(out, 301)).toBe(0); // subbed out for 204 as well
+        expect(mult(out, 204)).toBe(1);
+    });
+
+    it("is a no-op once the API has applied its own subs, under Bench Boost, or without a fixture list", () => {
+        const done = team({ automatic_subs: [{ entry: 1, element_in: 204, element_out: 303, event: 1 }] });
+        expect(resolveProvisionalPicks(done, liveWith({ 303: 0 }), [clubDone(2)], players).map((p) => p.multiplier)).toEqual(done.picks.map((p) => p.multiplier));
+        const bb = team({ active_chip: "bboost" });
+        expect(mult(resolveProvisionalPicks(bb, liveWith({ 303: 0 }), [clubDone(2)], players), 303)).toBe(1);
+        expect(mult(resolveProvisionalPicks(team(), liveWith({ 303: 0 }), [], players), 303)).toBe(1);
     });
 });

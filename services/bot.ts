@@ -44,11 +44,24 @@ export function parseCommand(text: string | undefined): ParsedCommand | null {
   return { command: command as BotCommand, arg };
 }
 
-/** The last gameweek FPL has checked, else the current one. */
-async function defaultRecapGameweek(): Promise<number | undefined> {
+/**
+ * The gameweek `/recap` means with no argument: the current one once its
+ * last match has been played (the same final-whistle test the tick uses,
+ * so `/recap` agrees with the recap the bot already posted), else the one
+ * before it. FPL's `data_checked` can lag the final whistle by a day or
+ * more, so keying on it served last week's recap on a Tuesday.
+ */
+export async function defaultRecapGameweek(): Promise<number | undefined> {
   const bootstrap = await cachedKind("bootstrap", "bootstrap", () => client.bootstrap());
-  const checked = [...bootstrap.events].reverse().find((e) => e.data_checked);
-  return checked?.id;
+  const current =
+    bootstrap.events.find((e) => e.is_current) ?? [...bootstrap.events].reverse().find((e) => e.finished);
+  if (!current) return undefined;
+  if (current.finished || current.data_checked) return current.id;
+
+  const fixtures = await cachedKind("fixtures", `fixtures:${current.id}`, () => client.fixtures(current.id));
+  const allPlayed = fixtures.length > 0 && fixtures.every((f) => f.finished || f.finished_provisional);
+  if (allPlayed) return current.id;
+  return current.id > 1 ? current.id - 1 : current.id;
 }
 
 export async function handleBotCommand(parsed: ParsedCommand): Promise<string> {
