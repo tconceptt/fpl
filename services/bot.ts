@@ -12,6 +12,7 @@ import { chipWindowsFromBootstrap } from "@/lib/chips";
 import { getH2HPage } from "@/services/h2h";
 import { getLeagueSnapshot } from "@/services/league";
 import { getPrizes } from "@/services/prizes";
+import { getStatsData } from "@/app/stats/getStatData";
 import { getRecap, recapToTelegramHtml } from "@/services/recap";
 import { getTransferFeed, groupTransfersByManager } from "@/services/transfers";
 import {
@@ -22,10 +23,11 @@ import {
   formatPrizes,
   formatTable,
   formatTransfers,
+  formatWinners,
   helpText,
 } from "@/services/bot-replies";
 
-export const BOT_COMMANDS = ["table", "gw", "h2h", "chips", "transfers", "recap", "prizes", "deadline", "help", "start"] as const;
+export const BOT_COMMANDS = ["table", "gw", "h2h", "chips", "transfers", "recap", "winners", "prizes", "deadline", "help", "start"] as const;
 export type BotCommand = (typeof BOT_COMMANDS)[number];
 
 export interface ParsedCommand {
@@ -101,6 +103,19 @@ export async function handleBotCommand(parsed: ParsedCommand): Promise<string> {
       }
       const recap = await getRecap(gw);
       return recapToTelegramHtml(recap);
+    }
+    case "winners": {
+      const stats = await getStatsData();
+      return formatWinners(
+        stats.stats.map((t) => ({
+          player_name: t.managerName,
+          entry_name: t.name,
+          wins: t.wins,
+          gameweeks: t.gameweekWins.map((w) => w.gameweek),
+        })),
+        stats.finishedGameweeks,
+        stats.unresolvedTies.map((t) => ({ gameweeks: t.gameweeks, names: t.tiedTeams.map((x) => x.managerName) }))
+      );
     }
     case "prizes": {
       return formatPrizes(await getPrizes());

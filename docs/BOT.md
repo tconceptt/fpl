@@ -11,7 +11,8 @@ The bot answers commands in the league group and sends exactly two messages on i
 | `/h2h` | This week's matchups with live scores, and the top of the H2H table |
 | `/chips` | Chips remaining per manager for the current half |
 | `/transfers` | This week's transfer feed with points gained and hits |
-| `/recap [gw]` | The recap for a gameweek, default the last one FPL has checked |
+| `/recap [gw]` | The recap for a gameweek, default the current one once its last match has been played |
+| `/winners` | Managers who have won a gameweek: how many and which ones, most wins first |
 | `/prizes` | Manager of the month for every finished month, and the chip master leaderboard with each chip's points |
 | `/deadline` | The next deadline in EAT, with time remaining |
 | `/help` | This list |

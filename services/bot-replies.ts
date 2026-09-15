@@ -168,6 +168,46 @@ export function formatPrizes(prizes: Prizes): string {
   ].join("\n") + provisionalNote;
 }
 
+export interface WinnerRow {
+  player_name: string;
+  entry_name: string;
+  wins: number;
+  /** Gameweeks won, any order. */
+  gameweeks: number[];
+}
+
+/**
+ * The gameweek-winners table: only managers with a win, most wins first
+ * (earliest first win breaks ties), with the gameweeks they won. Wins count
+ * only for gameweeks FPL has checked, so the latest one shows up the day
+ * after its last match.
+ */
+export function formatWinners(
+  rows: WinnerRow[],
+  finishedGameweeks: number,
+  unresolvedTies: Array<{ gameweeks: number[]; names: string[] }> = []
+): string {
+  const winners = rows
+    .filter((r) => r.wins > 0)
+    .map((r) => ({ ...r, gameweeks: [...r.gameweeks].sort((a, b) => a - b) }))
+    .sort((a, b) => b.wins - a.wins || a.gameweeks[0] - b.gameweeks[0] || a.player_name.localeCompare(b.player_name));
+
+  const header = `🏆 <b>Gameweek winners</b> — after ${finishedGameweeks} gameweek${finishedGameweeks === 1 ? "" : "s"}`;
+  if (winners.length === 0) return `${header}\nNo gameweek has been settled yet.`;
+
+  const lines = winners.map((w, i) => {
+    const gws = w.gameweeks.map((g) => `GW${g}`).join(", ");
+    return `${i + 1}. <b>${e(w.player_name)}</b> · ${e(w.entry_name)}\n    ${w.wins} win${w.wins === 1 ? "" : "s"} — ${gws}`;
+  });
+
+  const ties = unresolvedTies.map((t) => {
+    const gws = t.gameweeks.map((g) => `GW${g}`).join(", ");
+    return `⚖️ ${gws}: ${t.names.map(e).join(" & ")} tied — settled by the next gameweek`;
+  });
+
+  return [header, ...lines, ...(ties.length > 0 ? ["", ...ties] : [])].join("\n");
+}
+
 export function formatDeadline(
   nextEvent: { id: number; deadline_time: string } | undefined,
   now: Date = new Date()
@@ -194,6 +234,7 @@ export function helpText(): string {
     "/chips — chips remaining this half",
     "/transfers — this week's transfers",
     "/recap [gw] — the gameweek recap",
+    "/winners — who has won a gameweek, and which ones",
     "/prizes — managers of the month and the chip master race",
     "/deadline — the next deadline",
     `Chip labels: ${chipDisplayOrder.map((n) => `${CHIP_ABBR[n]} ${chipLabel(n)}`).join(", ")}`,

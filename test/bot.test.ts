@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCommand } from "@/services/bot";
-import { formatChips, formatDeadline, formatDeadlineReminder, formatGwSummary, formatH2H, formatTable, formatTransfers } from "@/services/bot-replies";
+import { formatChips, formatDeadline, formatDeadlineReminder, formatGwSummary, formatH2H, formatTable, formatTransfers, formatWinners } from "@/services/bot-replies";
 import { chipWindowsFromBootstrap } from "@/lib/chips";
 import type { LeagueSnapshot, ManagerSnapshot } from "@/services/league";
 import type { H2HPage } from "@/services/h2h";
@@ -172,5 +172,26 @@ describe("deadline replies", () => {
     expect(formatDeadlineReminder(next, new Date("2026-09-04T17:04:00Z"))).toBe(
       "⏰ <b>GW3 deadline in 26 minutes</b> — Fri 4 Sep, 8:30 PM EAT. Set your team!"
     );
+  });
+});
+
+describe("formatWinners", () => {
+  const rows = [
+    { player_name: "Amy", entry_name: "Vice Squad", wins: 1, gameweeks: [3] },
+    { player_name: "Zed", entry_name: "Boosters", wins: 2, gameweeks: [4, 1] },
+    { player_name: "Bob", entry_name: "Nil", wins: 0, gameweeks: [] },
+  ];
+
+  it("lists only winners, most wins first, with their gameweeks in order", () => {
+    const text = formatWinners(rows, 4);
+    expect(text).toContain("after 4 gameweeks");
+    expect(text).toContain("1. <b>Zed</b> · Boosters\n    2 wins — GW1, GW4");
+    expect(text).toContain("2. <b>Amy</b> · Vice Squad\n    1 win — GW3");
+    expect(text).not.toContain("Bob");
+  });
+
+  it("mentions unresolved ties and handles an empty season", () => {
+    expect(formatWinners(rows, 4, [{ gameweeks: [2], names: ["Amy", "Zed"] }])).toContain("⚖️ GW2: Amy & Zed tied");
+    expect(formatWinners([], 0)).toContain("No gameweek has been settled yet.");
   });
 });
