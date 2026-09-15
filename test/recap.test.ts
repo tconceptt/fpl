@@ -163,11 +163,11 @@ describe("buildRecap", () => {
 });
 
 describe("rendering", () => {
-  it("escapes HTML in Telegram output and flags provisional bonus", () => {
+  it("escapes HTML in Telegram output and flags a gameweek still in play", () => {
     const html = recapToTelegramHtml(buildRecap({ ...input, leagueName: "A & B", provisional: true }));
     expect(html.startsWith("<b>Gameweek 2 recap</b> — A &amp; B")).toBe(true);
     expect(html).toContain("<b>The week</b>\n🏆 Amy FC (Amy) won the week with 88 pts");
-    expect(html.endsWith("<i>Bonus is provisional until FPL confirms it.</i>")).toBe(true);
+    expect(html.endsWith("<i>Gameweek still in play — scores can move.</i>")).toBe(true);
   });
 
   it("plain text has no tags", () => {
@@ -199,7 +199,7 @@ describe("recapInputFromSnapshot", () => {
     { entry: 2002, entry_name: "Boosters", player_name: "Zed", rank: 1, last_rank: 2, event_total: 130, net_points: 130, total_points: 186, transfer_cost: 0, captain: { id: 426, web_name: "B.Fernandes" }, active_chip: "bboost", players_to_start: 0, h2h_rank: null, history: [], chips: [] },
     { entry: 2001, entry_name: "Vice Squad", player_name: "Amy", rank: 2, last_rank: 1, event_total: 46, net_points: 42, total_points: 100, transfer_cost: 4, captain: { id: 2, web_name: "Arrizabalaga" }, active_chip: null, players_to_start: 0, h2h_rank: null, history: [], chips: [] },
   ];
-  const snapshot: LeagueSnapshot = { leagueName: "Test", currentGameweek: 2, selectedGameweek: 2, liveState: "checked", managers };
+  const snapshot: LeagueSnapshot = { leagueName: "Test", currentGameweek: 2, selectedGameweek: 2, liveState: "checked", liveTotals: false, managers };
 
   const result = recapInputFromSnapshot(
     snapshot,

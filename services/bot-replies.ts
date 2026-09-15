@@ -27,7 +27,6 @@ function arrow(m: { rank: number; last_rank: number }): string {
 function liveNote(snapshot: LeagueSnapshot): string {
   if (snapshot.selectedGameweek !== snapshot.currentGameweek) return "";
   if (snapshot.liveState === "live") return "\n<i>Live — scores can still move.</i>";
-  if (snapshot.liveState === "quiet") return "\n<i>Provisional until FPL confirms bonus.</i>";
   return "";
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideTick } from "@/services/tick";
+import { decideTick, diffScores, formatScoreChanges } from "@/services/tick";
 import bootstrapSlim from "./fixtures/bootstrap-slim.json";
 import fixturesGw3 from "./fixtures/fixtures-gw3.json";
 import type { Fixture, SlimBootstrap } from "@/lib/fpl/types";
@@ -55,5 +55,35 @@ describe("decideTick recap", () => {
 
   it("needs at least one fixture in the event", () => {
     expect(decideTick({ now, nextEvent: undefined, currentEvent: unchecked, fixtures: [] }).recap).toBeNull();
+  });
+});
+
+describe("score check", () => {
+  const stored = {
+    "1": { player_name: "Amy", entry_name: "A", net_points: 113 },
+    "2": { player_name: "Bob", entry_name: "B", net_points: 102 },
+    "3": { player_name: "Cy", entry_name: "C", net_points: 80 },
+  };
+
+  it("finds nothing when FPL agrees, so nothing is posted", () => {
+    const diff = diffScores(stored, new Map([[1, 113], [2, 102], [3, 80]]));
+    expect(diff.changes).toEqual([]);
+    expect(formatScoreChanges(4, diff)).toBeNull();
+  });
+
+  it("lists every changed score and calls out a new winner", () => {
+    const diff = diffScores(stored, new Map([[1, 100], [2, 102], [3, 81]]));
+    expect(diff.changes.map((c) => c.player_name)).toEqual(["Amy", "Cy"]);
+    const text = formatScoreChanges(4, diff)!;
+    expect(text).toContain("2 scores changed");
+    expect(text).toContain("Amy: 113 → <b>100</b> (−13)");
+    expect(text).toContain("Cy: 80 → <b>81</b> (+1)");
+    expect(text).toContain("winner is now <b>Bob</b> (was Amy)");
+  });
+
+  it("does not mention the winner when the lead is unchanged, and ignores managers FPL has no row for", () => {
+    const diff = diffScores(stored, new Map([[1, 111], [2, 102]]));
+    expect(diff.changes).toHaveLength(1);
+    expect(formatScoreChanges(4, diff)).not.toContain("winner");
   });
 });

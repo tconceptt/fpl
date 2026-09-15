@@ -63,6 +63,8 @@ export interface LeagueSnapshot {
   currentGameweek: number;
   selectedGameweek: number;
   liveState: LiveState;
+  /** True when this gameweek's totals came from live data rather than FPL's history (see services/settled.ts). */
+  liveTotals: boolean;
   managers: ManagerSnapshot[];
 }
 
@@ -216,8 +218,12 @@ async function computeLeagueSnapshot(gw: number | undefined, includePicks: boole
     );
   }
 
-  const finishedAllFixtures = fixtures.length > 0 && fixtures.every((f) => f.finished);
-  const useLiveForCurrent = includePicks && isCurrentGameweek && !finishedAllFixtures;
+  // Live totals (with our provisional auto-subs) until FPL has checked the
+  // gameweek: fixtures flip `finished` an hour or so after full time, but
+  // history only carries auto-subs once `data_checked` is set, which can be
+  // a day later — reading history in between undercounts anyone whose
+  // starter blanked.
+  const useLiveForCurrent = includePicks && isCurrentGameweek && !(currentEvent?.data_checked ?? false);
 
   const [histories, picks] = await Promise.all([
     fetchHistories(teamIds),
@@ -333,6 +339,7 @@ async function computeLeagueSnapshot(gw: number | undefined, includePicks: boole
     currentGameweek,
     selectedGameweek,
     liveState,
+    liveTotals: useLiveForCurrent,
     managers,
   };
 }

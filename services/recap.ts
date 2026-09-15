@@ -20,6 +20,7 @@ import { escapeHtml } from "@/lib/telegram";
 import { buildLivePointsMap, resolveProvisionalPicks, type LivePointsMap } from "@/services/fpl-live";
 import { buildH2HMatchups, type H2HMatchup } from "@/services/h2h";
 import { fetchPicks, getLeagueSnapshot, type LeagueSnapshot } from "@/services/league";
+import { getSettlement } from "@/services/settled";
 import { getTransferFeed, groupTransfersByManager, type ManagerTransfers } from "@/services/transfers";
 import type { BootstrapPlayer, Fixture, LiveGameweekData, TeamDetails, TeamPick } from "@/lib/fpl/types";
 
@@ -48,7 +49,7 @@ export interface RecapInput {
   managers: RecapManager[];
   transfers: ManagerTransfers[];
   matchups: H2HMatchup[];
-  /** True until FPL has checked the gameweek's data (bonus can still move). */
+  /** True while the gameweek's matches are still being played. */
   provisional: boolean;
 }
 
@@ -170,7 +171,7 @@ export function recapToTelegramHtml(recap: Recap): string {
   for (const section of recap.sections) {
     parts.push(`<b>${escapeHtml(section.title)}</b>\n${section.lines.map(escapeHtml).join("\n")}`);
   }
-  if (recap.provisional) parts.push("<i>Bonus is provisional until FPL confirms it.</i>");
+  if (recap.provisional) parts.push("<i>Gameweek still in play — scores can move.</i>");
   return parts.join("\n\n");
 }
 
@@ -179,7 +180,7 @@ export function recapToPlainText(recap: Recap): string {
   for (const section of recap.sections) {
     parts.push(`${section.title}\n${section.lines.join("\n")}`);
   }
-  if (recap.provisional) parts.push("Bonus is provisional until FPL confirms it.");
+  if (recap.provisional) parts.push("Gameweek still in play — scores can move.");
   return parts.join("\n\n");
 }
 
@@ -244,8 +245,9 @@ export async function getRecap(gw?: number): Promise<Recap> {
   const entries = snapshot.managers.map((m) => m.entry);
   const h2hLeagueId = process.env.FPL_H2H_LEAGUE_ID;
 
-  const [bootstrap, live, fixtures, picks, feed, matches] = await Promise.all([
+  const [bootstrap, settlement, live, fixtures, picks, feed, matches] = await Promise.all([
     cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
+    getSettlement(),
     cachedKind("live", `live:${selected}`, () => client.live(selected)),
     cachedKind("fixtures", `fixtures:${selected}`, () => client.fixtures(selected)),
     fetchPicks(entries, selected),
@@ -260,8 +262,9 @@ export async function getRecap(gw?: number): Promise<Recap> {
       : Promise.resolve([]),
   ]);
 
-  const event = bootstrap.events.find((e) => e.id === selected);
-  const provisional = !(event?.data_checked ?? false);
+  // Only a recap asked for mid-gameweek is provisional; at the final
+  // whistle bonus is in and the numbers are what the league counts.
+  const provisional = !settlement.settledGameweeks.includes(selected);
 
   const input = recapInputFromSnapshot(
     snapshot,

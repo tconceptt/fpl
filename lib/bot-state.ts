@@ -38,7 +38,41 @@ export async function releaseClaim(key: string): Promise<void> {
   memClaims.delete(fullKey);
 }
 
-/** Test hook: forget every in-memory claim. */
+// --- Small JSON state (the provisional scores the tick compares later) ---
+
+const memState = new Map<string, { value: unknown; expiresAt: number }>();
+
+export async function getState<T>(key: string): Promise<T | null> {
+  const fullKey = KEY_PREFIX + key;
+  const redis = getRedis();
+  if (redis) return (await redis.get<T>(fullKey)) ?? null;
+  const entry = memState.get(fullKey);
+  if (!entry || entry.expiresAt < Date.now()) return null;
+  return entry.value as T;
+}
+
+export async function setState<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
+  const fullKey = KEY_PREFIX + key;
+  const redis = getRedis();
+  if (redis) {
+    await redis.set(fullKey, value, { ex: ttlSeconds });
+    return;
+  }
+  memState.set(fullKey, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+}
+
+export async function deleteState(key: string): Promise<void> {
+  const fullKey = KEY_PREFIX + key;
+  const redis = getRedis();
+  if (redis) {
+    await redis.del(fullKey);
+    return;
+  }
+  memState.delete(fullKey);
+}
+
+/** Test hook: forget every in-memory claim and state entry. */
 export function resetMemoryClaims(): void {
   memClaims.clear();
+  memState.clear();
 }

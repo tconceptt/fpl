@@ -2,6 +2,7 @@ import { chipLabel, chipStatus, chipWindowsFromBootstrap, type ChipStatusResult,
 import { cachedKind } from "@/lib/fpl/cache";
 import * as client from "@/lib/fpl/client";
 import { getLeagueSnapshot } from "@/services/league";
+import { applyProvisionalHistory, getSettlement } from "@/services/settled";
 import { cache } from 'react';
 
 // NEW INTERFACE for Tie Break Details
@@ -207,22 +208,24 @@ export const getStatsData = cache(async (selectedGameweek?: number) => {
   // full-season history and chips — reuse it rather than fanning out again.
   // Fetching bootstrap here too is cheap: it hits the same request-scoped
   // cache memo as the snapshot's own bootstrap read.
-  const [snapshot, bootstrap] = await Promise.all([
-    getLeagueSnapshot(selectedGameweek, { includePicks: false }),
+  const [settlement, bootstrap] = await Promise.all([
+    getSettlement(),
     cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
   ]);
+
+  // A gameweek counts once its last match has been played (services/settled.ts).
+  // For the gameweek FPL has not checked yet that means live totals, so the
+  // snapshot needs picks; otherwise history alone is enough.
+  const needsLive =
+    settlement.provisionalGameweek !== null &&
+    (selectedGameweek === undefined || selectedGameweek === settlement.provisionalGameweek);
+  const snapshot = await getLeagueSnapshot(selectedGameweek, { includePicks: needsLive });
+  const managers = applyProvisionalHistory(snapshot);
 
   const currentGameweek = snapshot.currentGameweek;
   const chips = bootstrap.chips;
 
-  // Get finished gameweeks, filtered by selectedGameweek if provided.
-  // "Finished" here means FPL has checked the data (bonus finalised), not
-  // merely that full time has been reached — otherwise wins can be awarded
-  // before bonus points are confirmed.
-  let finishedGameweeks = bootstrap.events
-    .filter((event) => event.data_checked)
-    .map((event) => event.id)
-    .sort((a, b) => a - b); // Ensure sorted
+  let finishedGameweeks = [...settlement.settledGameweeks];
 
   // If selectedGameweek is provided, filter to only include gameweeks up to that
   if (selectedGameweek !== undefined) {
@@ -230,7 +233,7 @@ export const getStatsData = cache(async (selectedGameweek?: number) => {
   }
 
   // Extract team data
-  const teams: TeamData[] = snapshot.managers.map((m) => ({
+  const teams: TeamData[] = managers.map((m) => ({
     id: m.entry,
     name: m.entry_name,
     managerName: m.player_name,
@@ -238,7 +241,7 @@ export const getStatsData = cache(async (selectedGameweek?: number) => {
 
   // Every manager's full-season history and chips, already fetched by the snapshot.
   const teamHistories = new Map<number, TeamHistory>();
-  snapshot.managers.forEach((m) => {
+  managers.forEach((m) => {
     teamHistories.set(m.entry, { current: m.history, chips: m.chips });
   });
 

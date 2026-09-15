@@ -14,6 +14,7 @@ import { getLeagueSnapshot } from "@/services/league";
 import { getPrizes } from "@/services/prizes";
 import { getStatsData } from "@/app/stats/getStatData";
 import { getRecap, recapToTelegramHtml } from "@/services/recap";
+import { getSettlement } from "@/services/settled";
 import { getTransferFeed, groupTransfersByManager } from "@/services/transfers";
 import {
   formatChips,
@@ -47,23 +48,13 @@ export function parseCommand(text: string | undefined): ParsedCommand | null {
 }
 
 /**
- * The gameweek `/recap` means with no argument: the current one once its
- * last match has been played (the same final-whistle test the tick uses,
- * so `/recap` agrees with the recap the bot already posted), else the one
- * before it. FPL's `data_checked` can lag the final whistle by a day or
- * more, so keying on it served last week's recap on a Tuesday.
+ * The gameweek `/recap` means with no argument: the latest settled one —
+ * the current gameweek once its last match has been played, else the one
+ * before it (services/settled.ts).
  */
 export async function defaultRecapGameweek(): Promise<number | undefined> {
-  const bootstrap = await cachedKind("bootstrap", "bootstrap", () => client.bootstrap());
-  const current =
-    bootstrap.events.find((e) => e.is_current) ?? [...bootstrap.events].reverse().find((e) => e.finished);
-  if (!current) return undefined;
-  if (current.finished || current.data_checked) return current.id;
-
-  const fixtures = await cachedKind("fixtures", `fixtures:${current.id}`, () => client.fixtures(current.id));
-  const allPlayed = fixtures.length > 0 && fixtures.every((f) => f.finished || f.finished_provisional);
-  if (allPlayed) return current.id;
-  return current.id > 1 ? current.id - 1 : current.id;
+  const settlement = await getSettlement();
+  return settlement.settledGameweeks[settlement.settledGameweeks.length - 1];
 }
 
 export async function handleBotCommand(parsed: ParsedCommand): Promise<string> {

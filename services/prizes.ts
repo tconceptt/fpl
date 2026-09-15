@@ -30,8 +30,9 @@ import { cachedKind } from "@/lib/fpl/cache";
 import { chipLabel, type ChipName } from "@/lib/chips";
 import type { BootstrapEvent, LiveGameweekData, TeamDetails, TeamHistory } from "@/lib/fpl/types";
 import { EAT_TIME_ZONE } from "@/lib/time";
-import { buildLivePointsMap } from "@/services/fpl-live";
+import { buildLivePointsMap, resolveProvisionalPicks } from "@/services/fpl-live";
 import { fetchPicks, getLeagueSnapshot } from "@/services/league";
+import { applyProvisionalHistory, getSettlement } from "@/services/settled";
 
 // ---------------------------------------------------------------------------
 // Manager of the Month
@@ -92,12 +93,15 @@ function netPoints(history: TeamHistory["current"], gw: number): number | null {
 /**
  * Managers of the month for every month that has ended, earliest first.
  * A month has ended when the EAT calendar has moved past it and every
- * gameweek whose deadline fell in it is `data_checked`.
+ * gameweek whose deadline fell in it is settled (its last match played —
+ * see services/settled.ts). `settledGameweeks` defaults to FPL's own
+ * `data_checked` flags.
  */
 export function computeManagersOfTheMonth(
   managers: MonthManager[],
   events: BootstrapEvent[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  settledGameweeks: Set<number> = new Set(events.filter((e) => e.data_checked).map((e) => e.id))
 ): ManagerOfTheMonth[] {
   const currentMonth = monthOf(now).key;
   const months = new Map<string, { label: string; events: BootstrapEvent[] }>();
@@ -111,7 +115,7 @@ export function computeManagersOfTheMonth(
   const results: ManagerOfTheMonth[] = [];
   for (const [key, { label, events: monthEvents }] of [...months.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
     if (key >= currentMonth) continue;
-    if (!monthEvents.every((e) => e.data_checked)) continue;
+    if (!monthEvents.every((e) => settledGameweeks.has(e.id))) continue;
 
     const gameweeks = monthEvents.map((e) => e.id).sort((a, b) => a - b);
     const standings = new Map<number, MonthStanding>(
@@ -260,12 +264,16 @@ export interface Prizes {
 }
 
 export async function getPrizes(now: Date = new Date()): Promise<Prizes> {
-  const [bootstrap, snapshot] = await Promise.all([
+  const [bootstrap, settlement] = await Promise.all([
     cachedKind("bootstrap", "bootstrap", () => client.bootstrap()),
-    getLeagueSnapshot(undefined, { includePicks: false }),
+    getSettlement(),
   ]);
+  // Live totals are only needed while the current gameweek is played but unchecked.
+  const snapshot = await getLeagueSnapshot(undefined, { includePicks: settlement.provisionalGameweek !== null });
+  const settled = new Set(settlement.settledGameweeks);
+  const managers = applyProvisionalHistory(snapshot);
 
-  const managersOfTheMonth = computeManagersOfTheMonth(snapshot.managers, bootstrap.events, now);
+  const managersOfTheMonth = computeManagersOfTheMonth(managers, bootstrap.events, now, settled);
 
   // Every counting chip played so far, grouped by gameweek so picks for a
   // gameweek are one batched read and live data is fetched once per gameweek.
@@ -280,18 +288,22 @@ export async function getPrizes(now: Date = new Date()): Promise<Prizes> {
   }
 
   const playerNames = new Map(bootstrap.elements.map((el) => [el.id, el.web_name]));
-  const eventsById = new Map(bootstrap.events.map((e) => [e.id, e]));
+  const playersMap = new Map(bootstrap.elements.map((el) => [el.id, el]));
 
   const inputs = await Promise.all(
     [...byGameweek.entries()].map(async ([gw, plays]) => {
-      const [live, picks] = await Promise.all([
+      const [live, picks, fixtures] = await Promise.all([
         cachedKind("live", `live:${gw}`, () => client.live(gw)),
         fetchPicks(plays.map((p) => p.manager.entry), gw),
+        cachedKind("fixtures", `fixtures:${gw}`, () => client.fixtures(gw)),
       ]);
-      const finished = eventsById.get(gw)?.finished ?? false;
+      const finished = settled.has(gw);
       return plays.flatMap((p): ChipPlayInput[] => {
-        const teamPicks = picks.get(p.manager.entry);
-        if (!teamPicks) return [];
+        const raw = picks.get(p.manager.entry);
+        if (!raw) return [];
+        // Until FPL processes the gameweek the API's multipliers ignore
+        // auto-subs and a blanked triple captain; resolve them ourselves.
+        const teamPicks: TeamDetails = { ...raw, picks: resolveProvisionalPicks(raw, live, fixtures, playersMap) };
         return [
           {
             entry: p.manager.entry,

@@ -50,6 +50,7 @@ function m(entry: number, name: string, rank: number, lastRank: number, net: num
 const snapshot: LeagueSnapshot = {
   leagueName: "Qitawrari & Co",
   currentGameweek: 3,
+  liveTotals: true,
   selectedGameweek: 3,
   liveState: "live",
   managers: [

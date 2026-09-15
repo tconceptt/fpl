@@ -1,6 +1,8 @@
 # Telegram bot
 
-The bot answers commands in the league group and sends exactly two messages on its own: a deadline reminder inside the last 30 minutes, and a recap at the final whistle of the last fixture. Everything else is on command. Times are East Africa Time with a 12-hour clock.
+The bot answers commands in the league group and sends at most three messages on its own: a deadline reminder inside the last 30 minutes, a recap at the final whistle of the last fixture, and — only if anything differs — a list of score changes once FPL has finalised the gameweek (auto-subs, bonus or dubious-goals corrections). Everything else is on command.
+
+A gameweek counts the moment its last match is played, not when FPL flips `data_checked` (which can be a day later): until then scores come from live data with auto-subs and the vice-captain swap applied on our side, and the tick keeps a copy of those provisional scores to compare against FPL's final figures. Times are East Africa Time with a 12-hour clock.
 
 ## Commands
 
