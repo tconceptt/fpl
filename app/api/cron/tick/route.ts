@@ -3,7 +3,9 @@
  * `Authorization: Bearer $CRON_SECRET`. Two idempotent checks — the
  * deadline reminder and the final-whistle recap — each guarded by a Redis
  * `SET NX` claim so overlapping or repeated ticks never double-post.
- * Everything it reads is the same cached data the pages use.
+ * Everything it reads is the same cached data the pages use. An FPL outage
+ * answers 200 with `ok: false`, never 502, so external schedulers don't
+ * count it as a failure and switch the job off.
  */
 
 import { NextResponse } from "next/server";
@@ -165,9 +167,14 @@ export async function GET(request: Request) {
         scoreCheck,
       });
     } catch (error) {
+      // Deliberately 200, not 502: FPL goes down for maintenance most
+      // nights, and cron-job.org disables a job after a run of HTTP
+      // failures (it did so on 2026-09-18 after 3.5 hours of 502s, which is
+      // why no deadline reminder was ever sent). The scheduler is not at
+      // fault when upstream is; the next tick simply tries again.
       console.error("GET /api/cron/tick failed:", error);
       logTelemetry("/api/cron/tick");
-      return NextResponse.json({ error: "FPL API unavailable" }, { status: 502 });
+      return NextResponse.json({ ok: false, error: "FPL API unavailable" });
     }
   });
 }
