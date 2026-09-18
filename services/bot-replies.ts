@@ -221,7 +221,7 @@ export function formatDeadline(
 export function formatDeadlineReminder(nextEvent: { id: number; deadline_time: string }, now: Date = new Date()): string {
   const deadline = new Date(nextEvent.deadline_time);
   const minutes = Math.max(1, Math.floor((deadline.getTime() - now.getTime()) / 60_000));
-  return `⏰ <b>GW${nextEvent.id} deadline in ${minutes} minute${minutes === 1 ? "" : "s"}</b> — ${formatEatDate(deadline)} EAT. Set your team!`;
+  return `⏰ <b>GW${nextEvent.id} deadline in ${minutes} minute${minutes === 1 ? "" : "s"}</b> — don't be a ቢራሳ!`;
 }
 
 export function helpText(): string {

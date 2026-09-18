@@ -171,7 +171,7 @@ describe("deadline replies", () => {
 
   it("phrases the 30-minute reminder in minutes", () => {
     expect(formatDeadlineReminder(next, new Date("2026-09-04T17:04:00Z"))).toBe(
-      "⏰ <b>GW3 deadline in 26 minutes</b> — Fri 4 Sep, 8:30 PM EAT. Set your team!"
+      "⏰ <b>GW3 deadline in 26 minutes</b> — don't be a ቢራሳ!"
     );
   });
 });
