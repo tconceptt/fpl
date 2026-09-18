@@ -1,9 +1,15 @@
 # Backup scheduler for the bot (Phase 5.5). The primary trigger is a
 # cron-job.org job ("FPL tick (5 min)") that calls /api/cron/tick every five
-# minutes with the x-cron-secret header: GitHub throttled this schedule to
-# once every few hours on 2026-09-04 and the GW3 reminder was missed. This
-# workflow stays as a fallback; the route's Redis claims mean the two never
-# double-post.
+# minutes with the x-cron-secret header. GitHub throttles this schedule to
+# once every few hours, which is fine for the recap and score check (their
+# windows are hours long) but hopeless for the deadline reminder's
+# 30-minute window: GW3 and GW4 reminders were both missed.
+#
+# So every run also asks FPL for the next deadline and, if it is less than
+# ~5.5 hours away, sleeps until 25 minutes before it and calls the tick
+# again (twice, five minutes apart, in case the first call hits a hiccup).
+# With runs every 3-5 hours at least one run starts inside that horizon.
+# The route's Redis claims mean overlapping runs never double-post.
 #
 # Needs a repository secret CRON_SECRET (matching the Vercel env var) and a
 # repository variable APP_URL, e.g. https://your-app.vercel.app.
@@ -16,20 +22,62 @@ on:
 
 permissions: {}
 
+# One sleeping run at a time; later scheduled runs queue behind it.
+concurrency:
+  group: tick
+  cancel-in-progress: false
+
 jobs:
   tick:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 355
+    env:
+      APP_URL: ${{ vars.APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
-      - name: Call /api/cron/tick
-        env:
-          APP_URL: ${{ vars.APP_URL }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      - name: Check configuration
         run: |
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "APP_URL variable and CRON_SECRET secret must be set" >&2
             exit 1
           fi
+
+      - name: Call /api/cron/tick
+        run: |
           curl --fail-with-body --silent --show-error --max-time 90 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "${APP_URL%/}/api/cron/tick"
+          echo
+
+      - name: Wait for the next deadline, then call the tick inside the reminder window
+        run: |
+          deadline=$(curl --silent --max-time 30 \
+            -H "User-Agent: Mozilla/5.0 (fpl tick workflow)" \
+            https://fantasy.premierleague.com/api/bootstrap-static/ \
+            | jq -r '.events[] | select(.is_next) | .deadline_time' 2>/dev/null || true)
+          if [ -z "$deadline" ] || [ "$deadline" = "null" ]; then
+            echo "Could not read the next deadline from FPL; nothing to wait for"
+            exit 0
+          fi
+          deadline_s=$(date -u -d "$deadline" +%s)
+          fire_s=$((deadline_s - 25 * 60))
+          now_s=$(date -u +%s)
+          wait_s=$((fire_s - now_s))
+          echo "Next deadline $deadline; reminder window opens in $((wait_s / 60)) minutes"
+          if [ $wait_s -lt 0 ]; then
+            echo "Already inside or past the window; the call above covered it"
+            exit 0
+          fi
+          if [ $wait_s -gt $((330 * 60)) ]; then
+            echo "Too far away for this run; a later run will pick it up"
+            exit 0
+          fi
+          sleep $wait_s
+          for attempt in 1 2; do
+            echo "Tick attempt $attempt at $(date -u +%FT%TZ)"
+            curl --fail-with-body --silent --show-error --max-time 90 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "${APP_URL%/}/api/cron/tick" || true
+            echo
+            [ $attempt -eq 1 ] && sleep 300
+          done

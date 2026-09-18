@@ -55,7 +55,7 @@ A gameweek counts the moment its last match is played, not when FPL flips `data_
 
 `/api/cron/tick` reads the cached bootstrap and the current gameweek's fixtures, then:
 
-- **Reminder** fires once when the next `deadline_time` is 30 minutes or less away. The Redis key `reminder:{gw}` is set with `SET NX` before sending, so overlapping ticks cannot both send. If GitHub's schedule slips past the deadline the reminder is skipped, never sent late.
+- **Reminder** fires once when the next `deadline_time` is 30 minutes or less away. The Redis key `reminder:{gw}` is set with `SET NX` before sending, so overlapping ticks cannot both send. It is never sent late: a tick that arrives after the deadline skips it. Because GitHub only runs the schedule every few hours, `tick.yml` also reads the next deadline from FPL and, when it is under about five and a half hours away, sleeps until 25 minutes before it and calls the tick again, so the window is never missed even if cron-job.org is down.
 - **Recap** fires once when every fixture in the current event has `finished_provisional: true` and FPL has not yet marked the gameweek `data_checked`. Bonus is provisional at that point, and the message says so. A postponed fixture is moved out of the event by FPL, so it does not hold the recap back. If a send fails the claim is released and the next tick retries.
 
 The recap text comes from `services/recap.ts`, a pure function of the league snapshot. The same text is shown as a card on the gameweek page.
